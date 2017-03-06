@@ -11,9 +11,9 @@ def get_config():
 
 @app.route('/api/_post_status')
 def post_status():
-    data = request.get_json()
+    data = request.get_data()
     print(data)
-    print(data[id][1])
+    print(data[id])
 
 if __name__ == '__main__':
     app.debug = True
