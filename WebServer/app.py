@@ -1,19 +1,21 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request,Response
+import json
+from flask_json import FlaskJSON, JsonError, json_response, as_json
 
 app = Flask(__name__)
 
 
-@app.route('/api/_get_config')
+@app.route('/config')
 def get_config():
     t = {'a': 1, 'b': 2, 'c': [3, 4, 5]}
-    return jsonify(t)
+    return Response(json.dumps(t), mimetype='application/json')
+    # return jsonify(t)
 
 
-@app.route('/api/_post_status')
+@app.route('/status', methods=['post'])
 def post_status():
     data = request.get_data()
-    print(data)
-    print(data[id])
+
 
 if __name__ == '__main__':
     app.debug = True
