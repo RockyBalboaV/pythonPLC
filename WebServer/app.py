@@ -13,6 +13,7 @@ def get_config():
 def post_status():
     data = request.get_json()
     print(data)
+    print(data[id][1])
 
 if __name__ == '__main__':
     app.debug = True
