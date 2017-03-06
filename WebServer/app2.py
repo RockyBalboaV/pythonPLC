@@ -1,4 +1,5 @@
 from flask import Flask, jsonify
+import json
 
 app = Flask(__name__)
 
@@ -10,7 +11,7 @@ def get_config():
         'b': 2,
         'c': [3, 4, 5]
     }
-    return jsonify(t)
+    return json.dumps(t)
 
 if __name__ == '__main__':
     app.debug = True
