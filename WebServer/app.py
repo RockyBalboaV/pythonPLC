@@ -15,7 +15,9 @@ def get_config():
         id = int(data['id'])
         print(type(data))
         value = int(data['value'])
-        return json_response(plc=1, config=True, fuck_you=True, id=id+1)
+        b = {'f': 5}
+        return jsonify(b)
+        #return json_response(plc=1, config=True, fuck_you=True, id=id+1)
     t = {'a': 1, 'b': 2, 'c': [3, 4, 5]}
     #return Response(json.dumps(t), mimetype='application/json')
     return jsonify(t)
