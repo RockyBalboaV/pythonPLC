@@ -7,9 +7,9 @@ app = Flask(__name__)
 json = FlaskJSON(app)
 
 
-@app.route('/config', methods=['get', 'post'])
+@app.route('/config', methods=['GET', 'POST'])
 def get_config():
-    if request.method == 'post':
+    if request.method == 'POST':
         data = request.get_json(force=True)
         print(data)
         id = int(data['id'])
