@@ -1,0 +1,8 @@
+
+<ul>
+    {% for index, uploaded in enumerate(uploaded_data, 1) %}
+    <li>
+        {{ index }} {{ uploaded.id  }}
+    </li>
+    {% endfor %}
+</ul>
