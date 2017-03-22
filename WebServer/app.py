@@ -5,6 +5,9 @@ from flask import Flask, abort, request, jsonify, redirect, g, render_template
 from ext import db, mako
 from models import *
 
+import MySQLdb
+from pandas.io.sql import read_sql
+
 app = Flask(__name__, template_folder='templates')
 app.config.from_object('config')
 
@@ -19,8 +22,8 @@ def get_current_user():
 
 @app.before_first_request
 def setup():
-    db.drop_all()
-    db.create_all()
+    #db.drop_all()
+    #db.create_all()
     fake_users = [
         User('xiaoming', '3'),
         User('wangzhe', '2'),
@@ -119,6 +122,22 @@ def index():
         #id = request.get_json(force=True)
         #db.session.add()
         #db.session.commit()
+
+
+def _get_frame(date_string):
+    db = MySQLdb.connect('localhost', 'web', 'web', 'pyplc')
+    query = 'SELECT * FROM {}'.format(date_string)
+    df = read_sql(query, db)
+    df = df.head(100)
+    return df
+
+
+@app.route('/db/<date_string>/')
+def show_tables(date_string=None):
+    df = _get_frame(date_string)
+    if isinstance(df, bool) and not df:
+        return 'Bad data format!'
+    return render_template('show_data.html', df=df.to_html(classes='frame'), date_string=date_string)
 
 
 
