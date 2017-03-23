@@ -1,5 +1,5 @@
 # coding=utf-8
-import json, hmac, chardet, base64, os, random, simplejson
+import json, hmac, chardet, base64, os, random, simplejson, datetime
 
 from flask import Flask, abort, request, jsonify, redirect, g, render_template
 from ext import db, mako
@@ -18,6 +18,33 @@ db.init_app(app)
 def get_current_user():
     users = User.query.all()
     return random.choice(users)
+
+
+def encryption(data):
+    '''input data dict, output dict'''
+    h = hmac.new(b'poree')
+    data = unicode(data)
+    data = base64.b64encode(data)
+    h.update(bytes(data))
+    digest = h.hexdigest()
+    data = {"data": data, "digest": digest}
+    return data
+
+
+def decryption(rj):
+    '''
+    :param rj: json
+    :return: dict
+    '''
+    data = rj['data']
+    di = rj['digest']
+    h = hmac.new(b'poree')
+    h.update(bytes(data))
+    test = h.hexdigest()
+    if di == test:
+        data = base64.b64decode(data)
+        data = json.loads(data.replace("'", '"'))
+    return data
 
 
 @app.before_first_request
@@ -122,6 +149,27 @@ def index():
         #id = request.get_json(force=True)
         #db.session.add()
         #db.session.commit()
+
+
+@app.route('/beats', methods=['POST'])
+def beats():
+    rv = request.get_json(force=True)
+    data = decryption(rv)
+    print data["idnum"]
+    plc = YjStationInfo.query.filter_by(idnum=data["idnum"]).first()
+    print plc
+    plc.con_date = datetime.datetime.utcnow()
+    db.session.add(plc)
+    #db.session.commit()
+    print plc.modification
+    if plc.modification:
+        data = {"modification": "True"}
+        data = encryption(data)
+        return jsonify(data)
+    else:
+        data = {"modification": "False"}
+        data = encryption(data)
+    return jsonify(data)
 
 
 def _get_frame(date_string):

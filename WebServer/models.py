@@ -1,5 +1,5 @@
 #coding=utf-8
-import os
+import os, datetime
 from ext import db
 
 
@@ -18,11 +18,14 @@ class YjGroupInfo(db.Model):
     variables = db.relationship('YjVariableInfo',
                             backref='yjgroupinfo', lazy='dynamic')
 
-    def __init__(self, id=None, groupname=None , plcid=None, note=None, uploadcycle=None, tenid=None, itemid=None):
+    def __init__(self, id=None, groupname=None , plcid=None, note=None,
+                 uploadcycle=None, tenid=None, itemid=None):
         self.id = id
         self.groupname = groupname
-        #self.plcid = int(plcid)
-        self.plc = plcid
+        if plcid:
+            self.plcid = int(plcid)
+        else:
+            self.plcid = plcid
         self.note = note
         if uploadcycle:
             self.uploadcycle = int(uploadcycle)
@@ -104,12 +107,15 @@ class YjStationInfo(db.Model):
     plcnum = db.Column(db.Integer)
     tenid = db.Column(db.String(255))
     itemid = db.Column(db.String(20))
+    con_date = db.Column(db.DateTime)
+    modification = db.Column(db.Boolean)
+
     # AUTO_INCREMENT=7 DEFAULT CHARSET=utf8;
 
     plcs = db.relationship('YjPLCInfo', backref='yjstationinfo', lazy='dynamic')
 
     def __init__(self, name=None, mac=None, ip=None, note=None, idnum=None,
-                 plcnum=None, tenid=None, itemid=None):
+                 plcnum=None, tenid=None, itemid=None, con_date = None, modification=None):
         self.name = name
         self.mac = mac
         self.ip = ip
@@ -118,6 +124,10 @@ class YjStationInfo(db.Model):
         self.plcnum = int(plcnum)
         self.tenid = tenid
         self.itemid = itemid
+        if con_date is None:
+            con_date = datetime.datetime.utcnow()
+        self.con_date = con_date
+        self.modification = modification
 
     def __repr__(self):
         return '<Name : %r >' % self.name

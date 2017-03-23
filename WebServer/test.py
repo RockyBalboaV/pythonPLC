@@ -2,8 +2,44 @@
 import hmac, requests, json, chardet, base64, simplejson, cProfile, pstats, PIL
 
 
+def encryption(data):
+    '''input data dict, output dict'''
+    h = hmac.new(b'poree')
+    data = unicode(data)
+    data = base64.b64encode(data)
+    h.update(bytes(data))
+    digest = h.hexdigest()
+    data = {"data": data, "digest": digest}
+    return data
+
+
+def decryption(rj):
+    '''
+    :param rj: json
+    :return: dict
+    '''
+    data = rj['data']
+    di = rj['digest']
+    h = hmac.new(b'poree')
+    h.update(bytes(data))
+    test = h.hexdigest()
+    if di == test:
+        data = base64.b64decode(data)
+        data = json.loads(data.replace("'", '"'))
+    return data
+
+
+def __test__beats():
+    data = {"idnum": 1}
+    data = encryption(data)
+    rv = requests.post('http://127.0.0.1:11000/beats', json=data)
+    rv = rv.json()
+    data = decryption(rv)
+    print data["modification"]
+
+
 def __test__transfer():
-    data = {"name": "5", "id": "2", "tenid": "0"}
+    data = {"idnum": 1}
     print type(data)
     print isinstance(data, unicode)
     h = hmac.new(b'poree')
@@ -34,8 +70,9 @@ def __test__unicode():
 
 
 if __name__ == '__main__':
-     __test__transfer()
+    #__test__transfer()
     #__test__unicode()
+    __test__beats()
     #cProfile.run('__test__transfer()')
     #prof = cProfile.Profile()
     #prof.enable()
