@@ -80,7 +80,7 @@ class YjPLCInfo(db.Model):
         self.itemid = itemid
 
     def __repr__(self):
-        return '<Name : %r >' % self.name
+        return '<PLC : %r >' % self.name
 
     @classmethod
     def upload(cls, uploaded_data):
@@ -129,8 +129,8 @@ class YjStationInfo(db.Model):
         self.con_date = con_date
         self.modification = modification
 
-    def __repr__(self):
-        return '<Name : %r >' % self.name
+    #def __repr__(self):
+    #    return '<Station : %r >' % self.name
 
 
 class YjVariableInfo(db.Model):
@@ -180,7 +180,7 @@ class YjVariableInfo(db.Model):
         self.itemid = itemid
 
     def __repr__(self):
-        return '<Name : %r >' % self.tagname
+        return '<Variable : %r >' % self.tagname
 
 
 class User(db.Model):

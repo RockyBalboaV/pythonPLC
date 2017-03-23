@@ -1,37 +1,51 @@
 # coding=utf-8
-import hmac, requests, json, chardet, base64, simplejson, cProfile, pstats, PIL
+import hmac, requests, json, chardet, base64, simplejson, cProfile, pstats, PIL, zlib
 
 
 def encryption(data):
-    '''input data dict, output dict'''
+    """
+    :param data: dict
+    :return: dict
+    """
     h = hmac.new(b'poree')
     data = unicode(data)
-    data = base64.b64encode(data)
+    # data = base64.b64encode(data)
     h.update(bytes(data))
+    data = zlib.compress(data)
+    data = base64.b64encode(data)
     digest = h.hexdigest()
     data = {"data": data, "digest": digest}
     return data
 
 
 def decryption(rj):
-    '''
+    """
     :param rj: json
     :return: dict
-    '''
+    """
     data = rj['data']
     di = rj['digest']
+    print data
+    print len(bytes(data))
+    data = base64.b64decode(data)
+    data = zlib.decompress(data)
     h = hmac.new(b'poree')
     h.update(bytes(data))
     test = h.hexdigest()
     if di == test:
-        data = base64.b64decode(data)
+        # data = base64.b64decode(data)
         data = json.loads(data.replace("'", '"'))
+    print data
+    print len(bytes(data))
+
     return data
 
 
 def __test__beats():
     data = {"idnum": 1}
     data = encryption(data)
+    # data['data']=zlib.compress(data['data']).encode('utf-8')
+
     rv = requests.post('http://127.0.0.1:11000/beats', json=data)
     rv = rv.json()
     data = decryption(rv)
@@ -57,6 +71,15 @@ def __test__transfer():
     print r.text
 
 
+def __test__get_config():
+    data = {"idnum": 1}
+    data = encryption(data)
+    rv = requests.post('http://127.0.0.1:11000/config', json=data)
+    rv = rv.json()
+    data = decryption(rv)
+    print data
+
+
 def __test__unicode():
     a = {"a": "1", "b": "2"}
     b = json.dumps(a, encoding='utf-8')
@@ -72,7 +95,8 @@ def __test__unicode():
 if __name__ == '__main__':
     #__test__transfer()
     #__test__unicode()
-    __test__beats()
+    #__test__beats()
+    __test__get_config()
     #cProfile.run('__test__transfer()')
     #prof = cProfile.Profile()
     #prof.enable()
