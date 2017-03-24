@@ -2,7 +2,7 @@
 import json, hmac, chardet, base64, os, random, simplejson, datetime, zlib
 
 from flask import Flask, abort, request, jsonify, redirect, g, render_template
-from ext import db, mako
+from ext import db, mako, hashing
 from models import *
 
 import MySQLdb
@@ -13,6 +13,7 @@ app.config.from_object('config')
 
 mako.init_app(app)
 db.init_app(app)
+hashing.init_app(app)
 
 
 def get_current_user():
@@ -124,11 +125,8 @@ def index():
 
 @app.route('/beats', methods=['POST'])
 def beats():
-    rv = request.get_json(force=True)
-    print rv
-    print len(rv)
-    data = decryption(rv)
-    print len(rv)
+    data = request.get_json(force=True)
+    #data = decryption(rv)
     print data["idnum"]
     plc = YjStationInfo.query.filter_by(idnum=data["idnum"]).first()
     print plc
@@ -138,19 +136,19 @@ def beats():
     print plc.modification
     if plc.modification:
         data = {"modification": "True"}
-        data = encryption(data)
+        #data = encryption(data)
         return jsonify(data)
     else:
         data = {"modification": "False"}
-        data = encryption(data)
+        #data = encryption(data)
     return jsonify(data)
 
 
 @app.route('/config', methods=['GET', 'POST'])
-def setconfig():
+def set_config():
     if request.method == 'POST':
         data = request.get_json(force=True)
-        data = decryption(data)
+        # data = decryption(data)
         config_station = YjStationInfo.query.filter_by(idnum=data["idnum"]).first()
         station_config = {}
         for c in config_station.__table__.columns:
@@ -192,7 +190,7 @@ def setconfig():
 
         data = {"YjStationInfo": station_config, "YjPLCInfo": plcs_config,
                 "YjGroupInfo": groups_config, "YjVariableInfo": variables_config}
-        data = encryption(data)
+        # data = encryption(data)
         return jsonify(data)
 
 

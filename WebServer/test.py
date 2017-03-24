@@ -1,5 +1,5 @@
 # coding=utf-8
-import hmac, requests, json, chardet, base64, simplejson, cProfile, pstats, PIL, zlib
+import hmac, requests, json, chardet, base64, simplejson, cProfile, pstats, PIL, zlib, hashlib
 
 
 def encryption(data):
@@ -10,7 +10,7 @@ def encryption(data):
     h = hmac.new(b'poree')
     data = unicode(data)
     # data = base64.b64encode(data)
-    h.update(bytes(data))
+    h.update(data)
     data = zlib.compress(data)
     data = base64.b64encode(data)
     digest = h.hexdigest()
@@ -30,7 +30,7 @@ def decryption(rj):
     data = base64.b64decode(data)
     data = zlib.decompress(data)
     h = hmac.new(b'poree')
-    h.update(bytes(data))
+    h.update(data)
     test = h.hexdigest()
     if di == test:
         # data = base64.b64decode(data)
@@ -43,12 +43,12 @@ def decryption(rj):
 
 def __test__beats():
     data = {"idnum": 1}
-    data = encryption(data)
+    #data = encryption(data)
     # data['data']=zlib.compress(data['data']).encode('utf-8')
 
     rv = requests.post('http://127.0.0.1:11000/beats', json=data)
-    rv = rv.json()
-    data = decryption(rv)
+    data = rv.json()
+    #data = decryption(rv)
     print data["modification"]
 
 
