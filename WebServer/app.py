@@ -54,20 +54,23 @@ def decryption(rj):
     if di == test:
         # data = base64.b64decode(data)
         data = json.loads(data.replace("'", '"'))
+    else:
+        data = {"status": "Error"}
     return data
 
 
 @app.before_first_request
 def setup():
-    #db.drop_all()
-    #db.create_all()
-    fake_users = [
-        User('xiaoming', '3'),
-        User('wangzhe', '2'),
-        User('admin', '1')
-    ]
-    db.session.add_all(fake_users)
-    db.session.commit()
+    # db.drop_all()
+    # db.create_all()
+    # fake_users = [
+    #     User('xiaoming', '3'),
+    #     User('wangzhe', '2'),
+    #     User('admin', '1')
+    # ]
+    # db.session.add_all(fake_users)
+    # db.session.commit()
+    pass
 
 
 @app.before_request
@@ -98,8 +101,8 @@ def reverse_filter(s):
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
-        rv = request.get_json(force=True)
-        data = decryption(rv)
+        data = request.get_json(force=True)
+        # data = decryption(rv)
         uploaded_data = YjPLCInfo.query.filter_by(id=data["id"]).first()
         if uploaded_data:
             uploaded_data = YjPLCInfo.query.all()
@@ -123,7 +126,7 @@ def index():
     return render_template('index.html', users=users)
 
 
-@app.route('/beats', methods=['POST'])
+@app.route('/beats', methods=['GET', 'POST'])
 def beats():
     data = request.get_json(force=True)
     #data = decryption(rv)
@@ -133,13 +136,9 @@ def beats():
     plc.con_date = datetime.datetime.utcnow()
     db.session.add(plc)
     db.session.commit()
+    print plc.con_date
     print plc.modification
-    if plc.modification:
-        data = {"modification": "True"}
-        #data = encryption(data)
-        return jsonify(data)
-    else:
-        data = {"modification": "False"}
+    data = {"modification": str(plc.modification)}
         #data = encryption(data)
     return jsonify(data)
 
@@ -153,7 +152,6 @@ def set_config():
         station_config = {}
         for c in config_station.__table__.columns:
             station_config[c.name] = str(getattr(config_station, c.name, None))
-        print station_config
 
         plcs_config = []
         groups_config = []
@@ -192,6 +190,23 @@ def set_config():
                 "YjGroupInfo": groups_config, "YjVariableInfo": variables_config}
         # data = encryption(data)
         return jsonify(data)
+
+
+@app.route('/upload', methods=['POST'])
+def upload():
+    if request.method == 'POST':
+        data = request.get_json(force=True)
+        print data
+        # data = decryption(data)
+        for v in data["YjValueInfo"]:
+            print v
+            upload_data = Value(variable_id=v["variable_id"], value=v["value"])
+            print upload_data.value
+            db.session.add(upload_data)
+        db.session.commit()
+        values = Value.query.all()
+        print values
+        return jsonify({"status": "OK"})
 
 
 def _get_frame(date_string):

@@ -116,7 +116,7 @@ class YjStationInfo(db.Model):
     plcs = db.relationship('YjPLCInfo', backref='yjstationinfo', lazy='dynamic')
 
     def __init__(self, name=None, mac=None, ip=None, note=None, idnum=None,
-                 plcnum=None, tenid=None, itemid=None, con_date = None, modification=None):
+                 plcnum=None, tenid=None, itemid=None, con_date=None, modification=None):
         self.name = name
         self.mac = mac
         self.ip = ip
@@ -139,10 +139,10 @@ class YjVariableInfo(db.Model):
     id = db.Column(db.Integer, primary_key=True, nullable=False)
     tagname = db.Column(db.String(20))
 
-    plcid = db.Column(db.Integer, db.ForeignKey('yjplcinfo.id'))
+    plc_id = db.Column(db.Integer, db.ForeignKey('yjplcinfo.id'))
 
 
-    groupid = db.Column(db.Integer, db.ForeignKey('yjgroupinfo.id'))
+    group_id = db.Column(db.Integer, db.ForeignKey('yjgroupinfo.id'))
 
 
     address = db.Column(db.String(20))
@@ -155,9 +155,11 @@ class YjVariableInfo(db.Model):
     note = db.Column(db.String(50))
     tenid = db.Column(db.String(200), nullable=False)
     itemid = db.Column(db.String(20))
+
+    values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic')
     # utf8
 
-    def __init__(self, id, tagname=None, plc=None, group=None, address=None,
+    def __init__(self, id, tagname=None, plc_id=None, group_id=None, address=None,
                  datatype=None, rwtype=None, upload=None,
                  acquisitioncycle=None, serverrecordcycle=None,
                  writevalue=None, note=None, tenid=None, itemid=None):
@@ -166,8 +168,8 @@ class YjVariableInfo(db.Model):
         # self.plcid = int(plcid)
         # self.groupid = int(groupid)
 
-        self.plc = plc
-        self.group = group
+        self.plc_id = plc_id
+        self.group_id = group_id
 
         self.addrress = address
         self.datatype = datatype
@@ -188,7 +190,7 @@ class User(db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(20), nullable=False)
-    pw_hash = db.Column(db.String, nullable=False)
+    pw_hash = db.Column(db.String(128), nullable=False)
     level = db.Column(db.Integer)
 
     def __init__(self, name, password, level=3):
@@ -201,5 +203,17 @@ class User(db.Model):
 
     def check_password(self, password):
         return check_password_hash(self.pw_hash, password)
+
+
+class Value(db.Model):
+    __tablename__ = 'values'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    variable_id = db.Column(db.Integer, db.ForeignKey('yjvariableinfo.id'))
+    value = db.Column(db.String(128))
+
+    def __init__(self, variable_id, value):
+        self.variable_id = variable_id
+        self.value = value
+
 
 

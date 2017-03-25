@@ -1,5 +1,6 @@
 # coding=utf-8
 import hmac, requests, json, chardet, base64, simplejson, cProfile, pstats, PIL, zlib, hashlib
+import urllib2, urllib
 
 
 def encryption(data):
@@ -35,6 +36,8 @@ def decryption(rj):
     if di == test:
         # data = base64.b64decode(data)
         data = json.loads(data.replace("'", '"'))
+    else:
+        data = {"status": "Error"}
     print data
     print len(bytes(data))
 
@@ -73,10 +76,10 @@ def __test__transfer():
 
 def __test__get_config():
     data = {"idnum": 1}
-    data = encryption(data)
+    #data = encryption(data)
     rv = requests.post('http://127.0.0.1:11000/config', json=data)
-    rv = rv.json()
-    data = decryption(rv)
+    data = rv.json()
+    #data = decryption(rv)
     print data
 
 
@@ -91,12 +94,33 @@ def __test__unicode():
     print c
     #print d
 
+def __test__urllib():
+    url = 'http://127.0.0.1:11000/beats'
+    values = {"idnum": "1"}
+    #data = urllib.urlencode(values)
+    data = json.dumps(values)
+    print data, type(data)
+    req = urllib2.Request(url, data)
+    response = urllib2.urlopen(req)
+    html = response.read()
+    print html
+
+
+def __test__upload():
+    data = {"YjValueInfo": [{"variable_id": "1", "value": "1"}, {"variable_id": "2", "value": "3"}]}
+    rv = requests.post("http://127.0.0.1:11000/upload", json=data)
+    print rv
+    data = rv.json()
+    print data["status"]
+
 
 if __name__ == '__main__':
     #__test__transfer()
     #__test__unicode()
     #__test__beats()
+    #__test__urllib()
     __test__get_config()
+    #__test__upload()
     #cProfile.run('__test__transfer()')
     #prof = cProfile.Profile()
     #prof.enable()
