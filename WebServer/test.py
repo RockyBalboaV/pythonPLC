@@ -107,10 +107,13 @@ def __test__urllib():
 
 
 def __test__upload():
-    data = {"YjValueInfo": [{"variable_id": "1", "value": "1"}, {"variable_id": "2", "value": "3"}]}
+    data = {"YjValueInfo": [{"variable_id": "1", "value": "1"}, {"variable_id": "2", "value": "3"}],
+            "Station_idnum": "1"}
+    # data = encryption(data)
     rv = requests.post("http://127.0.0.1:11000/upload", json=data)
     print rv
     data = rv.json()
+    # data = decryption(data)
     print data["status"]
 
 
@@ -119,8 +122,8 @@ if __name__ == '__main__':
     #__test__unicode()
     #__test__beats()
     #__test__urllib()
-    __test__get_config()
-    #__test__upload()
+    #__test__get_config()
+    __test__upload()
     #cProfile.run('__test__transfer()')
     #prof = cProfile.Profile()
     #prof.enable()

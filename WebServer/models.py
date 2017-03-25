@@ -4,50 +4,53 @@ from ext import db
 
 from werkzeug.security import generate_password_hash, check_password_hash
 
-class YjGroupInfo(db.Model):
-    __tablename__ = 'yjgroupinfo'
-    id = db.Column(db.Integer, primary_key=True, nullable=False)
-    groupname = db.Column(db.String(20))
 
-    plcid = db.Column(db.Integer, db.ForeignKey('yjplcinfo.id'))
+def check_int(column):
+    if column:
+        return int(column)
+    else:
+        return column
 
-    note = db.Column(db.String(100))
-    uploadcycle = db.Column(db.Integer)
-    tenid = db.Column(db.String(255), nullable=False)
+
+class YjStationInfo(db.Model):
+    __tablename__ = 'yjstationinfo'
+    id = db.Column(db.Integer, primary_key=True, nullable=False, autoincrement=True)
+    name = db.Column(db.String(30))
+    mac = db.Column(db.String(20))
+    ip = db.Column(db.String(20))
+    note = db.Column(db.String(200))
+    idnum = db.Column(db.String(200))
+    plcnum = db.Column(db.Integer)
+    tenid = db.Column(db.String(255))
     itemid = db.Column(db.String(20))
-    # utf8
-    variables = db.relationship('YjVariableInfo',
-                            backref='yjgroupinfo', lazy='dynamic')
+    con_date = db.Column(db.DateTime)
+    modification = db.Column(db.Boolean)
 
-    def __init__(self, id=None, groupname=None , plcid=None, note=None,
-                 uploadcycle=None, tenid=None, itemid=None):
-        self.id = id
-        self.groupname = groupname
-        if plcid:
-            self.plcid = int(plcid)
-        else:
-            self.plcid = plcid
+    plcs = db.relationship('YjPLCInfo', backref='yjstationinfo', lazy='dynamic')
+
+    def __init__(self, name=None, mac=None, ip=None, note=None, idnum=None,
+                 plcnum=None, tenid=None, itemid=None, con_date=None, modification=None):
+        self.name = name
+        self.mac = mac
+        self.ip = ip
         self.note = note
-        if uploadcycle:
-            self.uploadcycle = int(uploadcycle)
-        else:
-            self.uploadcycle = uploadcycle
+        self.idnum = idnum
+        self.plcnum = int(plcnum)
         self.tenid = tenid
         self.itemid = itemid
+        if con_date is None:
+            con_date = datetime.datetime.utcnow()
+        self.con_date = con_date
+        self.modification = modification
 
     def __repr__(self):
-        return '<Group : %r >' % self.groupname
+        return '<Station : %r >' % self.name
 
 
 class YjPLCInfo(db.Model):
     __tablename__ = 'yjplcinfo'
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(30))
-    # todo db.Integer 原sql文件中用的string类型,和李总确认下
-    stationid = db.Column(db.Integer, db.ForeignKey('yjstationinfo.id'))
-
-
-
     note = db.Column(db.String(200))
     ip = db.Column(db.String(30))
     mpi = db.Column(db.Integer)
@@ -55,27 +58,21 @@ class YjPLCInfo(db.Model):
     plctype = db.Column(db.String(20))
     tenid = db.Column(db.String(255), nullable=False)
     itemid = db.Column(db.String(20))
-    #utf8
+
+    station_id = db.Column(db.Integer, db.ForeignKey('yjstationinfo.id'))
+
     variables = db.relationship('YjVariableInfo', backref='yjplcinfo', lazy='dynamic')
     groups = db.relationship('YjGroupInfo', backref='yjplcinfo', lazy='dynamic')
 
-    def __init__(self, id, name=None, stationid=None, note=None, ip=None,
+    def __init__(self, name=None, station_id=None, note=None, ip=None,
                  mpi=None, type=None, plctype=None,
                  tenid=0, itemid=None):
-        self.id = id
         self.name = name
-        # self.stationid = stationid
-        self.stationid = stationid
+        self.station_id = station_id
         self.note = note
         self.ip = ip
-        if mpi:
-            self.mpi = int(mpi)
-        else:
-            self.mpi = mpi
-        if type:
-            self.type = int(type)
-        else:
-            self.type = type
+        self.mpi = check_int(mpi)
+        self.mpi = check_int(mpi)
         self.plctype = plctype
         self.tenid = tenid
         self.itemid = itemid
@@ -97,54 +94,36 @@ class YjPLCInfo(db.Model):
         return rst
 
 
-class YjStationInfo(db.Model):
-    __tablename__ = 'yjstationinfo'
-    id = db.Column(db.Integer, primary_key=True, nullable=False, autoincrement=7)
-    name = db.Column(db.String(30))
-    mac = db.Column(db.String(20))
-    ip = db.Column(db.String(20))
-    note = db.Column(db.String(200))
-    idnum = db.Column(db.String(200))
-    plcnum = db.Column(db.Integer)
-    tenid = db.Column(db.String(255))
+class YjGroupInfo(db.Model):
+    __tablename__ = 'yjgroupinfo'
+    id = db.Column(db.Integer, primary_key=True, nullable=False, autoincrement=True)
+    groupname = db.Column(db.String(20))
+    note = db.Column(db.String(100))
+    uploadcycle = db.Column(db.Integer)
+    tenid = db.Column(db.String(255), nullable=False)
     itemid = db.Column(db.String(20))
-    con_date = db.Column(db.DateTime)
-    modification = db.Column(db.Boolean)
 
-    # AUTO_INCREMENT=7 DEFAULT CHARSET=utf8;
+    plc_id = db.Column(db.Integer, db.ForeignKey('yjplcinfo.id'))
 
-    plcs = db.relationship('YjPLCInfo', backref='yjstationinfo', lazy='dynamic')
+    variables = db.relationship('YjVariableInfo', backref='yjgroupinfo', lazy='dynamic')
 
-    def __init__(self, name=None, mac=None, ip=None, note=None, idnum=None,
-                 plcnum=None, tenid=None, itemid=None, con_date=None, modification=None):
-        self.name = name
-        self.mac = mac
-        self.ip = ip
+    def __init__(self, groupname=None, plc_id=None, note=None,
+                 uploadcycle=None, tenid=None, itemid=None):
+        self.groupname = groupname
+        self.plc_id = check_int(plc_id)
         self.note = note
-        self.idnum = idnum
-        self.plcnum = int(plcnum)
+        self.uploadcycle = check_int(plc_id)
         self.tenid = tenid
         self.itemid = itemid
-        if con_date is None:
-            con_date = datetime.datetime.utcnow()
-        self.con_date = con_date
-        self.modification = modification
 
-    #def __repr__(self):
-    #    return '<Station : %r >' % self.name
+    def __repr__(self):
+        return '<Group : %r >' % self.groupname
 
 
 class YjVariableInfo(db.Model):
     __tablename__ = 'yjvariableinfo'
-    id = db.Column(db.Integer, primary_key=True, nullable=False)
+    id = db.Column(db.Integer, primary_key=True, nullable=False, autoincrement=True)
     tagname = db.Column(db.String(20))
-
-    plc_id = db.Column(db.Integer, db.ForeignKey('yjplcinfo.id'))
-
-
-    group_id = db.Column(db.Integer, db.ForeignKey('yjgroupinfo.id'))
-
-
     address = db.Column(db.String(20))
     datatype = db.Column(db.String(10))
     rwtype = db.Column(db.Integer)
@@ -156,27 +135,24 @@ class YjVariableInfo(db.Model):
     tenid = db.Column(db.String(200), nullable=False)
     itemid = db.Column(db.String(20))
 
-    values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic')
-    # utf8
+    plc_id = db.Column(db.Integer, db.ForeignKey('yjplcinfo.id'))
+    group_id = db.Column(db.Integer, db.ForeignKey('yjgroupinfo.id'))
 
-    def __init__(self, id, tagname=None, plc_id=None, group_id=None, address=None,
+    values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic')
+
+    def __init__(self, tagname=None, plc_id=None, group_id=None, address=None,
                  datatype=None, rwtype=None, upload=None,
                  acquisitioncycle=None, serverrecordcycle=None,
                  writevalue=None, note=None, tenid=None, itemid=None):
-        self.id = id
         self.tagname = tagname
-        # self.plcid = int(plcid)
-        # self.groupid = int(groupid)
-
         self.plc_id = plc_id
         self.group_id = group_id
-
-        self.addrress = address
+        self.address = address
         self.datatype = datatype
-        self.rwtype = int(rwtype)
-        self.upload = int(upload)
-        self.acquisitioncycle = int(acquisitioncycle)
-        self.serverrecordcycle = int(serverrecordcycle)
+        self.rwtype = check_int(rwtype)
+        self.upload = check_int(upload)
+        self.acquisitioncycle = check_int(acquisitioncycle)
+        self.serverrecordcycle = check_int(serverrecordcycle)
         self.writevalue = writevalue
         self.note = note
         self.tenid = tenid
@@ -196,7 +172,7 @@ class User(db.Model):
     def __init__(self, name, password, level=3):
         self.name = name
         self.set_password(password)
-        self.level = level
+        self.level = check_int(level)
 
     def set_password(self, password):
         self.pw_hash = generate_password_hash(password)
@@ -212,7 +188,7 @@ class Value(db.Model):
     value = db.Column(db.String(128))
 
     def __init__(self, variable_id, value):
-        self.variable_id = variable_id
+        self.variable_id = check_int(variable_id)
         self.value = value
 
 

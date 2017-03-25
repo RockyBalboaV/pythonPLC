@@ -138,7 +138,7 @@ def beats():
     db.session.commit()
     print plc.con_date
     print plc.modification
-    data = {"modification": str(plc.modification)}
+    data = {"modification": str(plc.modification), "status": "OK"}
         #data = encryption(data)
     return jsonify(data)
 
@@ -157,6 +157,7 @@ def set_config():
         groups_config = []
         variables_config = []
         for plc in config_station.plcs.all():
+            print plc
             plc_config = {}
             for c in plc.__table__.columns:
                 plc_config[c.name] = str(getattr(plc, c.name, None))
@@ -187,7 +188,8 @@ def set_config():
         #     out_list.append(station_config.get(a))
 
         data = {"YjStationInfo": station_config, "YjPLCInfo": plcs_config,
-                "YjGroupInfo": groups_config, "YjVariableInfo": variables_config}
+                "YjGroupInfo": groups_config, "YjVariableInfo": variables_config,
+                "status": "OK"}
         # data = encryption(data)
         return jsonify(data)
 
