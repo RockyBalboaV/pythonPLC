@@ -2,7 +2,6 @@
 import hmac, requests, json, chardet, base64, simplejson, cProfile, pstats, PIL, zlib, hashlib
 import urllib2, urllib
 
-
 def encryption(data):
     """
     :param data: dict
@@ -114,7 +113,7 @@ def __test__upload():
     print rv
     data = rv.json()
     # data = decryption(data)
-    print data["status"]
+    print data
 
 
 if __name__ == '__main__':

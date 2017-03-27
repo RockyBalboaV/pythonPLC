@@ -35,7 +35,7 @@ class YjStationInfo(db.Model):
         self.ip = ip
         self.note = note
         self.idnum = idnum
-        self.plcnum = int(plcnum)
+        self.plcnum = check_int(plcnum)
         self.tenid = tenid
         self.itemid = itemid
         if con_date is None:
@@ -186,10 +186,14 @@ class Value(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     variable_id = db.Column(db.Integer, db.ForeignKey('yjvariableinfo.id'))
     value = db.Column(db.String(128))
+    get_time = db.Column(db.DateTime)
 
-    def __init__(self, variable_id, value):
+    def __init__(self, variable_id, value, get_time=None):
         self.variable_id = check_int(variable_id)
         self.value = value
+        self.get_time = get_time
+
+
 
 
 

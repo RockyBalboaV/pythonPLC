@@ -16,6 +16,13 @@ db.init_app(app)
 hashing.init_app(app)
 
 
+def value2dict(std):
+    return {
+        "id": std.id,
+        "variable_id": std.variable_id,
+        "value": std.value
+    }
+
 def get_current_user():
     users = User.query.all()
     return random.choice(users)
@@ -148,6 +155,7 @@ def set_config():
     if request.method == 'POST':
         data = request.get_json(force=True)
         # data = decryption(data)
+        # 读取数据库中staion数据,再根据外链,读出该station下的plc数据,以及group variable的数据.每一项数据为一个字典,每个表中所有数据存为一个列表.
         config_station = YjStationInfo.query.filter_by(idnum=data["idnum"]).first()
         station_config = {}
         for c in config_station.__table__.columns:
@@ -202,13 +210,19 @@ def upload():
         # data = decryption(data)
         for v in data["YjValueInfo"]:
             print v
+            # 如何使用字典方式,使得在建立Value实例时可以获取任意多少的键值
+            # for key, value in v.items():
+            #    print key, value
+            # upload_data = Value({}={}).format(key, value)#for key, value in v.items()
             upload_data = Value(variable_id=v["variable_id"], value=v["value"])
             print upload_data.value
             db.session.add(upload_data)
         db.session.commit()
         values = Value.query.all()
         print values
-        return jsonify({"status": "OK"})
+        return jsonify({"input": [json.dumps(v, default=value2dict) for v in values],
+                        "status": "OK",
+                        "station_id": "123456"})
 
 
 def _get_frame(date_string):
