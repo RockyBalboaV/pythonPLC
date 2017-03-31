@@ -24,12 +24,13 @@ class YjStationInfo(db.Model):
     tenid = db.Column(db.String(255))
     itemid = db.Column(db.String(20))
     con_date = db.Column(db.DateTime)
-    modification = db.Column(db.Boolean)
+    modification = db.Column(db.Integer)
+    version = db.Column(db.Integer, autoincrement=True)
 
     plcs = db.relationship('YjPLCInfo', backref='yjstationinfo', lazy='dynamic')
 
     def __init__(self, name=None, mac=None, ip=None, note=None, idnum=None,
-                 plcnum=None, tenid=None, itemid=None, con_date=None, modification=None):
+                 plcnum=None, tenid=None, itemid=None, con_date=None, modification=0):
         self.name = name
         self.mac = mac
         self.ip = ip
@@ -138,7 +139,7 @@ class YjVariableInfo(db.Model):
     plc_id = db.Column(db.Integer, db.ForeignKey('yjplcinfo.id'))
     group_id = db.Column(db.Integer, db.ForeignKey('yjgroupinfo.id'))
 
-    values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic')
+    # values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic')
 
     def __init__(self, tagname=None, plc_id=None, group_id=None, address=None,
                  datatype=None, rwtype=None, upload=None,
@@ -184,12 +185,12 @@ class User(db.Model):
 class Value(db.Model):
     __tablename__ = 'values'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    variable_id = db.Column(db.Integer, db.ForeignKey('yjvariableinfo.id'))
+    variable_name = db.Column(db.String(20))
     value = db.Column(db.String(128))
     get_time = db.Column(db.DateTime)
 
-    def __init__(self, variable_id, value, get_time=None):
-        self.variable_id = check_int(variable_id)
+    def __init__(self, variable_name, value, get_time=None):
+        self.variable_name = variable_name
         self.value = value
         self.get_time = get_time
 

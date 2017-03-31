@@ -145,7 +145,7 @@ def beats():
     db.session.commit()
     print plc.con_date
     print plc.modification
-    data = {"modification": str(plc.modification), "status": "OK"}
+    data = {"modification": plc.modification, "status": "OK"}
         #data = encryption(data)
     return jsonify(data)
 
@@ -164,8 +164,8 @@ def set_config():
         plcs_config = []
         groups_config = []
         variables_config = []
+        print config_station.plcs.all()
         for plc in config_station.plcs.all():
-            print plc
             plc_config = {}
             for c in plc.__table__.columns:
                 plc_config[c.name] = str(getattr(plc, c.name, None))
@@ -183,9 +183,9 @@ def set_config():
                     variable_config[c.name] = str(getattr(variable, c.name, None))
                 variables_config.append(variable_config)
 
-        print plcs_config
-        print groups_config
-        print variables_config
+        # print plcs_config
+        # print groups_config
+        # print variables_config
 
         # get value into list
         # (1)a=[]
@@ -213,8 +213,8 @@ def upload():
             # 如何使用字典方式,使得在建立Value实例时可以获取任意多少的键值
             # for key, value in v.items():
             #    print key, value
-            # upload_data = Value({}={}).format(key, value)#for key, value in v.items()
-            upload_data = Value(variable_id=v["variable_id"], value=v["value"])
+            # upload_data = Value({}={}).format(key, value) for key, value in v.items()
+            upload_data = Value(variable_name=v["variable_name"], value=v["value"])
             print upload_data.value
             db.session.add(upload_data)
         db.session.commit()

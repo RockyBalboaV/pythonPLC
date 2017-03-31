@@ -20,7 +20,7 @@ def check_int(column):
 
 class YjStationInfo(Base):
     __tablename__ = 'yjstationinfo'
-    id = Column(Integer, primary_key=True, nullable=False, autoincrement=True)
+    id = Column(Integer, primary_key=True, nullable=False)
     name = Column(String(30))
     mac = Column(String(20))
     ip = Column(String(20))
@@ -30,12 +30,11 @@ class YjStationInfo(Base):
     tenid = Column(String(255))
     itemid = Column(String(20))
     con_date = Column(DateTime)
-    modification = Column(Boolean)
-
-
+    modification = Column(Integer)
+    version = Column(Integer)
 
     def __init__(self, id, name=None, mac=None, ip=None, note=None, idnum=None,
-                 plcnum=None, tenid=None, itemid=None, con_date=None, modification=None):
+                 plcnum=0, tenid=None, itemid=None, con_date=None, modification=0, version=0):
         self.id = id
         self.name = name
         self.mac = mac
@@ -48,7 +47,8 @@ class YjStationInfo(Base):
         if con_date is None:
             con_date = datetime.datetime.utcnow()
         self.con_date = con_date
-        self.modification = modification
+        self.modification = check_int(modification)
+        self.version = version
 
     def __repr__(self):
         return '<Station : %r >' % self.name
@@ -193,7 +193,7 @@ class Value(Base):
     __tablename__ = 'values'
     id = Column(Integer, primary_key=True, autoincrement=True)
     value = Column(String(128))
-    get_time = Column(DateTime)
+    date = Column(DateTime)
     variable_name = Column(String(20))
     #variable_name = Column("variable_name", String(20), ForeignKey("yjvariableinfo.tagname"))
     #variable = relationship("YjVariableInfo", foreign_keys="Value.variable_name", backref=backref("values"),
@@ -202,21 +202,24 @@ class Value(Base):
     #variable_id = Column(Integer, ForeignKey('yjvariableinfo.id'))
     #variable = relationship('YjVariableInfo', back_populates='values')
 
-    def __init__(self, variable_name, value, get_time=None):
+    def __init__(self, variable_name, value, date=None):
         #self.variable_id = check_int(variable_id)
         self.variable_name = variable_name
         self.value = value
         self.get_time = get_time
 
 
-#YjStationInfo.plcs = relationship('YjPLCInfo', order_by=YjPLCInfo.id, back_populates='station_id')
+class TransferLog(Base):
+    __tablename__ = 'transferlogs'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    type = Column(String(20))
+    date = Column(DateTime)
+    status = Column(String(20))
 
-#YjPLCInfo.variables = relationship('YjVariableInfo', order_by=YjVariableInfo.id, back_populates='plc_id')
-#YjPLCInfo.groups = relationship('YjGroupInfo', order_by=YjGroupInfo.id, back_populates='plc_id')
-
-#YjGroupInfo.variables = relationship('YjVariableInfo', order_by=YjVariableInfo.id, back_populates='group_id')
-
-#YjVariableInfo.values = relationship('Value', order_by=Value.id, back_populates='variable_id')
+    def __init__(self, type, date, status):
+        self.type = type
+        self.date = date
+        self.status = status
 
 
 Session = sessionmaker(bind=eng)
