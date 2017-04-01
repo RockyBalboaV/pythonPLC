@@ -206,7 +206,7 @@ class Value(Base):
         #self.variable_id = check_int(variable_id)
         self.variable_name = variable_name
         self.value = value
-        self.get_time = get_time
+        self.date = date
 
 
 class TransferLog(Base):
