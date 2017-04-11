@@ -1,4 +1,4 @@
-HOSTNAME = 'localhost'
+HOSTNAME = '127.0.0.1'
 DATABASE = 'pyplc_client'
 USERNAME = 'client'
 PASSWORD = 'pyplc_client'

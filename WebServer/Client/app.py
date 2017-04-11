@@ -4,9 +4,14 @@ import hmac, requests, json, chardet, base64, simplejson, cProfile, pstats, PIL,
 import urllib2, urllib
 import time
 import MySQLdb
+from celery import Celery
+
+app = Celery()
+app.config_from_object('celeryconfig')
 
 
 session = Session()
+
 
 def encryption(data):
     """
@@ -50,19 +55,22 @@ def get_data_form_query(models):
     for model in models:
             model_column = {}
             for c in model.__table__.columns:
-                model_column[c.name] = str(getattr(modle, c.name, None))
+                model_column[c.name] = str(getattr(model, c.name, None))
             data_list.append(model_column)
     return data_list
 
 
 def db_init():
-    # Base.metadata.drop_all(bind=eng)
+    Base.metadata.drop_all(bind=eng)
     Base.metadata.create_all(bind=eng)
 
 
+@app.task
 def __test__beats():
-    idnum = session.query(YjStationInfo).first().idnum
-    version = session.query(YjStationInfo).fisrt().version
+    idnum = 1
+    version =1
+    #idnum = session.query(YjStationInfo).first().idnum
+    #version = session.query(YjStationInfo).first().version
 
     data = {"idnum": idnum, "version": version}
     #data = encryption(data)
@@ -75,11 +83,11 @@ def __test__beats():
 
 
 def __test__get_config():
-    data = {"idnum": 1}
+    data = {"idnum": "1"}
+    #data = session.query(YjStationInfo).first().idnum
     #data = encryption(data)
     rv = requests.post('http://127.0.0.1:11000/config', json=data)
     data = rv.json()
-    print data
     Base.metadata.drop_all(bind=eng)
     Base.metadata.create_all(bind=eng)
     #con = MySQLdb.connect('localhost', 'client', 'pyplc_client', 'pyplc_client')
@@ -124,7 +132,6 @@ def __test__get_config():
         session.commit()
 
     #data = decryption(rv)
-    print data
 
 
 def __test__upload():
@@ -160,7 +167,7 @@ def __test__upload():
 
 if __name__ == '__main__':
     db_init()
-    while True:
+    #while True:
 
         # Base.metadata.drop_all(bind=eng)
         # Base.metadata.create_all(bind=eng)
@@ -173,7 +180,7 @@ if __name__ == '__main__':
     #__test__unicode()
         #__test__beats()
     #__test__urllib()
-        __test__get_config()
+        #__test__get_config()
         # time.sleep(5)
         #__test__upload()
     #cProfile.run('__test__transfer()')

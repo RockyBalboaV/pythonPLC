@@ -187,12 +187,12 @@ class Value(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     variable_name = db.Column(db.String(20))
     value = db.Column(db.String(128))
-    get_time = db.Column(db.DateTime)
+    date = db.Column(db.DateTime)
 
-    def __init__(self, variable_name, value, get_time=None):
+    def __init__(self, variable_name, value, date=None):
         self.variable_name = variable_name
         self.value = value
-        self.get_time = get_time
+        self.get_time = date
 
 
 

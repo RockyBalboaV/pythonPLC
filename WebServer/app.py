@@ -154,6 +154,9 @@ def beats():
 def set_config():
     if request.method == 'POST':
         data = request.get_json(force=True)
+
+        # 将本次发送过配置的站点数据表设置为无更新
+        db.session.query(YjStationInfo).filter(YjStationInfo.idnum == data["idnum"]).update({YjStationInfo.modification: 0})
         # data = decryption(data)
         # 读取数据库中staion数据,再根据外链,读出该station下的plc数据,以及group variable的数据.每一项数据为一个字典,每个表中所有数据存为一个列表.
         config_station = YjStationInfo.query.filter_by(idnum=data["idnum"]).first()
