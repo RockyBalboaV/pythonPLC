@@ -1,5 +1,6 @@
 # coding=utf-8
 from kombu import Queue
+from datetime import timedelta
 
 # 指定消息代理
 BROKER_URL = 'pyamqp://yakumo17s:123456@localhost:5672/web_develop'
@@ -33,3 +34,9 @@ CELERY_ACCEPT_CONTENT = ['json', 'msgpack']
 #     }
 # 
 # }
+CELERYBEAT_SCHEDULE = {
+    'station_check': {
+        'task': 'app.station_check',
+        'schedule': timedelta(seconds=5),
+    }
+}

@@ -10,6 +10,9 @@ eng = create_engine(DB_URI)
 # 创建基类
 Base = declarative_base()
 
+Session = sessionmaker(bind=eng)
+session = Session()
+
 
 def check_int(column):
     if column is not unicode("None"):
@@ -91,19 +94,6 @@ class YjPLCInfo(Base):
     def __repr__(self):
         return '<PLC : %r >' % self.name
 
-    @classmethod
-    def upload(cls, uploaded_data):
-        rst = cls(uploaded_data["name"])
-        uploaded_data.save(rst.path)
-        with open(rst.path, 'rb') as f:
-            dataname = f.name
-            uploaded_data = cls.query.filter_by(name=dataname).first()
-            if uploaded_data:
-                os.remove(rst.path)
-                return uploaded_data
-        rst.name = dataname
-        return rst
-
 
 class YjGroupInfo(Base):
     __tablename__ = 'yjgroupinfo'
@@ -150,7 +140,6 @@ class YjVariableInfo(Base):
     tenid = Column(String(200), nullable=False)
     itemid = Column(String(20))
 
-
     plc_id = Column("plc_id", Integer, ForeignKey("yjplcinfo.id"))
     plc = relationship("YjPLCInfo", foreign_keys="YjVariableInfo.plc_id", backref=backref("variables", cascade="all, delete-orphan"),
                            primaryjoin="YjPLCInfo.id==YjVariableInfo.plc_id")
@@ -164,7 +153,6 @@ class YjVariableInfo(Base):
     #group_id = Column(Integer)
     #group_id = Column(Integer, ForeignKey('yjgroupinfo.id'))
     #group = relationship('YjGroupInfo', back_populates='variables')
-
 
     def __init__(self, id, tagname=None, plc_id=None, group_id=None, address=None,
                  datatype=None, rwtype=None, upload=None,
@@ -193,7 +181,8 @@ class Value(Base):
     __tablename__ = 'values'
     id = Column(Integer, primary_key=True, autoincrement=True)
     value = Column(String(128))
-    date = Column(DateTime)
+    get_time = Column(DateTime)
+    up_time = Column(Integer)
     variable_name = Column(String(20))
     #variable_name = Column("variable_name", String(20), ForeignKey("yjvariableinfo.tagname"))
     #variable = relationship("YjVariableInfo", foreign_keys="Value.variable_name", backref=backref("values"),
@@ -202,11 +191,11 @@ class Value(Base):
     #variable_id = Column(Integer, ForeignKey('yjvariableinfo.id'))
     #variable = relationship('YjVariableInfo', back_populates='values')
 
-    def __init__(self, variable_name, value, date=None):
-        #self.variable_id = check_int(variable_id)
+    def __init__(self, variable_name, value, get_time, up_time):
         self.variable_name = variable_name
         self.value = value
-        self.date = date
+        self.get_time = get_time
+        self.up_time = up_time
 
 
 class TransferLog(Base):
@@ -215,11 +204,25 @@ class TransferLog(Base):
     type = Column(String(20))
     date = Column(DateTime)
     status = Column(String(20))
+    note = Column(String(100))
 
-    def __init__(self, type, date, status):
+    def __init__(self, type, date, status=None, note=None):
         self.type = type
         self.date = date
         self.status = status
+        self.note = note
 
 
-Session = sessionmaker(bind=eng)
+class GroupUploadTime(Base):
+    __tablename__ = 'groupuploadtimes'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    group_name = Column(String(20))
+    next_time = Column(DateTime)
+
+    def __init__(self, group_name, next_time):
+        self.group_name = group_name
+        self.next_time = next_time
+
+
+
+

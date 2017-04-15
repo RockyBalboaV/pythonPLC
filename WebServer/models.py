@@ -187,14 +187,28 @@ class Value(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     variable_name = db.Column(db.String(20))
     value = db.Column(db.String(128))
-    date = db.Column(db.DateTime)
+    get_time = db.Column(db.DateTime)
+    up_time = db.Column(db.Integer)
 
-    def __init__(self, variable_name, value, date=None):
+    def __init__(self, variable_name, value, get_time=None, up_time=None):
         self.variable_name = variable_name
         self.value = value
-        self.get_time = date
+        self.get_time = get_time
+        self.up_time = up_time
 
 
+class TransferLog(db.Model):
+    __tablename__ = 'logs'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    idnum = db.Column(db.String(200))
+    level = db.Column(db.Integer)
+    time = db.Column(db.DateTime)
+    note = db.Column(db.String(200))
 
+    def __init__(self, idnum, level, time, note):
+        self.idnum = idnum
+        self.level = level
+        self.time = time
+        self.note = note
 
 

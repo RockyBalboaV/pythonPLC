@@ -1,19 +1,34 @@
 # coding=utf-8
-import json, hmac, chardet, base64, os, random, simplejson, datetime, zlib
-
+import json, hmac, base64, os, random, zlib
 from flask import Flask, abort, request, jsonify, redirect, g, render_template
-from ext import db, mako, hashing
+from flask_socketio import SocketIO
+from celery import Celery
+from ext import mako, hashing
 from models import *
 
 import MySQLdb
 from pandas.io.sql import read_sql
 
+import eventlet
+eventlet.monkey_patch()
+
 app = Flask(__name__, template_folder='templates')
 app.config.from_object('config')
+here = os.path.abspath(os.path.dirname(__file__))
+app.config.from_pyfile(os.path.join(here, 'celeryconfig.py'))
 
 mako.init_app(app)
 db.init_app(app)
 hashing.init_app(app)
+
+SOCKETIO_REDIS_URL = app.config['CELERY_RESULT_BACKEND']
+socketio = SocketIO(
+    app, async_mode='eventlet',
+    message_queue=SOCKETIO_REDIS_URL
+)
+
+celery = Celery(app.name)
+celery.conf.update(app.config)
 
 
 def value2dict(std):
@@ -22,6 +37,7 @@ def value2dict(std):
         "variable_id": std.variable_id,
         "value": std.value
     }
+
 
 def get_current_user():
     users = User.query.all()
@@ -105,6 +121,30 @@ def reverse_filter(s):
     return s.capitalize()
 
 
+@celery.task
+def station_check():
+    with app.app_context():
+        current_time = datetime.datetime.now()
+        stations = db.session.query(YjStationInfo)
+        for s in stations:
+            s_log = TransferLog.query.filter_by(idnum=s.idnum).order_by(TransferLog.time.desc()).first()
+            if s_log:
+                last_time = s_log.time
+                last_level = s_log.level
+                if (current_time - last_time).seconds > 5 and (current_time - last_time).days == 0:
+                    warn_level = last_level + 1
+                    if warn_level > 2:
+                        warn = TransferLog(idnum=s.idnum, level=3, time=current_time, note='ERROR')
+                    else:
+                        warn = TransferLog(idnum=s.idnum, level=last_level + 1, time=current_time, note='WARNING')
+                else:
+                    warn = TransferLog(idnum=s.idnum, level=0, time=current_time, note='OK')
+            else:
+                warn = TransferLog(idnum=s.idnum, level=0, time=current_time, note='OK')
+            db.session.add(warn)
+            db.session.commit()
+
+
 @app.route('/', methods=['GET', 'POST'])
 def index():
     if request.method == 'POST':
@@ -115,16 +155,8 @@ def index():
             uploaded_data = YjPLCInfo.query.all()
             return render_template('index_post.html', uploaded_data=uploaded_data)
         else:
-        #    while su:
-        #        try:
             uploaded_data = YjPLCInfo(name=data["name"], id=data["id"], tenid=data["tenid"])
-            #todo 当输入值的键不存在时,怎么使用默认值代替
-        #            su = True
-        #        except KeyError as a:
-        #            data[a] = None
-        #print uploaded_data.id
-        #print data
-        #upload_data = YjPLCInfo.upload(data)
+            # todo 当输入值的键不存在时,怎么使用默认值代替
         db.session.add(uploaded_data)
         db.session.commit()
         uploaded_data = YjPLCInfo.query.all()
@@ -136,17 +168,13 @@ def index():
 @app.route('/beats', methods=['GET', 'POST'])
 def beats():
     data = request.get_json(force=True)
-    #data = decryption(rv)
-    print data["idnum"]
-    plc = YjStationInfo.query.filter_by(idnum=data["idnum"]).first()
-    print plc
-    plc.con_date = datetime.datetime.utcnow()
-    db.session.add(plc)
+    # data = decryption(rv)
+    station = YjStationInfo.query.filter_by(idnum=data["idnum"]).first()
+    station.con_date = datetime.datetime.now()
+    db.session.add(station)
     db.session.commit()
-    print plc.con_date
-    print plc.modification
-    data = {"modification": plc.modification, "status": "OK"}
-        #data = encryption(data)
+    data = {"modification": station.modification, "status": "OK"}
+    # data = encryption(data)
     return jsonify(data)
 
 
@@ -154,7 +182,6 @@ def beats():
 def set_config():
     if request.method == 'POST':
         data = request.get_json(force=True)
-
         # 将本次发送过配置的站点数据表设置为无更新
         db.session.query(YjStationInfo).filter(YjStationInfo.idnum == data["idnum"]).update({YjStationInfo.modification: 0})
         # data = decryption(data)
@@ -167,7 +194,7 @@ def set_config():
         plcs_config = []
         groups_config = []
         variables_config = []
-        print config_station.plcs.all()
+        # print config_station.plcs.all()
         for plc in config_station.plcs.all():
             plc_config = {}
             for c in plc.__table__.columns:
@@ -185,10 +212,6 @@ def set_config():
                 for c in variable.__table__.columns:
                     variable_config[c.name] = str(getattr(variable, c.name, None))
                 variables_config.append(variable_config)
-
-        # print plcs_config
-        # print groups_config
-        # print variables_config
 
         # get value into list
         # (1)a=[]
@@ -209,20 +232,16 @@ def set_config():
 def upload():
     if request.method == 'POST':
         data = request.get_json(force=True)
-        print data
         # data = decryption(data)
-        for v in data["YjValueInfo"]:
-            print v
+        for v in data["Value"]:
             # 如何使用字典方式,使得在建立Value实例时可以获取任意多少的键值
             # for key, value in v.items():
             #    print key, value
             # upload_data = Value({}={}).format(key, value) for key, value in v.items()
-            upload_data = Value(variable_name=v["variable_name"], value=v["value"])
-            print upload_data.value
+            upload_data = Value(variable_name=v["variable_name"], value=v["value"], get_time=v["get_time"])
             db.session.add(upload_data)
         db.session.commit()
-        values = Value.query.all()
-        print values
+        values = data["Value"]
         return jsonify({"input": [json.dumps(v, default=value2dict) for v in values],
                         "status": "OK",
                         "station_id": "123456"})
@@ -245,4 +264,5 @@ def show_tables(date_string=None):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=11000, debug=True)
+    socketio.run(app, host='0.0.0.0', port=11000, debug=True)
+    # app.run(host='0.0.0.0', port=11000, debug=True)

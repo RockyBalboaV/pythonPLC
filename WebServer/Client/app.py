@@ -1,16 +1,12 @@
 # coding=utf-8
 from models import *
 import hmac, requests, json, chardet, base64, simplejson, cProfile, pstats, PIL, zlib, hashlib
-import urllib2, urllib
 import time
-import MySQLdb
 from celery import Celery
+from sqlalchemy.orm.exc import UnmappedInstanceError
 
 app = Celery()
 app.config_from_object('celeryconfig')
-
-
-session = Session()
 
 
 def encryption(data):
@@ -49,7 +45,7 @@ def decryption(rj):
     return data
 
 
-def get_data_form_query(models):
+def get_data_from_query(models):
     # 输入session.query()查询到的模型实例列表,读取每个实例每个值,放入列表返回
     data_list = []
     for model in models:
@@ -60,13 +56,30 @@ def get_data_form_query(models):
     return data_list
 
 
-def db_init():
-    Base.metadata.drop_all(bind=eng)
+def get_data_from_model(model):
+    # 读取一个模型实例中的每一项与值，放入字典
+    model_column ={}
+    for c in model.__table__.columns:
+        model_column[c.name] = str(getattr(model, c.name, None))
+    return model_column
+
+
+def __init__():
+    # Base.metadata.drop_all(bind=eng)
+    GroupUploadTime.__table__.drop(eng, checkfirst=True)
     Base.metadata.create_all(bind=eng)
+    __test__get_config()
+    current_time = datetime.datetime.now()
+    groups = session.query(YjGroupInfo).filter().all()
+    for g in groups:
+        g_upload_time = current_time+datetime.timedelta(seconds=g.uploadcycle)
+        g_upload = GroupUploadTime(group_name=g.groupname, next_time=g_upload_time)
+        session.add(g_upload)
+    session.commit()
 
 
 @app.task
-def __test__beats():
+def beats():
     idnum = 1
     version =1
     #idnum = session.query(YjStationInfo).first().idnum
@@ -79,7 +92,6 @@ def __test__beats():
     #data = decryption(rv)
     if data["modification"] == 1:
         __test__get_config()
-    print data["modification"]
 
 
 def __test__get_config():
@@ -88,17 +100,12 @@ def __test__get_config():
     #data = encryption(data)
     rv = requests.post('http://127.0.0.1:11000/config', json=data)
     data = rv.json()
-    Base.metadata.drop_all(bind=eng)
-    Base.metadata.create_all(bind=eng)
-    #con = MySQLdb.connect('localhost', 'client', 'pyplc_client', 'pyplc_client')
-    #with con as cur:
-    #    cur.execute('drop table if exists yjstationinfo')
-    #    cur.execute('drop table if exists yjplcinfo')
-    #    cur.execute('drop table if exists yjgroupinfo')
-    #    cur.execute('drop table if EXISTS yjvariableinfo')
-    #session.query(YjVariableInfo)
-    # print session.query(YjStationInfo).first()
-    # session.delete()
+    try:
+        session.delete(session.query(YjStationInfo).first())
+    except UnmappedInstanceError:
+        pass
+    else:
+        session.commit()
 
     station = YjStationInfo(id=data["YjStationInfo"]["id"], name=data["YjStationInfo"]["name"],
                             mac=data["YjStationInfo"]["mac"], ip=data["YjStationInfo"]["ip"],
@@ -131,46 +138,118 @@ def __test__get_config():
         session.add(v)
         session.commit()
 
-    #data = decryption(rv)
 
-
-def __test__upload():
+def upload(group_name):
     # 读取站信息
     # idnum = session.query(YjStationInfo).filter().first().idnum
     idnum = 1
-    print session.query(YjStationInfo).filter().first()
     # version = session.query(YjStationInfo).version
+    # 记录本次上传时间
+    upload_time = datetime.datetime.now()
+
+    group = session.query(YjGroupInfo).filter(YjGroupInfo.groupname == group_name).first()
+    group_log = session.query(TransferLog).filter(TransferLog.type == 'group').filter(
+        TransferLog.note == group_name).order_by(TransferLog.date.desc()).first()
+
 
     # 读取需要上传的值,所有时间大于上次上传的值
+    # values = session.query(Value).filter(Value.get_time > last_log.date).all()
+    # 获取该组包括的所有变量
+    # 记录中如果有原配置中有的组名，更改配置后会导致取到空值
+    try:
+        variables = session.query(YjGroupInfo).filter(YjGroupInfo.groupname == group_name).first().variables
+    except AttributeError as e:
+        session.delete(session.query(GroupUploadTime).filter(GroupUploadTime.group_name == group_name).first())
+        session.commit()
+        return 0
+    print variables
 
-    last_log = session.query(TransferLog).order_by(TransferLog.date.desc()).first()
-    if last_log:
-        values = session.query(Value).filter_by(Value.date > last_log.date).all()
-        upload_values = get_data_form_query(values)
+    # 获取上次传输时间,没有上次时间就往前推一个上传周期
+    last_variable_upload_time = group_log.date
+    if not last_variable_upload_time:
+        timedelta = datetime.timedelta(seconds=group.uploadcycle)
+        last_variable_upload_time = upload_time - timedelta
 
-    # 记录本次上传时间
-    upload_time = datetime.datetime.utcnow()
-    trans_type = "upload"
+    variable_list = []
+    for variable in variables:
+        # 判断该变量是否需要上传
+        if variable.upload:
+            break
 
-    data = {"YjValueInfo": upload_values, "Station_idnum": idnum}
+        all_values = session.query(Value).filter(Value.variable_name == variable.tagname).\
+            filter(Value.get_time > last_variable_upload_time)
+
+        # 循环从上次读取时间开始计算，每个一个记录周期提取一个数值
+        while last_variable_upload_time < upload_time:
+            upload_value = all_values.filter(Value.get_time > last_variable_upload_time).filter(last_variable_upload_time + datetime.timedelta(seconds=variable.serverrecordcycle) > Value.get_time).first()
+            # 当上传时间小于采集时间时，会出现取值时间节点后无采集数据，得到None，使得后续语句报错。
+            try:
+                value_dict = get_data_from_model(upload_value)
+            except AttributeError:
+                break
+
+            variable_list.append(value_dict)
+            timedelta = datetime.timedelta(seconds=variable.serverrecordcycle)
+            last_variable_upload_time += timedelta
+
+    # 记录本次传输
+    group_next = session.query(GroupUploadTime).filter(GroupUploadTime.group_name == group_name).first()
+    group_next.next_time = upload_time + datetime.timedelta(seconds=group.uploadcycle)
+    session.merge(group_next)
+    #session.add(session.query(GroupUploadTime).filter(GroupUploadTime.group_name == group_name).
+    #            update({GroupUploadTime.next_time: upload_time + datetime.timedelta(seconds=group.uploadcycle)}))
+    session.add(TransferLog(type='group', date=upload_time, status='OK', note=group_name))
+    session.commit()
+
+    data = {"GroupName": group_name, "Value": variable_list}
     # data = encryption(data)
     rv = requests.post("http://127.0.0.1:11000/upload", json=data)
-    print rv
     data = rv.json()
     # data = decryption(data)
     status = data["status"]
-    log = TransferLog(type=trans_type, date=upload_time, status=status)
+    log = TransferLog(type='upload', date=upload_time, status=status)
     session.add(log)
     session.commit()
-    print data
+
+
+@app.task
+def fake_data():
+
+        value = Value(variable_name='DB1', value=1, get_time=datetime.datetime.now(), up_time=1)
+        session.add(value)
+
+        #value = Value('DB2', 2, datetime.datetime.now(), 10)
+        #session.add(value)
+
+        session.commit()
+
+
+@app.task
+def check_group_upload_time():
+    current_time = datetime.datetime.now()
+    groups = session.query(GroupUploadTime).order_by(GroupUploadTime.next_time).all()
+    for g in groups:
+        if current_time > g.next_time:
+            upload(g.group_name)
+        if current_time < g.next_time:
+            break
 
 
 if __name__ == '__main__':
-    db_init()
+    #__init__()
+    #__test__get_config()
+    #check_group_upload_time()
+    upload('g1')
+    #session.delete(session.query(YjStationInfo).first())
+    #session.commit()
+    #db_init()
+    #fake_data()
+
     #while True:
 
-        # Base.metadata.drop_all(bind=eng)
-        # Base.metadata.create_all(bind=eng)
+    #Base.metadata.drop_all(bind=eng)
+
+    #Base.metadata.create_all(bind=eng)
 
 
 
@@ -178,11 +257,11 @@ if __name__ == '__main__':
     #Base.metadata.create_all(bind=eng)
     #__test__transfer()
     #__test__unicode()
-        #__test__beats()
+        #beats()
     #__test__urllib()
-        #__test__get_config()
+    #__test__get_config()
         # time.sleep(5)
-        #__test__upload()
+    #__test__upload('g1')
     #cProfile.run('__test__transfer()')
     #prof = cProfile.Profile()
     #prof.enable()
@@ -191,13 +270,3 @@ if __name__ == '__main__':
     #prof.print_stats()
     #p = pstats.Stats(prof)
     #p.print_callers()
-
-
-
-
-
-
-
-
-
-#todo 使用删除后重新插入的方法需要值中不带外链,测试下使用update方法更新配置
