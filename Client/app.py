@@ -202,6 +202,7 @@ def upload(group_name):
     session.commit()
 
     data = {"GroupName": group_name, "Value": variable_list}
+    print(data)
     # data = encryption(data)
     rv = requests.post("http://127.0.0.1:11000/upload", json=data)
     data = rv.json()

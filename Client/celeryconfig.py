@@ -13,7 +13,7 @@ CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TASK_RESULT_EXPIRES = 60 * 60 * 24
 # 可接受的内容格式
 CELERY_ACCEPT_CONTENT = ['json', 'msgpack']
-
+# 定时任务
 CELERYBEAT_SCHEDULE = {
     'beats': {
         'task': 'app.beats',
