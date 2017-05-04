@@ -232,6 +232,7 @@ def set_config():
 def upload():
     if request.method == 'POST':
         data = request.get_json(force=True)
+        print data
         # data = decryption(data)
         for v in data["Value"]:
             # 如何使用字典方式,使得在建立Value实例时可以获取任意多少的键值

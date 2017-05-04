@@ -224,5 +224,16 @@ class GroupUploadTime(Base):
         self.next_time = next_time
 
 
+class VariableGetTime(Base):
+    __tablename__ = 'valuegettimes'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tagname = Column(String(20))
+    next_time = Column(DateTime)
+
+    def __init__(self, tagname, next_time):
+        self.tagname = tagname
+        self.next_time = next_time
+
+
 
 
