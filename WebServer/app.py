@@ -1,15 +1,21 @@
 # coding=utf-8
-import json, hmac, base64, os, random, zlib
-from flask import Flask, abort, request, jsonify, redirect, g, render_template
+
+import json
+import hmac
+import base64
+import random
+import zlib
+
+from flask import Flask, request, jsonify, g, render_template
 from flask_socketio import SocketIO
 from celery import Celery
+import MySQLdb
+from pandas.io.sql import read_sql
+import eventlet
+
 from ext import mako, hashing
 from models import *
 
-import MySQLdb
-from pandas.io.sql import read_sql
-
-import eventlet
 eventlet.monkey_patch()
 
 app = Flask(__name__, template_folder='templates')
@@ -80,6 +86,25 @@ def decryption(rj):
     else:
         data = {"status": "Error"}
     return data
+
+
+def get_data_from_query(models):
+    # 输入session.query()查询到的模型实例列表,读取每个实例每个值,放入列表返回
+    data_list = []
+    for model in models:
+            model_column = {}
+            for c in model.__table__.columns:
+                model_column[c.name] = str(getattr(model, c.name, None))
+            data_list.append(model_column)
+    return data_list
+
+
+def get_data_from_model(model):
+    # 读取一个模型实例中的每一项与值，放入字典
+    model_column ={}
+    for c in model.__table__.columns:
+        model_column[c.name] = str(getattr(model, c.name, None))
+    return model_column
 
 
 @app.before_first_request
@@ -155,7 +180,7 @@ def index():
             uploaded_data = YjPLCInfo.query.all()
             return render_template('index_post.html', uploaded_data=uploaded_data)
         else:
-            uploaded_data = YjPLCInfo(name=data["name"], id=data["id"], tenid=data["tenid"])
+            uploaded_data = YjPLCInfo(name=data["name"], tenid=data["tenid"])
             # todo 当输入值的键不存在时,怎么使用默认值代替
         db.session.add(uploaded_data)
         db.session.commit()
@@ -169,10 +194,15 @@ def index():
 def beats():
     data = request.get_json(force=True)
     # data = decryption(rv)
+
     station = YjStationInfo.query.filter_by(idnum=data["idnum"]).first()
     station.con_date = datetime.datetime.now()
     db.session.add(station)
     db.session.commit()
+
+    if station.version != data["version"]:
+        station.modification = 1
+
     data = {"modification": station.modification, "status": "OK"}
     # data = encryption(data)
     return jsonify(data)
@@ -180,50 +210,39 @@ def beats():
 
 @app.route('/config', methods=['GET', 'POST'])
 def set_config():
+
     if request.method == 'POST':
         data = request.get_json(force=True)
+
         # 将本次发送过配置的站点数据表设置为无更新
         db.session.query(YjStationInfo).filter(YjStationInfo.idnum == data["idnum"]).update({YjStationInfo.modification: 0})
         # data = decryption(data)
-        # 读取数据库中staion数据,再根据外链,读出该station下的plc数据,以及group variable的数据.每一项数据为一个字典,每个表中所有数据存为一个列表.
+
+        # 读取staion表数据,根据外链,读出该station下的plc、group variable的数据.每一项数据为一个字典,每个表中所有数据存为一个列表.
         config_station = YjStationInfo.query.filter_by(idnum=data["idnum"]).first()
-        station_config = {}
-        for c in config_station.__table__.columns:
-            station_config[c.name] = str(getattr(config_station, c.name, None))
+
+        station_config = get_data_from_model(config_station)
 
         plcs_config = []
         groups_config = []
         variables_config = []
-        # print config_station.plcs.all()
+
         for plc in config_station.plcs.all():
-            plc_config = {}
-            for c in plc.__table__.columns:
-                plc_config[c.name] = str(getattr(plc, c.name, None))
+            plc_config = get_data_from_model(plc)
+
             plcs_config.append(plc_config)
 
-            for group in plc.groups.all():
-                group_config = {}
-                for c in group.__table__.columns:
-                    group_config[c.name] = str(getattr(group, c.name, None))
-                groups_config.append(group_config)
+            groups = plc.groups.all()
+            groups_config += get_data_from_query(groups)
 
-            for variable in plc.variables.all():
-                variable_config = {}
-                for c in variable.__table__.columns:
-                    variable_config[c.name] = str(getattr(variable, c.name, None))
-                variables_config.append(variable_config)
+            variables = plc.variables.all()
+            variables_config += get_data_from_query(variables)
 
-        # get value into list
-        # (1)a=[]
-        #     a.append([value for key, value in plc_config.items()])
-
-        # (2)out_list = []
-        # for a in station_config.keys():
-        #     out_list.append(station_config.get(a))
-
+        # 包装数据
         data = {"YjStationInfo": station_config, "YjPLCInfo": plcs_config,
                 "YjGroupInfo": groups_config, "YjVariableInfo": variables_config,
                 "status": "OK"}
+
         # data = encryption(data)
         return jsonify(data)
 
@@ -232,20 +251,32 @@ def set_config():
 def upload():
     if request.method == 'POST':
         data = request.get_json(force=True)
-        print data
         # data = decryption(data)
+
+        # 验证上传数据
+        station = data["station"]
+        version = data["version"]
+
+        # 查询服务器是否有正在上传的站信息
+        station_now = YjStationInfo.query.filter_by(idnum=station).first_or_404()
+
+        # 查询上传信息的版本是否匹配
+        try:
+            assert(station_now.version == version)
+        except AssertionError:
+            return jsonify({"status": "Version Error"})
+
         for v in data["Value"]:
-            # 如何使用字典方式,使得在建立Value实例时可以获取任意多少的键值
-            # for key, value in v.items():
-            #    print key, value
-            # upload_data = Value({}={}).format(key, value) for key, value in v.items()
             upload_data = Value(variable_name=v["variable_name"], value=v["value"], get_time=v["get_time"])
             db.session.add(upload_data)
         db.session.commit()
+
         values = data["Value"]
-        return jsonify({"input": [json.dumps(v, default=value2dict) for v in values],
+
+        return jsonify({"input": [v for v in values],
                         "status": "OK",
-                        "station_id": "123456"})
+                        "station": station,
+                        "version": version})
 
 
 def _get_frame(date_string):
@@ -266,4 +297,3 @@ def show_tables(date_string=None):
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=11000, debug=True)
-    # app.run(host='0.0.0.0', port=11000, debug=True)

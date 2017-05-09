@@ -16,6 +16,8 @@ from models import *
 app = Celery()
 app.config_from_object('celeryconfig')
 
+# 站点名称
+name = 's1'
 
 # 设置PLC的连接地址
 ip = '192.168.18.17'  # PLC的ip地址
@@ -77,8 +79,8 @@ def get_data_from_model(model):
     return model_column
 
 
-def get_station_info():
-    station = session.query(YjStationInfo).filter().first()
+def get_station_info(name):
+    station = session.query(YjStationInfo).filter(YjStationInfo.name == name).first()
     idnum = station.idnum
     version = station.version
     return {"idnum": idnum, "version": version}
@@ -104,7 +106,7 @@ def __init__():
     GroupUploadTime.__table__.drop(eng, checkfirst=True)
     VariableGetTime.__table__.drop(eng, checkfirst=True)
     Base.metadata.create_all(bind=eng)
-    __test__get_config()
+    get_config()
     groups = session.query(YjGroupInfo).filter().all()
     current_time = datetime.datetime.now()
     for g in groups:
@@ -125,18 +127,20 @@ def __init__():
 @app.task
 def beats():
     # 获取本机的信息
-    station_info = get_station_info()
+    station_info = get_station_info(name)
+    data = station_info
     # data = encryption(data)
-    rv = requests.post('http://127.0.0.1:11000/beats', json=station_info)
+    rv = requests.post('http://127.0.0.1:11000/beats', json=data)
     data = rv.json()
     # data = decryption(rv)
+
     if data["modification"] == 1:
-        __test__get_config()
+        get_config()
 
 
-def __test__get_config():
+def get_config():
     # 获取本机的信息
-    station_info = get_station_info()
+    station_info = get_station_info(name)
     # data = encryption(data)
     rv = requests.post('http://127.0.0.1:11000/config', json=station_info)
     data = rv.json()
@@ -203,7 +207,6 @@ def upload(group_name):
         session.delete(session.query(GroupUploadTime).filter(GroupUploadTime.group_name == group_name).first())
         session.commit()
         return 0
-    print variables
 
     # 准备本次上传的数据
     variable_list = []
@@ -232,20 +235,28 @@ def upload(group_name):
     group_next = session.query(GroupUploadTime).filter(GroupUploadTime.group_name == group_name).first()
     group_next.next_time = upload_time + datetime.timedelta(seconds=group.uploadcycle)
     session.merge(group_next)
-    # 记录本次传输
-    session.add(TransferLog(type='group', date=upload_time, status='OK', note=group_name))
-    session.commit()
+    # # 记录本次传输
+    # session.add(TransferLog(type='group', date=upload_time, status='OK', note=group_name))
+    # session.commit()
+
+    station = get_station_info(name)
 
     # 包装数据
-    data = {"GroupName": group_name, "Value": variable_list}
+    data = {"station": station["idnum"], "version": station["version"], "GroupName": group_name, "Value": variable_list}
     # data = encryption(data)
     rv = requests.post("http://127.0.0.1:11000/upload", json=data)
     data = rv.json()
     # data = decryption(data)
-    status = data["status"]
-    log = TransferLog(type='upload', date=upload_time, status=status)
+
+    # 日志记录
+    log = TransferLog(type='upload', date=upload_time, status=data["status"], note=group_name)
     session.add(log)
     session.commit()
+
+    # 错误处理
+    status = data["status"]
+    if status.startswith("V"):  # 版本错误
+        get_config()
 
 
 @app.task
@@ -254,10 +265,6 @@ def fake_data():
         # 产生一个假数据
         value = Value(variable_name='DB1', value=1, get_time=datetime.datetime.now(), up_time=1)
         session.add(value)
-
-        # value = Value('DB2', 2, datetime.datetime.now(), 10)
-        # session.add(value)
-
         session.commit()
 
 
