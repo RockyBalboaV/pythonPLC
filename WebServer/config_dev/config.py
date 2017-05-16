@@ -1,0 +1,2 @@
+SQLALCHEMY_DATABASE_URI = 'mysql://web:web@localhost:3306/pyplc'
+SQLALCHEMY_TRACK_MODIFICATIONS = False
