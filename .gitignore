@@ -1,3 +1,7 @@
 .idea/*
 venv/*
 *.pyc
+Client/.cache/
+Client/.coverage
+Client/__pycache__/
+Client/coverage.xml
