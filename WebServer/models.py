@@ -60,7 +60,7 @@ class YjPLCInfo(db.Model):
     tenid = db.Column(db.String(255), nullable=False)
     itemid = db.Column(db.String(20))
 
-    station_id = db.Column(db.Integer, db.ForeignKey('yjstationinfo.id'))
+    station_id = db.Column(db.Integer, db.ForeignKey('yjstationinfo.idnum'))
 
     variables = db.relationship('YjVariableInfo', backref='yjplcinfo', lazy='dynamic')
     groups = db.relationship('YjGroupInfo', backref='yjplcinfo', lazy='dynamic')
@@ -68,12 +68,13 @@ class YjPLCInfo(db.Model):
     def __init__(self, name=None, station_id=None, note=None, ip=None,
                  mpi=None, type=None, plctype=None,
                  tenid=0, itemid=None):
+
         self.name = name
         self.station_id = station_id
         self.note = note
         self.ip = ip
         self.mpi = check_int(mpi)
-        self.mpi = check_int(mpi)
+        self.type = type
         self.plctype = plctype
         self.tenid = tenid
         self.itemid = itemid

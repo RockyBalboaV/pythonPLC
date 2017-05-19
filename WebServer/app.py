@@ -1,31 +1,37 @@
 # coding=utf-8
-
-import json
-import hmac
+import os
 import base64
+import hmac
+import json
 import random
 import zlib
 
+import MySQLdb
+import eventlet
+from celery import Celery
 from flask import Flask, request, jsonify, g, render_template
 from flask_socketio import SocketIO
-from celery import Celery
-import MySQLdb
 from pandas.io.sql import read_sql
-import eventlet
 
-from ext import mako, hashing
 from models import *
+from ext import mako, hashing, api
+
+from rest.api_plc import PLCResource
+from rest.api_station import StationResource
+from rest.api_group import GroupResource
+from rest.api_variable import VariableResource
 
 eventlet.monkey_patch()
 
 app = Flask(__name__, template_folder='templates')
 here = os.path.abspath(os.path.dirname(__file__))
-app.config.from_pyfile(os.path.join(here, 'config_server/config.py'))
-app.config.from_pyfile(os.path.join(here, 'config_server/celeryconfig.py'))
+app.config.from_pyfile(os.path.join(here, 'config_dev/config.py'))
+app.config.from_pyfile(os.path.join(here, 'config_dev/celeryconfig.py'))
 
 mako.init_app(app)
 db.init_app(app)
 hashing.init_app(app)
+
 
 SOCKETIO_REDIS_URL = app.config['CELERY_RESULT_BACKEND']
 socketio = SocketIO(
@@ -35,6 +41,12 @@ socketio = SocketIO(
 
 celery = Celery(app.name)
 celery.conf.update(app.config)
+
+api.add_resource(StationResource, '/api/station/<name>')
+api.add_resource(PLCResource, '/api/plc/<id>', '/api/plc')
+api.add_resource(GroupResource, '/api/group/<name>')
+api.add_resource(VariableResource, '/api/variable/<name>')
+api.init_app(app)
 
 
 def value2dict(std):
@@ -294,6 +306,38 @@ def show_tables(date_string=None):
         return 'Bad data format!'
     return render_template('show_data.html', df=df.to_html(classes='frame'), date_string=date_string)
 
+
+@app.route('/api/configuration/', methods=["GET", "POST"])
+def give_config(*args, **kwargs):
+    # data = request.get_json(force=True)
+
+
+    # config_station = YjStationInfo.query.filter_by(idnum=data["station_id"]).first()
+    config_station = YjStationInfo.query.filter_by(idnum=1).first()
+    station_config = get_data_from_model(config_station)
+    
+    plcs_config = []
+    groups_config = []
+    variables_config = []
+    
+    for plc in config_station.plcs.all():
+        plc_config = get_data_from_model(plc)
+    
+        plcs_config.append(plc_config)
+    
+        groups = plc.groups.all()
+        groups_config += get_data_from_query(groups)
+    
+        variables = plc.variables.all()
+        variables_config += get_data_from_query(variables)
+    
+    # 包装数据
+    data = {"YjStationInfo": station_config, "YjPLCInfo": plcs_config,
+            "YjGroupInfo": groups_config, "YjVariableInfo": variables_config,
+            "status": "OK"}
+    
+    # data = encryption(data)
+    return jsonify(data)
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=11000, debug=True)
