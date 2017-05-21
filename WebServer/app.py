@@ -9,17 +9,21 @@ import zlib
 import MySQLdb
 import eventlet
 from celery import Celery
-from flask import Flask, request, jsonify, g, render_template
+from flask import Flask, request, jsonify, g, render_template, redirect, url_for, current_app, flash, Config
+from flask_login import login_user, user_logged_in
 from flask_socketio import SocketIO
 from pandas.io.sql import read_sql
 
 from models import *
-from ext import mako, hashing, api
+from ext import mako, hashing, api, admin, login_manager, csrf, cache, debug_toolbar
+from forms import RegistrationForm
 
 from rest.api_plc import PLCResource
 from rest.api_station import StationResource
 from rest.api_group import GroupResource
 from rest.api_variable import VariableResource
+
+from admin import CustomView, CustomModelView, CustomFileAdmin
 
 eventlet.monkey_patch()
 
@@ -31,7 +35,11 @@ app.config.from_pyfile(os.path.join(here, 'config_dev/celeryconfig.py'))
 mako.init_app(app)
 db.init_app(app)
 hashing.init_app(app)
-
+admin.init_app(app)
+login_manager.init_app(app)
+csrf.init_app(app)
+debug_toolbar.init_app(app)
+cache.init_app(app)
 
 SOCKETIO_REDIS_URL = app.config['CELERY_RESULT_BACKEND']
 socketio = SocketIO(
@@ -43,10 +51,22 @@ celery = Celery(app.name)
 celery.conf.update(app.config)
 
 api.add_resource(StationResource, '/api/station/<name>')
-api.add_resource(PLCResource, '/api/plc/<id>', '/api/plc')
+api.add_resource(PLCResource, '/api/plc/<id>', '/api/plc', endpoint='api')
 api.add_resource(GroupResource, '/api/group/<name>')
 api.add_resource(VariableResource, '/api/variable/<name>')
 api.init_app(app)
+
+admin.add_view(CustomView(name='Custom'))
+models = [YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, Value, TransferLog, User]
+
+for model in models:
+    admin.add_view(
+        CustomModelView(model, db.session,
+                        category='models')
+    )
+admin.add_view(CustomFileAdmin(os.path.join(os.path.dirname(__file__), 'static'),
+                               '/static/',
+                               name='Static File'))
 
 
 def value2dict(std):
@@ -171,18 +191,39 @@ def station_check():
                 if (current_time - last_time).seconds > 5 and (current_time - last_time).days == 0:
                     warn_level = last_level + 1
                     if warn_level > 2:
-                        warn = TransferLog(idnum=s.idnum, level=3, time=current_time, note='ERROR')
+                        warn = TransferLog(id_num=s.idnum, level=3, time=current_time, note='ERROR')
                     else:
-                        warn = TransferLog(idnum=s.idnum, level=last_level + 1, time=current_time, note='WARNING')
+                        warn = TransferLog(id_num=s.idnum, level=last_level + 1, time=current_time, note='WARNING')
                 else:
-                    warn = TransferLog(idnum=s.idnum, level=0, time=current_time, note='OK')
+                    warn = TransferLog(id_num=s.idnum, level=0, time=current_time, note='OK')
             else:
-                warn = TransferLog(idnum=s.idnum, level=0, time=current_time, note='OK')
+                warn = TransferLog(id_num=s.idnum, level=0, time=current_time, note='OK')
             db.session.add(warn)
             db.session.commit()
 
 
+@user_logged_in.connect_via(app)
+def _track_logins(sender, user, **extra):
+    # 记录用户登录次数，登录IP
+    user.login_count += 1
+    user.last_login_ip = request.remote_addr
+    db.session.add(user)
+    db.session.commit()
+
+
+# @login_manager.user_loader
+# def load_user(userid):
+#     from models import User
+#     return User.query.get(userid)
+
+# @login_manager.user_loader
+# def user_loader(id):
+#     user = User.query.filter_by(id=id).first()
+#     return user
+
+
 @app.route('/', methods=['GET', 'POST'])
+@cache.cached(timeout=60)
 def index():
     if request.method == 'POST':
         data = request.get_json(force=True)
@@ -192,7 +233,7 @@ def index():
             uploaded_data = YjPLCInfo.query.all()
             return render_template('index_post.html', uploaded_data=uploaded_data)
         else:
-            uploaded_data = YjPLCInfo(name=data["name"], tenid=data["tenid"])
+            uploaded_data = YjPLCInfo(name=data["name"])
             # todo 当输入值的键不存在时,怎么使用默认值代替
         db.session.add(uploaded_data)
         db.session.commit()
@@ -200,6 +241,43 @@ def index():
         return render_template('index_post.html', uploaded_data=uploaded_data)
     users = User.query.all()
     return render_template('index.html', users=users)
+
+
+@app.route('/register', methods=['GET', 'POST'])
+@csrf.exempt
+def register():
+    form = RegistrationForm(request.form)
+    if request.method == 'POST' and form.validate():
+        user = User(name=form.name.data, email=form.email.data, password=form.password.data)
+        db.session.add(user)
+        db.session.commit()
+        flash('registering successed!')
+        return redirect(url_for('login'))
+    return render_template('register.html', form=form)
+
+
+@app.route('/login', methods=['GET', 'POST'])
+@csrf.exempt
+def login():
+    if request.method == 'GET':
+        return '''
+<form action='login' method='POST'>
+    <input type='text' name='name' id='name' placeholder='name'></input>
+    <input type='password' name='pw' id='pw' placeholder='password'></input>
+    <input type='submit' name='submit'></input>
+</form>
+        '''
+
+    name = request.form.get('name')
+    password = request.form.get('pw')
+    user = User.query.filter_by(name=name).first()
+
+    if not user:
+        return 'user is not exist'
+    if user.check_password(password):
+        login_user(user)
+        return redirect(url_for('index'))
+    return 'password error'
 
 
 @app.route('/beats', methods=['GET', 'POST'])
@@ -300,6 +378,7 @@ def _get_frame(date_string):
 
 
 @app.route('/db/<any(yjstationinfo, yjplcinfo, yjgroupinfo, yjvariableinfo):date_string>/')
+@cache.cached(timeout=10)
 def show_tables(date_string=None):
     df = _get_frame(date_string)
     if isinstance(df, bool) and not df:
@@ -311,26 +390,31 @@ def show_tables(date_string=None):
 def give_config(*args, **kwargs):
     # data = request.get_json(force=True)
 
-
-    # config_station = YjStationInfo.query.filter_by(idnum=data["station_id"]).first()
-    config_station = YjStationInfo.query.filter_by(idnum=1).first()
-    station_config = get_data_from_model(config_station)
-    
+    station_config = {}
     plcs_config = []
     groups_config = []
     variables_config = []
+
+    # config_station = YjStationInfo.query.filter_by(idnum=data["station_id"]).first()
+    config_station = YjStationInfo.query.filter_by(id=1).first()
+    if config_station:
+        station_config = get_data_from_model(config_station)
     
-    for plc in config_station.plcs.all():
-        plc_config = get_data_from_model(plc)
-    
-        plcs_config.append(plc_config)
-    
-        groups = plc.groups.all()
-        groups_config += get_data_from_query(groups)
-    
-        variables = plc.variables.all()
-        variables_config += get_data_from_query(variables)
-    
+        plcs = config_station.plcs.all()
+        if plcs:
+            for plc in plcs:
+                plc_config = get_data_from_model(plc)
+
+                plcs_config.append(plc_config)
+
+                groups = plc.groups.all()
+                if groups:
+                    groups_config += get_data_from_query(groups)
+
+                variables = plc.variables.all()
+                if variables:
+                    variables_config += get_data_from_query(variables)
+
     # 包装数据
     data = {"YjStationInfo": station_config, "YjPLCInfo": plcs_config,
             "YjGroupInfo": groups_config, "YjVariableInfo": variables_config,

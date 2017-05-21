@@ -3,6 +3,7 @@ import os, datetime
 from ext import db
 
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_login import UserMixin, AnonymousUserMixin
 
 
 def check_int(column):
@@ -14,31 +15,31 @@ def check_int(column):
 
 class YjStationInfo(db.Model):
     __tablename__ = 'yjstationinfo'
-    id = db.Column(db.Integer, primary_key=True, nullable=False, autoincrement=True)
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(30))
     mac = db.Column(db.String(20))
     ip = db.Column(db.String(20))
     note = db.Column(db.String(200))
-    idnum = db.Column(db.String(200))
-    plcnum = db.Column(db.Integer)
-    tenid = db.Column(db.String(255))
-    itemid = db.Column(db.String(20))
+    id_num = db.Column(db.Integer)
+    plc_num = db.Column(db.Integer)
+    ten_id = db.Column(db.String(255))
+    item_id = db.Column(db.String(20))
     con_date = db.Column(db.DateTime)
     modification = db.Column(db.Integer)
     version = db.Column(db.Integer, autoincrement=True)
 
     plcs = db.relationship('YjPLCInfo', backref='yjstationinfo', lazy='dynamic')
 
-    def __init__(self, name=None, mac=None, ip=None, note=None, idnum=None,
-                 plcnum=None, tenid=None, itemid=None, con_date=None, modification=0):
+    def __init__(self, name=None, mac=None, ip=None, note=None, id_num=None,
+                 plc_num=None, ten_id=None, item_id=None, con_date=None, modification=0):
         self.name = name
         self.mac = mac
         self.ip = ip
         self.note = note
-        self.idnum = idnum
-        self.plcnum = check_int(plcnum)
-        self.tenid = tenid
-        self.itemid = itemid
+        self.id_num = id_num
+        self.plc_num = check_int(plc_num)
+        self.ten_id = ten_id
+        self.item_id = item_id
         if con_date is None:
             con_date = datetime.datetime.utcnow()
         self.con_date = con_date
@@ -56,18 +57,18 @@ class YjPLCInfo(db.Model):
     ip = db.Column(db.String(30))
     mpi = db.Column(db.Integer)
     type = db.Column(db.Integer)
-    plctype = db.Column(db.String(20))
-    tenid = db.Column(db.String(255), nullable=False)
-    itemid = db.Column(db.String(20))
+    plc_type = db.Column(db.String(20))
+    ten_id = db.Column(db.String(255))
+    item_id = db.Column(db.String(20))
 
-    station_id = db.Column(db.Integer, db.ForeignKey('yjstationinfo.idnum'))
+    station_id = db.Column(db.Integer, db.ForeignKey('yjstationinfo.id'))
 
     variables = db.relationship('YjVariableInfo', backref='yjplcinfo', lazy='dynamic')
     groups = db.relationship('YjGroupInfo', backref='yjplcinfo', lazy='dynamic')
 
     def __init__(self, name=None, station_id=None, note=None, ip=None,
-                 mpi=None, type=None, plctype=None,
-                 tenid=0, itemid=None):
+                 mpi=None, type=None, plc_type=None,
+                 ten_id=0, item_id=None):
 
         self.name = name
         self.station_id = station_id
@@ -75,106 +76,118 @@ class YjPLCInfo(db.Model):
         self.ip = ip
         self.mpi = check_int(mpi)
         self.type = type
-        self.plctype = plctype
-        self.tenid = tenid
-        self.itemid = itemid
+        self.plc_type = plc_type
+        self.ten_id = ten_id
+        self.item_id = item_id
 
     def __repr__(self):
         return '<PLC : %r >' % self.name
 
-    @classmethod
-    def upload(cls, uploaded_data):
-        rst = cls(uploaded_data["name"])
-        uploaded_data.save(rst.path)
-        with open(rst.path, 'rb') as f:
-            dataname = f.name
-            uploaded_data = cls.query.filter_by(name=dataname).first()
-            if uploaded_data:
-                os.remove(rst.path)
-                return uploaded_data
-        rst.name = dataname
-        return rst
-
 
 class YjGroupInfo(db.Model):
     __tablename__ = 'yjgroupinfo'
-    id = db.Column(db.Integer, primary_key=True, nullable=False, autoincrement=True)
-    groupname = db.Column(db.String(20))
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    group_name = db.Column(db.String(20))
     note = db.Column(db.String(100))
-    uploadcycle = db.Column(db.Integer)
-    tenid = db.Column(db.String(255), nullable=False)
-    itemid = db.Column(db.String(20))
+    upload_cycle = db.Column(db.Integer)
+    ten_id = db.Column(db.String(255))
+    item_id = db.Column(db.String(20))
 
     plc_id = db.Column(db.Integer, db.ForeignKey('yjplcinfo.id'))
 
     variables = db.relationship('YjVariableInfo', backref='yjgroupinfo', lazy='dynamic')
 
-    def __init__(self, groupname=None, plc_id=None, note=None,
-                 uploadcycle=None, tenid=None, itemid=None):
-        self.groupname = groupname
+    def __init__(self, group_name=None, plc_id=None, note=None,
+                 upload_cycle=None, ten_id=None, item_id=None):
+        self.group_name = group_name
         self.plc_id = check_int(plc_id)
         self.note = note
-        self.uploadcycle = check_int(plc_id)
-        self.tenid = tenid
-        self.itemid = itemid
+        self.upload_cycle = check_int(upload_cycle)
+        self.ten_id = ten_id
+        self.item_id = item_id
 
     def __repr__(self):
-        return '<Group : %r >' % self.groupname
+        return '<Group : %r >' % self.group_name
 
 
 class YjVariableInfo(db.Model):
     __tablename__ = 'yjvariableinfo'
-    id = db.Column(db.Integer, primary_key=True, nullable=False, autoincrement=True)
-    tagname = db.Column(db.String(20))
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    tag_name = db.Column(db.String(20))
     address = db.Column(db.String(20))
-    datatype = db.Column(db.String(10))
-    rwtype = db.Column(db.Integer)
+    data_type = db.Column(db.String(10))
+    rw_type = db.Column(db.Integer)
     upload = db.Column(db.Integer)
-    acquisitioncycle = db.Column(db.Integer)
-    serverrecordcycle = db.Column(db.Integer)
-    writevalue = db.Column(db.String(20))
+    acquisition_cycle = db.Column(db.Integer)
+    server_record_cycle = db.Column(db.Integer)
+    # write_value = db.Column(db.String(20))
     note = db.Column(db.String(50))
-    tenid = db.Column(db.String(200), nullable=False)
-    itemid = db.Column(db.String(20))
+    ten_id = db.Column(db.String(200))
+    item_id = db.Column(db.String(20))
 
     plc_id = db.Column(db.Integer, db.ForeignKey('yjplcinfo.id'))
     group_id = db.Column(db.Integer, db.ForeignKey('yjgroupinfo.id'))
 
     # values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic')
 
-    def __init__(self, tagname=None, plc_id=None, group_id=None, address=None,
-                 datatype=None, rwtype=None, upload=None,
-                 acquisitioncycle=None, serverrecordcycle=None,
-                 writevalue=None, note=None, tenid=None, itemid=None):
-        self.tagname = tagname
+    def __init__(self, tag_name=None, plc_id=None, group_id=None, address=None,
+                 data_type=None, rw_type=None, upload=None,
+                 acquisition_cycle=None, server_record_cycle=None,
+                 note=None, ten_id=None, item_id=None):
+        self.tag_name = tag_name
         self.plc_id = plc_id
         self.group_id = group_id
         self.address = address
-        self.datatype = datatype
-        self.rwtype = check_int(rwtype)
+        self.data_type = data_type
+        self.rw_type = check_int(rw_type)
         self.upload = check_int(upload)
-        self.acquisitioncycle = check_int(acquisitioncycle)
-        self.serverrecordcycle = check_int(serverrecordcycle)
-        self.writevalue = writevalue
+        self.acquisition_cycle = check_int(acquisition_cycle)
+        self.server_record_cycle = check_int(server_record_cycle)
+        # self.writevalue = writevalue
         self.note = note
-        self.tenid = tenid
-        self.itemid = itemid
+        self.ten_id = ten_id
+        self.item_id = item_id
 
     def __repr__(self):
-        return '<Variable : %r >' % self.tagname
+        return '<Variable : %r >' % self.tag_name
 
 
-class User(db.Model):
+class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(20), nullable=False)
-    pw_hash = db.Column(db.String(128), nullable=False)
+    email = db.Column(db.String(35))
+    pw_hash = db.Column(db.String(128))
+    login_count = db.Column(db.Integer, default=0)
+    last_login_ip = db.Column(db.String(128), default='unknown')
     level = db.Column(db.Integer)
 
-    def __init__(self, name, password, level=3):
+    def __init__(self, name, email, password, level=3):
         self.name = name
+        self.email = email
         self.set_password(password)
         self.level = check_int(level)
+
+    def __repr__(self):
+        return '<User {}'.format(self.name)
+
+    def is_authenticated(self):
+        if isinstance(self, AnonymousUserMixin):
+            return False
+        else:
+            return True
+
+    def is_active(self):
+        return True
+
+    def is_anonymous(self):
+        if isinstance(self, AnonymousUserMixin):
+            return True
+        else:
+            return False
+
+    def get_id(self):
+        return unicode(self.id)
 
     def set_password(self, password):
         self.pw_hash = generate_password_hash(password)
@@ -188,26 +201,24 @@ class Value(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     variable_name = db.Column(db.String(20))
     value = db.Column(db.String(128))
-    get_time = db.Column(db.DateTime)
-    up_time = db.Column(db.Integer)
+    time = db.Column(db.DateTime)
 
-    def __init__(self, variable_name, value, get_time=None, up_time=None):
+    def __init__(self, variable_name, value, time=None):
         self.variable_name = variable_name
         self.value = value
-        self.get_time = get_time
-        self.up_time = up_time
+        self.time = time
 
 
 class TransferLog(db.Model):
     __tablename__ = 'logs'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    idnum = db.Column(db.String(200))
+    id_num = db.Column(db.String(200))
     level = db.Column(db.Integer)
     time = db.Column(db.DateTime)
     note = db.Column(db.String(200))
 
-    def __init__(self, idnum, level, time, note):
-        self.idnum = idnum
+    def __init__(self, id_num, level, time, note):
+        self.id_num = id_num
         self.level = level
         self.time = time
         self.note = note
