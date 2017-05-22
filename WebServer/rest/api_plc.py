@@ -28,9 +28,9 @@ plc_put_parser.add_argument('note', type=str)
 plc_put_parser.add_argument('ip', type=str)
 plc_put_parser.add_argument('mpi', type=int)
 plc_put_parser.add_argument('type', type=int)
-plc_put_parser.add_argument('plctype', type=str)
-plc_put_parser.add_argument('tenid', type=str)
-plc_put_parser.add_argument('itemid', type=str)
+plc_put_parser.add_argument('plc_type', type=str)
+plc_put_parser.add_argument('ten_id', type=str)
+plc_put_parser.add_argument('item_id', type=str)
 
 
 class PLCResource(Resource):
