@@ -6,6 +6,7 @@ from flask_login import login_required
 from forms import CKTextAreaField
 from ext import admin_permission
 
+
 class CustomView(BaseView):
     @expose('/')
     @login_required
@@ -14,6 +15,8 @@ class CustomView(BaseView):
         return self.render('admin/custom.html')
 
     @expose('/second_page')
+    @login_required
+    @admin_permission.require(http_exception=403)
     def second_page(self):
         return self.render('admin/second_page.html')
 

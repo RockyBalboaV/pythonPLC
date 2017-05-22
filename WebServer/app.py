@@ -9,13 +9,13 @@ import zlib
 import MySQLdb
 import eventlet
 from celery import Celery
-from flask import Flask, request, jsonify, g, render_template, redirect, url_for, current_app, flash, Config
+from flask import Flask, request, jsonify, g, render_template, redirect, url_for, current_app, flash, Config, session
 from flask_login import login_user, user_logged_in
 from flask_socketio import SocketIO
 from pandas.io.sql import read_sql
 
 from models import *
-from ext import mako, hashing, api, admin, login_manager, csrf, cache, debug_toolbar
+from ext import mako, hashing, api, admin, login_manager, csrf, cache, debug_toolbar, CSRFProtect
 from forms import RegistrationForm
 
 from rest.api_plc import PLCResource
@@ -78,8 +78,7 @@ def value2dict(std):
 
 
 def get_current_user():
-    users = User.query.all()
-    return random.choice(users)
+    return session['username']
 
 
 def encryption(data):
@@ -155,7 +154,10 @@ def setup():
 
 @app.before_request
 def before_request():
-    g.user = get_current_user()
+    if 'username' in session:
+        g.current_user = User.query.filter_by(username=session['username']).first()
+    else:
+        g.current_user = None
 
 
 @app.teardown_appcontext
@@ -165,12 +167,12 @@ def teardown(exc=None):
     else:
         db.session.rollback()
     db.session.remove()
-    g.user = None
+    g.current_user = None
 
 
 @app.context_processor
 def template_extras():
-    return {'enumerate': enumerate, 'current_user': g.user}
+    return {'enumerate': enumerate, 'current_user': g.current_user}
 
 
 @app.template_filter('capitalize')
@@ -216,10 +218,10 @@ def _track_logins(sender, user, **extra):
 #     from models import User
 #     return User.query.get(userid)
 
-# @login_manager.user_loader
-# def user_loader(id):
-#     user = User.query.filter_by(id=id).first()
-#     return user
+@login_manager.user_loader
+def user_loader(id):
+    user = User.query.filter_by(id=id).first()
+    return user
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -247,8 +249,8 @@ def index():
 @csrf.exempt
 def register():
     form = RegistrationForm(request.form)
-    if request.method == 'POST' and form.validate():
-        user = User(name=form.name.data, email=form.email.data, password=form.password.data)
+    if request.method == 'POST' and form.validate_on_submit():
+        user = User(username=form.name.data, email=form.email.data, password=form.password.data)
         db.session.add(user)
         db.session.commit()
         flash('registering successed!')
@@ -270,12 +272,13 @@ def login():
 
     name = request.form.get('name')
     password = request.form.get('pw')
-    user = User.query.filter_by(name=name).first()
+    user = User.query.filter_by(username=name).first()
 
     if not user:
         return 'user is not exist'
     if user.check_password(password):
         login_user(user)
+        session['username'] = user.username
         return redirect(url_for('index'))
     return 'password error'
 

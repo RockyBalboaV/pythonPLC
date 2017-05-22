@@ -1,7 +1,9 @@
 # coding=utf-8
+from flask import abort
 from flask_restful import reqparse, Resource, marshal_with, fields
 
 from models import *
+from rest.parsers import plc_parser, plc_put_parser
 
 plc_field = {
     'id': fields.Integer,
@@ -15,22 +17,6 @@ plc_field = {
     'ten_id': fields.String,
     'item_id': fields.String
 }
-
-plc_parser = reqparse.RequestParser()
-plc_parser.add_argument('id', type=int)
-plc_parser.add_argument('station_id', type=str, help='plc从属的station')
-
-plc_put_parser = reqparse.RequestParser()
-plc_put_parser.add_argument('id', type=int)
-plc_put_parser.add_argument('name', type=str)
-plc_put_parser.add_argument('station_id', type=str, help='plc从属的station')
-plc_put_parser.add_argument('note', type=str)
-plc_put_parser.add_argument('ip', type=str)
-plc_put_parser.add_argument('mpi', type=int)
-plc_put_parser.add_argument('type', type=int)
-plc_put_parser.add_argument('plctype', type=str)
-plc_put_parser.add_argument('tenid', type=str)
-plc_put_parser.add_argument('itemid', type=str)
 
 
 class PLCResource(Resource):
@@ -49,7 +35,7 @@ class PLCResource(Resource):
         return plc
 
     @marshal_with(plc_field)
-    def get(self, id=None):
+    def get(self, id=None, *args):
         if id:
             plc = YjPLCInfo.query.filter_by(id=id).first()
         else:
@@ -73,7 +59,7 @@ class PLCResource(Resource):
         # plc = YjPLCInfo(name=args['name'], station_id=args['station_id'], note=args['note'], ip=args['ip'],
         #                 mpi=args['mpi'], type=args['type'],
         #                 plc_type=args['plctype'], ten_id=args['tenid'], item_id=args['itemid'])
-        
+
         db.session.add(plc)
         db.session.commit()
         return {'ok': 0}, 201
@@ -84,6 +70,8 @@ class PLCResource(Resource):
 
         plc = self.search(station_id, plc_id)
 
+        if not plc:
+            abort(404)
         for p in plc:
             db.session.delete(p)
         db.session.commit()

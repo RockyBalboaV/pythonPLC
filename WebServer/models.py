@@ -1,9 +1,12 @@
 #coding=utf-8
 import os, datetime
-from ext import db
 
+from flask import current_app
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin, AnonymousUserMixin
+from itsdangerous import TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired
+
+from ext import db
 
 
 def check_int(column):
@@ -155,21 +158,34 @@ class YjVariableInfo(db.Model):
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name = db.Column(db.String(20), nullable=False)
+    username = db.Column(db.String(20), nullable=False)
     email = db.Column(db.String(35))
     pw_hash = db.Column(db.String(128))
     login_count = db.Column(db.Integer, default=0)
     last_login_ip = db.Column(db.String(128), default='unknown')
     level = db.Column(db.Integer)
 
-    def __init__(self, name, email, password, level=3):
-        self.name = name
+    def __init__(self, username, email, password, level=3):
+        self.username = username
         self.email = email
         self.set_password(password)
         self.level = check_int(level)
 
     def __repr__(self):
-        return '<User {}'.format(self.name)
+        return '<User {}'.format(self.username)
+
+    @staticmethod
+    def verify_auth_token(token):
+        s = Serializer(current_app.config['SECRET_KEY'])
+
+        try:
+            data = s.loads(token)
+        except SignatureExpired:
+            return None
+        except BadSignature:
+            return None
+        user = User.query.get(data['id'])
+        return user
 
     def is_authenticated(self):
         if isinstance(self, AnonymousUserMixin):
