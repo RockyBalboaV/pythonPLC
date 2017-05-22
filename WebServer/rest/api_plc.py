@@ -65,14 +65,14 @@ class PLCResource(Resource):
 
         return plc
 
-    def put(self, **kwargs):
+    def put(self):
         args = plc_put_parser.parse_args()
+        print args.values(), args.keys()
+        # plc = YjPLCInfo(args.values())
 
-        plc = YjPLCInfo(args.values())
-
-        # plc = YjPLCInfo(name=args['name'], station_id=args['station_id'], note=args['note'], ip=args['ip'],
-        #                 mpi=args['mpi'], type=args['type'],
-        #                 plc_type=args['plctype'], ten_id=args['tenid'], item_id=args['itemid'])
+        plc = YjPLCInfo(name=args['name'], station_id=args['station_id'], note=args['note'], ip=args['ip'],
+                        mpi=args['mpi'], type=args['type'], plc_type=args['plc_type'], ten_id=args['ten_id'],
+                        item_id=args['item_id'])
         
         db.session.add(plc)
         db.session.commit()
