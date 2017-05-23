@@ -1,9 +1,12 @@
 #coding=utf-8
 import os, datetime
-from ext import db
 
+from flask import current_app
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin, AnonymousUserMixin
+from itsdangerous import TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired
+
+from ext import db
 
 
 def check_int(column):
@@ -21,7 +24,7 @@ class YjStationInfo(db.Model):
     ip = db.Column(db.String(20))
     note = db.Column(db.String(200))
     id_num = db.Column(db.Integer)
-    plc_num = db.Column(db.Integer)
+    plc_count = db.Column(db.Integer)
     ten_id = db.Column(db.String(255))
     item_id = db.Column(db.String(20))
     con_date = db.Column(db.DateTime)
@@ -31,13 +34,13 @@ class YjStationInfo(db.Model):
     plcs = db.relationship('YjPLCInfo', backref='yjstationinfo', lazy='dynamic')
 
     def __init__(self, name=None, mac=None, ip=None, note=None, id_num=None,
-                 plc_num=None, ten_id=None, item_id=None, con_date=None, modification=0):
+                 plc_count=None, ten_id=None, item_id=None, con_date=None, modification=0):
         self.name = name
         self.mac = mac
         self.ip = ip
         self.note = note
         self.id_num = id_num
-        self.plc_num = check_int(plc_num)
+        self.plc_count = check_int(plc_count)
         self.ten_id = ten_id
         self.item_id = item_id
         if con_date is None:
@@ -155,21 +158,34 @@ class YjVariableInfo(db.Model):
 class User(UserMixin, db.Model):
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name = db.Column(db.String(20), nullable=False)
+    username = db.Column(db.String(20), nullable=False)
     email = db.Column(db.String(35))
     pw_hash = db.Column(db.String(128))
     login_count = db.Column(db.Integer, default=0)
     last_login_ip = db.Column(db.String(128), default='unknown')
     level = db.Column(db.Integer)
 
-    def __init__(self, name, email, password, level=3):
-        self.name = name
+    def __init__(self, username, email, password, level=3):
+        self.username = username
         self.email = email
         self.set_password(password)
         self.level = check_int(level)
 
     def __repr__(self):
-        return '<User {}'.format(self.name)
+        return '<User {}'.format(self.username)
+
+    @staticmethod
+    def verify_auth_token(token):
+        s = Serializer(current_app.config['SECRET_KEY'])
+
+        try:
+            data = s.loads(token)
+        except SignatureExpired:
+            return None
+        except BadSignature:
+            return None
+        user = User.query.get(data['id'])
+        return user
 
     def is_authenticated(self):
         if isinstance(self, AnonymousUserMixin):

@@ -1,8 +1,12 @@
-<h2>Current User: {{ current_user.name }}</h2>
-<ul>
-    {% for index, user in enumerate(users, 1) %}
-    <li>
-        {{ index }} {{ user.name | capitalize }}
-    </li>
-    {% endfor %}
-</ul>
+<body>
+    {% if current_user.is_authenticated %}
+        <h2>Current User: {{ current_user.username }}</h2>
+    {% endif %}
+    <ul>
+        {% for index, user in enumerate(users, 1) %}
+        <li>
+            {{ index }} {{ user.username | capitalize }}
+        </li>
+        {% endfor %}
+    </ul>
+</body>
