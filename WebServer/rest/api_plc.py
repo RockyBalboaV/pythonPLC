@@ -21,58 +21,108 @@ plc_field = {
 
 class PLCResource(Resource):
 
-    def __init__(self, **kwargs):
+    def __init__(self):
         self.args = plc_parser.parse_args()
 
-    @staticmethod
-    def search(plc_id=None, station_id=None):
+    def search(self, plc_id=None):
+        if not plc_id:
+            plc_id = self.args['id']
+
+        station_id = self.args['station_id']
+
         if plc_id:
             plc = YjPLCInfo.query.filter_by(id=plc_id).all()
         elif station_id:
             plc = YjPLCInfo.query.filter_by(station_id=station_id).all()
         else:
             plc = YjPLCInfo.query.all()
-        return plc
 
-    @marshal_with(plc_field)
-    def get(self, id=None, *args):
-        if id:
-            plc = YjPLCInfo.query.filter_by(id=id).first()
+        if plc:
+            return plc
         else:
-            plc = YjPLCInfo.query.all()
+            abort(404)
+
+    @marshal_with(plc_field)
+    def get(self, plc_id=None):
+
+        plc = self.search(plc_id)
+
         return plc
 
     @marshal_with(plc_field)
-    def post(self, **kwargs):
-        station_id = self.args['station_id']
-        plc_id = self.args['id']
+    def post(self, plc_id=None):
 
-        plc = self.search(plc_id, station_id)
+        user = User.verify_auth_token(self.args['token'])
+        if not user:
+            abort(401)
+
+        plc = self.search(plc_id)
 
         return plc
 
-    def put(self, **kwargs):
+    def put(self, plc_id=None):
         args = plc_put_parser.parse_args()
 
-        plc = YjPLCInfo(args.values())
+        if not plc_id:
+            plc_id = args['id']
+        if plc_id:
 
-        # plc = YjPLCInfo(name=args['name'], station_id=args['station_id'], note=args['note'], ip=args['ip'],
-        #                 mpi=args['mpi'], type=args['type'],
-        #                 plc_type=args['plctype'], ten_id=args['tenid'], item_id=args['itemid'])
+            plc = YjPLCInfo.query.get(plc_id)
+            if not plc:
+                abort(404)
 
-        db.session.add(plc)
-        db.session.commit()
-        return {'ok': 0}, 201
+            if args['name']:
+                plc.name = args['name']
 
-    def delete(self, **kwargs):
-        station_id = self.args['station_id']
-        plc_id = self.args['id']
+            if args['station_id']:
+                plc.station_id = args['station_id']
 
-        plc = self.search(station_id, plc_id)
+            if args['note']:
+                plc.note = args['note']
 
-        if not plc:
-            abort(404)
+            if args['ip']:
+                plc.ip = args['ip']
+
+            if args['mpi']:
+                plc.mpi = args['mpi']
+
+            if args['type']:
+                plc.type = args['type']
+
+            if args['plc_type']:
+                plc.plc_type = args['plc_type']
+
+            if args['ten_id']:
+                plc.ten_id = args['ten_id']
+
+            if args['item_id']:
+                plc.item_id = args['item_id']
+
+            # db.session.query(YjPLCInfo).filter(YjPLCInfo.id == plc_id).update({
+            #     YjPLCInfo.name: args['name'], YjPLCInfo.station_id: args['station_id'],
+            #     YjPLCInfo.note: args['note'], YjPLCInfo.ip: args['ip'], YjPLCInfo.mpi: args['mpi'],
+            #     YjPLCInfo.type: args['type'], YjPLCInfo.plc_type: args['plc_type'],
+            #     YjPLCInfo.ten_id: args['ten_id'], YjPLCInfo.item_id: args['item_id']
+            # })
+
+            db.session.add(plc)
+            db.session.commit()
+            return {'ok': 0}, 200
+
+        else:
+            plc = YjPLCInfo(name=args['name'], station_id=args['station_id'], note=args['note'], ip=args['ip'],
+                            mpi=args['mpi'], type=args['type'], plc_type=args['plc_type'], ten_id=args['ten_id'],
+                            item_id=args['item_id'])
+
+            db.session.add(plc)
+            db.session.commit()
+            return {'ok': 0}, 201
+
+    def delete(self, plc_id=None):
+
+        plc = self.search(plc_id)
+
         for p in plc:
             db.session.delete(p)
         db.session.commit()
-        return {'ok': 0}
+        return {'ok': 0}, 204

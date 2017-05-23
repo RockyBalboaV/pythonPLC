@@ -1,10 +1,12 @@
-from flask_wtf import Form, FlaskForm
+# coding=utf-8
+from flask_wtf import FlaskForm
 from wtforms import (
     widgets,
     StringField,
     TextAreaField,
     PasswordField,
-    BooleanField
+    BooleanField,
+    SubmitField
 )
 from wtforms.validators import DataRequired, length, EqualTo, URL, Email
 
@@ -20,13 +22,14 @@ class CKTextAreaField(TextAreaField):
 
 
 class LoginForm(FlaskForm):
-    name = TextAreaField('Username', [DataRequired(), length(min=4, max=25)])
+    username = StringField('Username', [DataRequired(), length(min=4, max=25)])
     password = PasswordField('Password', [DataRequired()])
     remember = BooleanField("Remember Me")
+    submit = SubmitField('Submit')
 
 
 class RegistrationForm(FlaskForm):
-    name = TextAreaField('Username', [DataRequired(), length(min=4, max=25)])
-    email = TextAreaField('Email Address', [length(min=4, max=35)])
+    username = StringField('Username', [DataRequired(), length(min=4, max=25)])
+    email = StringField('Email Address', [length(min=4, max=35)])
     password = PasswordField('New Password', [DataRequired(), EqualTo('confirm', message='Password must match')])
     confirm = PasswordField('Repeat Password')

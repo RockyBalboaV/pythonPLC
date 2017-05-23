@@ -24,7 +24,7 @@ class YjStationInfo(db.Model):
     ip = db.Column(db.String(20))
     note = db.Column(db.String(200))
     id_num = db.Column(db.Integer)
-    plc_num = db.Column(db.Integer)
+    plc_count = db.Column(db.Integer)
     ten_id = db.Column(db.String(255))
     item_id = db.Column(db.String(20))
     con_date = db.Column(db.DateTime)
@@ -34,13 +34,13 @@ class YjStationInfo(db.Model):
     plcs = db.relationship('YjPLCInfo', backref='yjstationinfo', lazy='dynamic')
 
     def __init__(self, name=None, mac=None, ip=None, note=None, id_num=None,
-                 plc_num=None, ten_id=None, item_id=None, con_date=None, modification=0):
+                 plc_count=None, ten_id=None, item_id=None, con_date=None, modification=0):
         self.name = name
         self.mac = mac
         self.ip = ip
         self.note = note
         self.id_num = id_num
-        self.plc_num = check_int(plc_num)
+        self.plc_count = check_int(plc_count)
         self.ten_id = ten_id
         self.item_id = item_id
         if con_date is None:

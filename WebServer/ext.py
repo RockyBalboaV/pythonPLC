@@ -1,3 +1,4 @@
+# coding=utf-8
 from flask_mako import MakoTemplates
 from flask_sqlalchemy import SQLAlchemy
 from flask_hashing import Hashing
@@ -12,9 +13,9 @@ from flask_debugtoolbar import DebugToolbarExtension
 mako = MakoTemplates()
 db = SQLAlchemy()
 hashing = Hashing()
-api = Api()
 admin = Admin()
 csrf = CSRFProtect()
+api = Api(decorators=[csrf.exempt])  # decorators参数，给所有api的url加上装饰器，免于csrf检查
 cache = Cache()
 debug_toolbar = DebugToolbarExtension()
 

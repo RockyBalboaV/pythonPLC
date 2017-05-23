@@ -10,18 +10,21 @@ import MySQLdb
 import eventlet
 from celery import Celery
 from flask import Flask, request, jsonify, g, render_template, redirect, url_for, current_app, flash, Config, session
-from flask_login import login_user, user_logged_in
+from flask import request_tearing_down
+from flask_security import url_for_security
+from flask_login import login_user, logout_user, user_logged_in, login_required, current_user
 from flask_socketio import SocketIO
 from pandas.io.sql import read_sql
 
 from models import *
 from ext import mako, hashing, api, admin, login_manager, csrf, cache, debug_toolbar, CSRFProtect
-from forms import RegistrationForm
+from forms import RegistrationForm, LoginForm
 
 from rest.api_plc import PLCResource
 from rest.api_station import StationResource
 from rest.api_group import GroupResource
 from rest.api_variable import VariableResource
+from rest.auth import AuthApi
 
 from admin import CustomView, CustomModelView, CustomFileAdmin
 
@@ -50,10 +53,11 @@ socketio = SocketIO(
 celery = Celery(app.name)
 celery.conf.update(app.config)
 
-api.add_resource(StationResource, '/api/station/<name>')
-api.add_resource(PLCResource, '/api/plc/<id>', '/api/plc', endpoint='api')
-api.add_resource(GroupResource, '/api/group/<name>')
-api.add_resource(VariableResource, '/api/variable/<name>')
+api.add_resource(AuthApi, '/api/auth')
+api.add_resource(StationResource, '/api/station', '/api/station/<station_id>')
+api.add_resource(PLCResource, '/api/plc', '/api/plc/<plc_id>')
+api.add_resource(GroupResource, '/api/group', '/api/group/<group_id>')
+api.add_resource(VariableResource, '/api/variable', '/api/variable/<variable_id>')
 api.init_app(app)
 
 admin.add_view(CustomView(name='Custom'))
@@ -151,28 +155,34 @@ def setup():
     # db.session.commit()
     pass
 
+# 使用flask-login.current_user代替
+# @app.before_request
+# def before_request():
+#     if 'username' in session:
+#         g.current_user = User.query.filter_by(username=session['username']).first()
+#     else:
+#         g.current_user = None
 
-@app.before_request
-def before_request():
-    if 'username' in session:
-        g.current_user = User.query.filter_by(username=session['username']).first()
-    else:
-        g.current_user = None
 
+# @app.teardown_appcontext
+# def teardown(exc=None):
+#     if exc is None:
+#         db.session.commit()
+#     else:
+#         db.session.rollback()
+#     db.session.remove()
+#     g.current_user = None
 
-@app.teardown_appcontext
-def teardown(exc=None):
-    if exc is None:
-        db.session.commit()
-    else:
-        db.session.rollback()
-    db.session.remove()
-    g.current_user = None
+def close_db_connection(sender, **extra):
+    db.session.close()
+    sender.logger.debug('Database close.')
+
+request_tearing_down.connect(close_db_connection, app)
 
 
 @app.context_processor
 def template_extras():
-    return {'enumerate': enumerate, 'current_user': g.current_user}
+    return {'enumerate': enumerate, 'current_user': current_user}
 
 
 @app.template_filter('capitalize')
@@ -213,44 +223,26 @@ def _track_logins(sender, user, **extra):
     db.session.commit()
 
 
-# @login_manager.user_loader
-# def load_user(userid):
-#     from models import User
-#     return User.query.get(userid)
-
 @login_manager.user_loader
-def user_loader(id):
-    user = User.query.filter_by(id=id).first()
+def user_loader(user_id):
+    user = User.query.filter_by(id=user_id).first()
     return user
 
 
 @app.route('/', methods=['GET', 'POST'])
 @cache.cached(timeout=60)
+@login_required
 def index():
-    if request.method == 'POST':
-        data = request.get_json(force=True)
-        # data = decryption(rv)
-        uploaded_data = YjPLCInfo.query.filter_by(id=data["id"]).first()
-        if uploaded_data:
-            uploaded_data = YjPLCInfo.query.all()
-            return render_template('index_post.html', uploaded_data=uploaded_data)
-        else:
-            uploaded_data = YjPLCInfo(name=data["name"])
-            # todo 当输入值的键不存在时,怎么使用默认值代替
-        db.session.add(uploaded_data)
-        db.session.commit()
-        uploaded_data = YjPLCInfo.query.all()
-        return render_template('index_post.html', uploaded_data=uploaded_data)
+
     users = User.query.all()
     return render_template('index.html', users=users)
 
 
 @app.route('/register', methods=['GET', 'POST'])
-@csrf.exempt
 def register():
     form = RegistrationForm(request.form)
     if request.method == 'POST' and form.validate_on_submit():
-        user = User(username=form.name.data, email=form.email.data, password=form.password.data)
+        user = User(username=form.username.data, email=form.email.data, password=form.password.data)
         db.session.add(user)
         db.session.commit()
         flash('registering successed!')
@@ -259,28 +251,31 @@ def register():
 
 
 @app.route('/login', methods=['GET', 'POST'])
-@csrf.exempt
 def login():
+    form = LoginForm(request.form)
     if request.method == 'GET':
-        return '''
-<form action='login' method='POST'>
-    <input type='text' name='name' id='name' placeholder='name'></input>
-    <input type='password' name='pw' id='pw' placeholder='password'></input>
-    <input type='submit' name='submit'></input>
-</form>
-        '''
+        return render_template('login.html', form=form)
 
-    name = request.form.get('name')
-    password = request.form.get('pw')
+    name = request.form.get('name') or form.username.data
+    password = request.form.get('pw') or form.password.data
     user = User.query.filter_by(username=name).first()
-
+    remember = request.form.get('remember')
     if not user:
         return 'user is not exist'
     if user.check_password(password):
-        login_user(user)
+        # remember：是否记住用户登录状态
+        login_user(user, remember=remember)
         session['username'] = user.username
         return redirect(url_for('index'))
-    return 'password error'
+    flash('password error')
+    return redirect(url_for('login'))
+
+
+@app.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('login'))
 
 
 @app.route('/beats', methods=['GET', 'POST'])

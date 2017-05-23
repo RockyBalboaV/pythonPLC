@@ -1,47 +1,111 @@
 # coding=utf-8
+from flask import abort
 from flask_restful import reqparse, Resource, marshal_with, fields
 
 from models import *
-
-station_parser = reqparse.RequestParser()
-station_parser.add_argument('admin', type=bool, help='Use super manager mode',
-                    default=False)
-station_parser.add_argument('station_id', type=str, help='plc从属的station')
-station_parser.add_argument('id', type=int, help='该数据的主键')
+from parsers import station_parser, station_put_parser
 
 
 station_field = {
-    'idnum': fields.Integer,
-    'plcnum': fields.Integer,
     'name': fields.String,
     'mac': fields.String,
     'ip': fields.String,
     'note': fields.String,
-    'tenid': fields.String,
-    'itemid': fields.String
+    'id_num': fields.String,
+    'plc_count': fields.Integer,
+    'ten_id': fields.String,
+    'item_id': fields.String
 }
 
 
 class StationResource(Resource):
-    def __init__(self):
+    def __init__(self, ):
         self.args = station_parser.parse_args()
 
-    @marshal_with(station_field)
-    def get(self, **kwargs):
-        station = YjStationInfo.query.all()
+    def search(self, station_id):
+        if not station_id:
+            station_id = self.args['id']
+
+        if station_id:
+            station = YjStationInfo.query.filter_by(id=station_id).all()
+        else:
+            station = YjStationInfo.query.all()
+
+        if not station:
+            abort(404)
+
         return station
 
     @marshal_with(station_field)
-    def post(self, **kwargs):
-        idnum = self.args['id']
-        station = YjStationInfo.query.filter_by(idnum=idnum).first()
+    def get(self, station_id=None):
+
+        station = self.search(station_id)
+
         return station
 
-    def put(self, **kwargs):
-        print "1"
-        idnum = self.args['id']
-        print "2"
-        station = YjStationInfo(idnum=idnum, plcnum=1, name="test", mac="test", ip="test", note="test", tenid="0", itemid="test")
-        db.session.add(station)
+    @marshal_with(station_field)
+    def post(self, station_id=None):
+
+        station = self.search(station_id)
+
+        return station
+
+    def put(self, station_id=None):
+        args = station_put_parser.parse_args()
+
+        if not station_id:
+            station_id = args['id']
+
+        if station_id:
+            station = YjStationInfo.query.get(station_id)
+
+            if not station:
+                abort(404)
+
+            if args['name']:
+                station.name = args['name']
+
+            if args['mac']:
+                station.mac = args['mac']
+
+            if args['ip']:
+                station.ip = args['mac']
+
+            if args['note']:
+                station.note = args['note']
+
+            if args['id_num']:
+                station.id_num = args['id_num']
+
+            if args['plc_count']:
+                station.plc_count = args['plc_count']
+
+            if args['ten_id']:
+                station.ten_id = args['plc_count']
+
+            if args['item_id']:
+                station.item_id = args['item_id']
+
+            if args['modification']:
+                station.modification = args['modification']
+
+            db.session.add(station)
+            db.session.commit()
+            return {'ok': 0}, 200
+
+        else:
+            station = YjStationInfo(name=args['name'], mac=args['mac'], ip=args['ip'], note=args['note'],
+                                    id_num=args['id_num'], plc_count=args['plc_count'], ten_id=args['ten_id'],
+                                    item_id=args['item_id'], modification=args['modification'])
+            db.session.add(station)
+            db.session.commit()
+            return {'ok': 0}, 201
+
+    def delete(self, station_id=None):
+
+        station = self.search(station_id)
+
+        for s in station:
+            db.session.delete(s)
         db.session.commit()
-        return {'ok': 0}, 201
+        return {'ok': 0}, 204
