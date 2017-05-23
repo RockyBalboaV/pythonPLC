@@ -40,7 +40,7 @@ db.init_app(app)
 hashing.init_app(app)
 admin.init_app(app)
 login_manager.init_app(app)
-csrf.init_app(app)
+# csrf.init_app(app)
 debug_toolbar.init_app(app)
 cache.init_app(app)
 
