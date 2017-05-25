@@ -10,7 +10,7 @@ import MySQLdb
 import eventlet
 from celery import Celery
 from flask import Flask, request, jsonify, g, render_template, redirect, url_for, current_app, flash, Config, session
-from flask import request_tearing_down
+from flask import request_tearing_down , appcontext_tearing_down
 from flask_security import url_for_security
 from flask_login import login_user, logout_user, user_logged_in, login_required, current_user
 from flask_socketio import SocketIO
@@ -40,7 +40,7 @@ db.init_app(app)
 hashing.init_app(app)
 admin.init_app(app)
 login_manager.init_app(app)
-# csrf.init_app(app)
+csrf.init_app(app)
 debug_toolbar.init_app(app)
 cache.init_app(app)
 
@@ -173,9 +173,11 @@ def setup():
 #     db.session.remove()
 #     g.current_user = None
 
+# @app.teardown_appcontext
+
 def close_db_connection(sender, **extra):
     db.session.close()
-    sender.logger.debug('Database close.')
+    # sender.logger.debug('Database close.')
 
 request_tearing_down.connect(close_db_connection, app)
 
@@ -188,6 +190,14 @@ def template_extras():
 @app.template_filter('capitalize')
 def reverse_filter(s):
     return s.capitalize()
+
+
+# @app.template_filter('hahaha')
+def print_a(a):
+    return a + 'hahaha'
+
+app.jinja_env.filters['hahaha'] = print_a
+
 
 
 @celery.task
@@ -225,17 +235,50 @@ def _track_logins(sender, user, **extra):
 
 @login_manager.user_loader
 def user_loader(user_id):
-    user = User.query.filter_by(id=user_id).first()
+    user = User.query.get(user_id)
     return user
 
 
 @app.route('/', methods=['GET', 'POST'])
 @cache.cached(timeout=60)
-@login_required
+# @login_required
 def index():
-
     users = User.query.all()
     return render_template('index.html', users=users)
+
+
+@app.route('/signin', methods=['GET', 'POST'])
+def signin():
+    form = LoginForm(request.form)
+    if request.method == 'GET':
+        return render_template('signin.html', form=form)
+    print 'a'
+    username = request.form['username']
+    print username, form.username.data
+    password = request.form['password']
+    error = 'password error'
+    print 'b'
+    if len(username) < 5:
+        error = 'Username must be at least 5 characters'
+    if len(password) < 5:
+        error = 'Password must be at least 8 characters'
+    # elif not any(c.isupper() for c in password):
+    #     error = 'Your password needs at least 1 capital'
+    user = User.query.filter_by(username=username).first()
+
+    if not user:
+        error = 'user is not exist'
+    else:
+        if user.check_password(password):
+            print 'c'
+            print [(a, b) for a, b in request.form.items()]
+            print request.form.get('remember')
+            login_user(user, remember=request.form.get('remember'))
+            print 'b'
+            # return redirect(url_for('index'))
+            return jsonify({'r': 0, 'rs': 'ok', 'url': url_for('index')})
+            # return jsonify({'url': '/login'})
+    return jsonify({'r': 1, 'error': error})
 
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -256,17 +299,22 @@ def login():
     if request.method == 'GET':
         return render_template('login.html', form=form)
 
-    name = request.form.get('name') or form.username.data
-    password = request.form.get('pw') or form.password.data
-    user = User.query.filter_by(username=name).first()
-    remember = request.form.get('remember')
-    if not user:
-        return 'user is not exist'
-    if user.check_password(password):
-        # remember：是否记住用户登录状态
-        login_user(user, remember=remember)
-        session['username'] = user.username
-        return redirect(url_for('index'))
+    # name = request.form.get('name') or form.username.data
+    # password = request.form.get('pw') or form.password.data
+    # user = User.query.filter_by(username=name).first()
+    # remember = request.form.get('remember')
+    #if not user:
+    #    return 'user is not exist'
+    #if user.check_password(password):
+    #    print 'True'
+    #    # remember：是否记住用户登录状态
+    #    login_user(user, remember=remember)
+    #    return redirect(url_for('index'))
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user.check_password(form.password.data):
+            login_user(user, remember=form.remember.data)
+            return redirect(url_for('index'))
     flash('password error')
     return redirect(url_for('login'))
 
@@ -355,7 +403,7 @@ def upload():
             return jsonify({"status": "Version Error"})
 
         for v in data["Value"]:
-            upload_data = Value(variable_name=v["variable_name"], value=v["value"], get_time=v["get_time"])
+            upload_data = Value(variable_name=v["variable_name"], value=v["value"], time=v["time"])
             db.session.add(upload_data)
         db.session.commit()
 
@@ -420,6 +468,21 @@ def give_config(*args, **kwargs):
     
     # data = encryption(data)
     return jsonify(data)
+
+@app.route('/test')
+def test():
+
+    config = db.session.query(YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo). \
+        filter(YjStationInfo.id == 1).\
+        filter(YjStationInfo.id == YjPLCInfo.station_id).\
+        filter(YjGroupInfo.plc_id == YjPLCInfo.id).\
+        filter(YjPLCInfo.id == YjVariableInfo.id)
+
+    print config
+    for station, plc, group, variable in config:
+        print station.id, plc.id, group.id, variable.id
+
+    return jsonify({'a':'1'})
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=11000, debug=True)

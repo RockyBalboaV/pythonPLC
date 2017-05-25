@@ -1,3 +1,5 @@
+# coding=utf-8
+
 from flask import abort, current_app
 from flask_restful import Resource
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
@@ -7,6 +9,15 @@ from models import *
 
 
 class AuthApi(Resource):
+    """
+        :param
+        username 用户名
+        password 密码
+
+        :return
+        token 访问令牌
+    """
+
     def post(self):
         args = plc_put_parser.parse_args()
         user = User.query.filter_by(username=args['username']).first()

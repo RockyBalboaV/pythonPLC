@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <head>
+        <title>Signin</title>
+        <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
+        <style>
+            #result {
+                margin-top: 20px;
+                color: red;
+            }
+        </style>
+    </head>
+
+    <body>
+        <div class="container">
+            {% from "_formhelpers.html" import render_field %}
+            <form action="/signin" method="post" role="form">
+                <h2>Please Sign In</h2>
+                 <!-- <input type="name" name="username" placeholder="Username" required autofocus>
+                // <input type="password" name="password" placeholder="Password" required>
+
+                <button class="btn" type="button">SignIn</button> -->
+                {{ form.csrf_token }}
+                <dl>
+                    {{ render_field(form.username) }}
+                    {{ render_field(form.password) }}
+                    {{ render_field(form.remember) }}
+                    {{ render_field(form.submit) }}
+                    <button class="btn" type="button">SignIn</button>
+                </dl>
+            </form>
+
+            <div id="result"></div>
+        </div>
+
+        <script type="text/javascript">
+            var csrf_token = "{{ csrf_token() }}";
+
+            $.ajaxSetup({
+                beforeSend: function(xhr, settings) {
+                    if (!/^(GET|HEAD|OPTIONS|TRACE)$/i.test(settings.type) && !this.crossDomain) {
+                        xhr.setRequestHeader("X-CSRFToken", csrf_token);
+                    }
+                }
+            });
+        </script>
+        <script type='text/javascript'>
+            $(function() {
+                $('.btn').click(function() {
+                    var $result = $('#result');
+                    var $username = $('input[name="username"]').val();
+                    var $password = $('input[name="password"]').val();
+                    var $remember = $('input[name="remember"]').val();
+                    $.ajax({
+                        url: '/signin',
+                        data: $('form').serialize(),
+                        // data: {'username': $username, 'password': $password},
+                        type: 'POST',
+                        dataType: 'json'
+                    }).done(function(data) {
+                        if (!data.r) {
+                            $result.html(data.rs);
+                            // window.location.replace("/")
+                            window.location.href = data.url
+                        } else {
+                            $result.html(data.error);
+                        }
+                    });
+                });
+            });
+        </script>
+    </body>
+</html>
