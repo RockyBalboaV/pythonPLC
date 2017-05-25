@@ -120,6 +120,7 @@ class VariableResource(Resource):
             db.session.add(variable)
             db.session.commit()
             return {'ok': 0}, 200
+
         else:
             variable = YjVariableInfo(tag_name=args['tag_name'], plc_id=args['plc_id'],
                                       group_id=args['group_id'], address=args['address'],

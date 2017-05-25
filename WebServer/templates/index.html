@@ -1,11 +1,17 @@
 <body>
+    {% if current_user %}
+        <a href="{{ url_for('logout') }}">Logout</a>
+    {% else %}
+        <a href="{{ url_for('login') }}">Login</a>
+    {% endif %}
+
     {% if current_user.is_authenticated %}
         <h2>Current User: {{ current_user.username }}</h2>
     {% endif %}
     <ul>
         {% for index, user in enumerate(users, 1) %}
         <li>
-            {{ index }} {{ user.username | capitalize }}
+            {{ index }} {{ user.username| capitalize }}
         </li>
         {% endfor %}
     </ul>

@@ -17,6 +17,7 @@ def check_int(column):
 
 
 class YjStationInfo(db.Model):
+
     __tablename__ = 'yjstationinfo'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(30))
@@ -53,6 +54,7 @@ class YjStationInfo(db.Model):
 
 
 class YjPLCInfo(db.Model):
+
     __tablename__ = 'yjplcinfo'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(30))
@@ -88,6 +90,7 @@ class YjPLCInfo(db.Model):
 
 
 class YjGroupInfo(db.Model):
+
     __tablename__ = 'yjgroupinfo'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     group_name = db.Column(db.String(20))
@@ -114,6 +117,7 @@ class YjGroupInfo(db.Model):
 
 
 class YjVariableInfo(db.Model):
+
     __tablename__ = 'yjvariableinfo'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     tag_name = db.Column(db.String(20))
@@ -156,13 +160,14 @@ class YjVariableInfo(db.Model):
 
 
 class User(UserMixin, db.Model):
+
     __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    username = db.Column(db.String(20), nullable=False)
-    email = db.Column(db.String(35))
+    username = db.Column(db.String(32), nullable=False)
+    email = db.Column(db.String(32))
     pw_hash = db.Column(db.String(128))
     login_count = db.Column(db.Integer, default=0)
-    last_login_ip = db.Column(db.String(128), default='unknown')
+    last_login_ip = db.Column(db.String(64), default='unknown')
     level = db.Column(db.Integer)
 
     def __init__(self, username, email, password, level=3):
@@ -213,6 +218,7 @@ class User(UserMixin, db.Model):
 
 
 class Value(db.Model):
+
     __tablename__ = 'values'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     variable_name = db.Column(db.String(20))
@@ -226,6 +232,7 @@ class Value(db.Model):
 
 
 class TransferLog(db.Model):
+
     __tablename__ = 'logs'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     id_num = db.Column(db.String(200))

@@ -1,0 +1,28 @@
+<html>
+<meta charset="utf-8">
+<body>
+    <form action='login' method='POST'>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type='text' name='name' id='name' placeholder='name'>
+        <input type='password' name='pw' id='pw' placeholder='password'>
+        <input type="checkbox" name="remember" id='remember' />
+        <input type='submit' name='submit'>
+    </form>
+
+    {% from "_formhelpers.html" import render_field %}
+    <form action="login" method="POST">
+        {{ form.csrf_token }}
+        <dl>
+            {{ render_field(form.username) }}
+            {{ render_field(form.password) }}
+            {{ render_field(form.remember) }}
+            {{ render_field(form.submit) }}
+        </dl>
+        <p><input type="submit" value="登录" /></p>
+    </form>
+    {% for message in get_flashed_messages() %}
+        {{ message }}
+    {% endfor %}
+
+</body>
+</html>

@@ -6,7 +6,7 @@ from wtforms import (
     TextAreaField,
     PasswordField,
     BooleanField,
-    SubmitField
+    SubmitField,
 )
 from wtforms.validators import DataRequired, length, EqualTo, URL, Email
 
@@ -26,6 +26,7 @@ class LoginForm(FlaskForm):
     password = PasswordField('Password', [DataRequired()])
     remember = BooleanField("Remember Me")
     submit = SubmitField('Submit')
+
 
 
 class RegistrationForm(FlaskForm):

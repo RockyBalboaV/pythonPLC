@@ -8,7 +8,7 @@ from rest.parsers import plc_parser, plc_put_parser
 plc_field = {
     'id': fields.Integer,
     'name': fields.String,
-    'station_id': fields.Raw,
+    'station_id': fields.Integer,
     'note': fields.String,
     'ip': fields.String,
     'mpi': fields.Integer,
@@ -25,6 +25,7 @@ class PLCResource(Resource):
         self.args = plc_parser.parse_args()
 
     def search(self, plc_id=None):
+
         if not plc_id:
             plc_id = self.args['id']
 
@@ -42,6 +43,14 @@ class PLCResource(Resource):
         else:
             abort(404)
 
+    def verify(self):
+
+        token = self.args['token']
+        user = User.verify_auth_token(token)
+
+        if not user:
+            abort(401)
+
     @marshal_with(plc_field)
     def get(self, plc_id=None):
 
@@ -51,10 +60,6 @@ class PLCResource(Resource):
 
     @marshal_with(plc_field)
     def post(self, plc_id=None):
-
-        user = User.verify_auth_token(self.args['token'])
-        if not user:
-            abort(401)
 
         plc = self.search(plc_id)
 
