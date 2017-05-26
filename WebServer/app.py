@@ -32,8 +32,8 @@ eventlet.monkey_patch()
 
 app = Flask(__name__, template_folder='templates')
 here = os.path.abspath(os.path.dirname(__file__))
-app.config.from_pyfile(os.path.join(here, 'config_dev/config.py'))
-app.config.from_pyfile(os.path.join(here, 'config_dev/celeryconfig.py'))
+app.config.from_pyfile(os.path.join(here, 'config_server/config.py'))
+app.config.from_pyfile(os.path.join(here, 'config_server/celeryconfig.py'))
 
 mako.init_app(app)
 db.init_app(app)
@@ -259,9 +259,9 @@ def signin():
     error = 'password error'
     print 'b'
     if len(username) < 5:
-        error = 'Username must be at least 5 characters'
+        error = 'Username must be at least 6 characters'
     if len(password) < 5:
-        error = 'Password must be at least 8 characters'
+        error = 'Password must be at least 6 characters'
     # elif not any(c.isupper() for c in password):
     #     error = 'Your password needs at least 1 capital'
     user = User.query.filter_by(username=username).first()

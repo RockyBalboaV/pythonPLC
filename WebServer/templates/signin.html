@@ -1,9 +1,12 @@
 <!DOCTYPE html>
 <html>
+    <meta charset="utf-8"
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <head>
         <title>Signin</title>
         <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
+        <script src="https://unpkg.com/vue/dist/vue.js"></script>
+
         <style>
             #result {
                 margin-top: 20px;
@@ -23,15 +26,28 @@
                 <button class="btn" type="button">SignIn</button> -->
                 {{ form.csrf_token }}
                 <dl>
+
+
                     {{ render_field(form.username) }}
                     {{ render_field(form.password) }}
                     {{ render_field(form.remember) }}
-                    {{ render_field(form.submit) }}
-                    <button class="btn" type="button">SignIn</button>
+                    <dt><p>提交</p></dt>
+                    <dd><button class="btn" type="button">SignIn</button></dd>
                 </dl>
             </form>
 
             <div id="result"></div>
+        </div>
+        <div id="login-form">
+            <p v-text="message"></p>
+            <input name="username" v-model="message" />
+        </div>
+
+        <div id="app-7">
+        <ol>
+            <!-- 创建一个 todo-item 组件的实例 -->
+            <todo-item v-for="item in groceryList" v-bind:todo="item"></todo-item>
+        </ol>
         </div>
 
         <script type="text/javascript">
@@ -55,7 +71,7 @@
                     $.ajax({
                         url: '/signin',
                         data: $('form').serialize(),
-                        // data: {'username': $username, 'password': $password},
+                        // data: {'username': $username, 'password': $password, 'remember': $remember},
                         type: 'POST',
                         dataType: 'json'
                     }).done(function(data) {
@@ -69,6 +85,34 @@
                     });
                 });
             });
+        </script>
+
+        <script>
+            var username = new Vue({
+                delimiters: ['{', '}'],
+                el: '#login-form',
+                data: {
+                    message: 'abcd'
+                }
+            })
+        </script>
+        <script>
+            Vue.component('todo-item', {
+                delimiters: ['{', '}'],
+                props: ['todo'],
+                template: '<li v-text="todo.text"></li>'
+            })
+
+            var app7 = new Vue({
+  el: '#app-7',
+  data: {
+    groceryList: [
+      { text: '蔬菜' },
+      { text: '奶酪' },
+      { text: '随便其他什么人吃的东西' }
+    ]
+  }
+})
         </script>
     </body>
 </html>
