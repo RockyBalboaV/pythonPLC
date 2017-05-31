@@ -1,5 +1,5 @@
 # coding=utf-8
-from flask import abort
+from flask import abort, jsonify
 from flask_restful import reqparse, Resource, marshal_with, fields
 
 from models import *
@@ -18,6 +18,15 @@ station_field = {
 }
 
 
+def make_error(status_code):
+    response = jsonify({
+        'ok': 0,
+        'data': ""
+    })
+    response.status_code = status_code
+    return response
+
+
 class StationResource(Resource):
     def __init__(self, ):
         self.args = station_parser.parse_args()
@@ -32,18 +41,32 @@ class StationResource(Resource):
             station = YjStationInfo.query.all()
 
         if not station:
-            abort(404)
+            return make_error(404)
 
-        return station
+        info = []
+        for s in station:
+            data = dict()
+            data['id'] = s.id
+            data['name'] = s.name
+            data['mac'] = s.mac
+            data['ip'] = s.ip
+            data['note'] = s.note
+            data['id_num'] = s.id_num
+            data['plc_count'] = s.plc_count
+            data['ten_id'] = s.ten_id
+            data['item_id'] = s.item_id
+            info.append(data)
 
-    @marshal_with(station_field)
+        information = jsonify({"ok": 0, "data": info})
+
+        return information
+
     def get(self, station_id=None):
 
         station = self.search(station_id)
 
         return station
 
-    @marshal_with(station_field)
     def post(self, station_id=None):
 
         station = self.search(station_id)
@@ -60,7 +83,7 @@ class StationResource(Resource):
             station = YjStationInfo.query.get(station_id)
 
             if not station:
-                abort(404)
+                make_error(404)
 
             if args['name']:
                 station.name = args['name']

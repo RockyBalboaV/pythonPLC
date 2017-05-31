@@ -1,5 +1,5 @@
 # coding=utf-8
-from flask import abort
+from flask import abort, jsonify
 from flask_restful import reqparse, Resource, marshal_with, fields
 
 from models import *
@@ -17,6 +17,15 @@ plc_field = {
     'ten_id': fields.String,
     'item_id': fields.String
 }
+
+
+def make_error(status_code):
+    response = jsonify({
+        'ok': 0,
+        'data': ""
+    })
+    response.status_code = status_code
+    return response
 
 
 class PLCResource(Resource):
@@ -38,10 +47,27 @@ class PLCResource(Resource):
         else:
             plc = YjPLCInfo.query.all()
 
-        if plc:
-            return plc
-        else:
-            abort(404)
+        if not plc:
+            return make_error(404)
+
+        info = []
+        for p in plc:
+            data = dict()
+            data['id'] = p.id
+            data['name'] = p.name
+            data['station_id'] = p.station_id
+            data['note'] = p.note
+            data['ip'] = p.ip
+            data['mpi'] = p.mpi
+            data['type'] = p.type
+            data['plc_type'] = p.plc_type
+            data['ten_id'] = p.ten_id
+            data['item_id'] = p.item_id
+            info.append(data)
+
+        information = jsonify({"ok": 0, "data": info})
+
+        return information
 
     def verify(self):
 
@@ -51,14 +77,12 @@ class PLCResource(Resource):
         if not user:
             abort(401)
 
-    @marshal_with(plc_field)
     def get(self, plc_id=None):
 
         plc = self.search(plc_id)
 
         return plc
 
-    @marshal_with(plc_field)
     def post(self, plc_id=None):
 
         plc = self.search(plc_id)
@@ -74,7 +98,7 @@ class PLCResource(Resource):
 
             plc = YjPLCInfo.query.get(plc_id)
             if not plc:
-                abort(404)
+                return make_error(404)
 
             if args['name']:
                 plc.name = args['name']
@@ -112,6 +136,7 @@ class PLCResource(Resource):
 
             db.session.add(plc)
             db.session.commit()
+
             return {'ok': 0}, 200
 
         else:
@@ -121,6 +146,7 @@ class PLCResource(Resource):
 
             db.session.add(plc)
             db.session.commit()
+
             return {'ok': 0}, 201
 
     def delete(self, plc_id=None):
@@ -130,4 +156,5 @@ class PLCResource(Resource):
         for p in plc:
             db.session.delete(p)
         db.session.commit()
+
         return {'ok': 0}, 204

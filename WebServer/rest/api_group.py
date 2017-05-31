@@ -1,5 +1,5 @@
 # coding=utf-8
-from flask import abort
+from flask import abort, jsonify
 from flask_restful import reqparse, Resource, marshal_with, fields
 
 from models import *
@@ -14,6 +14,15 @@ group_field = {
     'ten_id': fields.String,
     'item_id': fields.String
 }
+
+
+def make_error(status_code):
+    response = jsonify({
+        'ok': 0,
+        'data': ""
+    })
+    response.status_code = status_code
+    return response
 
 
 class GroupResource(Resource):
@@ -34,19 +43,31 @@ class GroupResource(Resource):
         else:
             group = YjGroupInfo.query.all()
 
-        if group:
-            return group
-        else:
-            abort(404)
+        if not group:
+            return make_error(404)
 
-    @marshal_with(group_field)
+        info = []
+        for g in group:
+            data = dict()
+            data['id'] = g.id
+            data['group_name'] = g.group_name
+            data['plc_id'] = g.plc_id
+            data['upload_cycle'] = g.upload_cycle
+            data['note'] = g.note
+            data['ten_id'] = g.ten_id
+            data['item_id'] = g.item_id
+            info.append(data)
+
+        information = jsonify({"ok": 0, "data": info})
+
+        return information
+
     def get(self, group_id=None):
 
         group = self.search(group_id)
 
         return group
 
-    @marshal_with(group_field)
     def post(self, group_id=None):
 
         group = self.search(group_id)
@@ -62,6 +83,9 @@ class GroupResource(Resource):
         if group_id:
 
             group = YjGroupInfo.query.get(group_id)
+
+            if not group:
+                return make_error(404)
 
             if args['group_name']:
                 group.group_name = args['group_name']

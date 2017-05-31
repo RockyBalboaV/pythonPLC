@@ -1,5 +1,5 @@
 # coding=utf-8
-from flask import abort
+from flask import abort, jsonify
 from flask_restful import reqparse, Resource, marshal_with, fields
 
 from models import *
@@ -20,6 +20,15 @@ variable_field = {
     'ten_id': fields.String,
     'item_id': fields.String
 }
+
+
+def make_error(status_code):
+    response = jsonify({
+        'ok': 0,
+        'data': ""
+    })
+    response.status_code = status_code
+    return response
 
 
 class VariableResource(Resource):
@@ -43,19 +52,37 @@ class VariableResource(Resource):
         else:
             variable = YjVariableInfo.query.all()
 
-        if variable:
-            return variable
-        else:
-            abort(404)
+        if not variable:
+            return make_error(404)
 
-    @marshal_with(variable_field)
+        info = []
+        for v in variable:
+            data = dict()
+            data['id'] = v.id
+            data['tag_name'] = v.tag_name
+            data['plc_id'] = v.plc_id
+            data['group_id'] = v.group_id
+            data['address'] = v.address
+            data['data_type'] = v.data_type
+            data['rw_type'] = v.rw_type
+            data['upload'] = v.upload
+            data['acquisition_cycle'] = v.acquisition_cycle
+            data['server_record_cycle'] = v.server_record_cycle
+            data['note'] = v.note
+            data['ten_id'] = v.ten_id
+            data['item_id'] = v.item_id
+            info.append(data)
+
+        information = jsonify({"ok": 0, "data": info})
+
+        return information
+
     def get(self, variable_id=None):
 
         variable = self.search(variable_id)
 
         return variable
 
-    @marshal_with(variable_field)
     def post(self, variable_id=None):
 
         variable = self.search(variable_id)
@@ -67,10 +94,13 @@ class VariableResource(Resource):
 
         if not variable_id:
             variable_id = args['id']
+
         if variable_id:
+
             variable = YjVariableInfo.query.get(variable_id)
+
             if not variable:
-                abort(404)
+                return make_error(404)
 
             if args['tag_name']:
                 variable.tag_name = args['tag_name']
@@ -119,6 +149,7 @@ class VariableResource(Resource):
 
             db.session.add(variable)
             db.session.commit()
+
             return {'ok': 0}, 200
 
         else:
@@ -131,6 +162,7 @@ class VariableResource(Resource):
 
             db.session.add(variable)
             db.session.commit()
+
         return {'ok': 0}, 201
 
     def delete(self, variable_id=None):
@@ -140,5 +172,6 @@ class VariableResource(Resource):
         for v in variable:
             db.session.delete(v)
         db.session.commit()
+
         return {'ok': 0}, 204
 
