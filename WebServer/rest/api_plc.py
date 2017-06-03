@@ -63,6 +63,7 @@ class PLCResource(Resource):
             data['plc_type'] = p.plc_type
             data['ten_id'] = p.ten_id
             data['item_id'] = p.item_id
+            data['station_id_num'] = p.yjstationinfo.id_num
             info.append(data)
 
         information = jsonify({"ok": 0, "data": info})

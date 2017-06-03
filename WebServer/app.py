@@ -24,6 +24,7 @@ from rest.api_plc import PLCResource
 from rest.api_station import StationResource
 from rest.api_group import GroupResource
 from rest.api_variable import VariableResource
+from rest.value import ValueResource
 from rest.auth import AuthApi
 
 from admin import CustomView, CustomModelView, CustomFileAdmin
@@ -32,8 +33,8 @@ eventlet.monkey_patch()
 
 app = Flask(__name__, template_folder='templates')
 here = os.path.abspath(os.path.dirname(__file__))
-app.config.from_pyfile(os.path.join(here, 'config_server/config.py'))
-app.config.from_pyfile(os.path.join(here, 'config_server/celeryconfig.py'))
+app.config.from_pyfile(os.path.join(here, 'config_dev/config.py'))
+app.config.from_pyfile(os.path.join(here, 'config_dev/celery_config.py'))
 
 mako.init_app(app)
 db.init_app(app)
@@ -58,6 +59,7 @@ api.add_resource(StationResource, '/api/station', '/api/station/<station_id>')
 api.add_resource(PLCResource, '/api/plc', '/api/plc/<plc_id>')
 api.add_resource(GroupResource, '/api/group', '/api/group/<group_id>')
 api.add_resource(VariableResource, '/api/variable', '/api/variable/<variable_id>')
+api.add_resource(ValueResource, '/api/value', '/api/value/<value_id>')
 api.init_app(app)
 
 admin.add_view(CustomView(name='Custom'))
@@ -279,6 +281,12 @@ def signin():
             return jsonify({'r': 0, 'rs': 'ok', 'url': url_for('index')})
             # return jsonify({'url': '/login'})
     return jsonify({'r': 1, 'error': error})
+
+
+@app.route('/bs', methods=['GET', 'POST'])
+def bs():
+    return render_template('bs.html')
+
 
 
 @app.route('/register', methods=['GET', 'POST'])

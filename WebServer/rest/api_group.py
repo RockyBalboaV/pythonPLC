@@ -56,6 +56,7 @@ class GroupResource(Resource):
             data['note'] = g.note
             data['ten_id'] = g.ten_id
             data['item_id'] = g.item_id
+            data['plc_name'] = g.yjplcinfo.name
             info.append(data)
 
         information = jsonify({"ok": 0, "data": info})

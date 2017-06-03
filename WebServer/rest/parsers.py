@@ -1,6 +1,7 @@
 # coding=utf-8
-from flask_restful import reqparse
+import datetime
 
+from flask_restful import reqparse
 
 # station查询参数
 station_parser = reqparse.RequestParser()
@@ -108,4 +109,24 @@ variable_put_parser.add_argument('server_record_cycle', type=int)
 variable_put_parser.add_argument('note', type=str)
 variable_put_parser.add_argument('ten_id', type=str)
 variable_put_parser.add_argument('item_id', type=str)
+
+
+# value查询参数
+value_parser = reqparse.RequestParser()
+value_parser.add_argument('id', type=int)
+value_parser.add_argument('variable_name', type=str)
+value_parser.add_argument('username', type=str)
+value_parser.add_argument('password', type=str)
+value_parser.add_argument('token', type=str)
+
+# value添加参数
+value_put_parser = reqparse.RequestParser()
+value_put_parser.add_argument('id', type=int)
+value_put_parser.add_argument('variable_name', type=str)
+value_put_parser.add_argument('username', type=str)
+value_put_parser.add_argument('password', type=str)
+value_put_parser.add_argument('token', type=str)
+
+value_put_parser.add_argument('value', type=str)
+value_put_parser.add_argument('time', type=str)
 

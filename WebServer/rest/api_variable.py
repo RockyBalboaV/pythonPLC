@@ -71,6 +71,8 @@ class VariableResource(Resource):
             data['note'] = v.note
             data['ten_id'] = v.ten_id
             data['item_id'] = v.item_id
+            data['plc_name'] = v.yjplcinfo.name
+            data['group_name'] = v.yjgroupinfo.group_name
             info.append(data)
 
         information = jsonify({"ok": 0, "data": info})
