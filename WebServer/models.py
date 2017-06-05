@@ -127,7 +127,6 @@ class YjVariableInfo(db.Model):
     upload = db.Column(db.Integer)
     acquisition_cycle = db.Column(db.Integer)
     server_record_cycle = db.Column(db.Integer)
-    # write_value = db.Column(db.String(20))
     note = db.Column(db.String(50))
     ten_id = db.Column(db.String(200))
     item_id = db.Column(db.String(20))
@@ -135,7 +134,7 @@ class YjVariableInfo(db.Model):
     plc_id = db.Column(db.Integer, db.ForeignKey('yjplcinfo.id'))
     group_id = db.Column(db.Integer, db.ForeignKey('yjgroupinfo.id'))
 
-    # values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic')
+    values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic')
 
     def __init__(self, tag_name=None, plc_id=None, group_id=None, address=None,
                  data_type=None, rw_type=None, upload=None,
@@ -221,12 +220,12 @@ class Value(db.Model):
 
     __tablename__ = 'values'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    variable_name = db.Column(db.String(20))
+    variable_id = db.Column(db.Integer, db.ForeignKey('yjvariableinfo.id'))
     value = db.Column(db.String(128))
-    time = db.Column(db.DateTime)
+    time = db.Column(db.Integer)
 
-    def __init__(self, variable_name, value, time=None):
-        self.variable_name = variable_name
+    def __init__(self, variable_id, value, time=None):
+        self.variable_id = variable_id
         self.value = value
         self.time = time
 

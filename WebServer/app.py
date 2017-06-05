@@ -34,9 +34,9 @@ eventlet.monkey_patch()
 app = Flask(__name__, template_folder='templates')
 
 here = os.path.abspath(os.path.dirname(__file__))
-config_dev = os.path.join(here, 'config_dev/config.py')
-if config_dev:
-    app.config.from_pyfile(config_dev)
+
+if os.path.exists('config_dev'):
+    app.config.from_pyfile(os.path.join(here, 'config_dev/config.py'))
     app.config.from_pyfile(os.path.join(here, 'config_dev/celery_config.py'))
 else:
     app.config.from_pyfile(os.path.join(here, 'config_server/config.py'))

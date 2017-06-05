@@ -1,4 +1,7 @@
 # coding=utf-8
+import datetime
+import time
+
 from flask import abort, jsonify
 from flask_restful import reqparse, Resource, marshal_with, fields
 
@@ -34,14 +37,50 @@ class ValueResource(Resource):
 
         if not value_id:
             value_id = self.args['id']
+
+        variable_id = self.args['variable_id']
         variable_name = self.args['variable_name']
+        plc_id = self.args['plc_id']
+        plc_name = self.args['plc_name']
+        group_id = self.args['group_id']
+        group_name = self.args['group_name']
+        min_time = self.args['min_time']
+        max_time = self.args['max_time']
+        limit = self.args['limit']
+
+        value = Value.query
 
         if value_id:
-            value = Value.query.filter_by(id=value_id).all()
-        elif variable_name:
-            value = Value.query.filter_by(variable_name).all()
-        else:
-            value = Value.query.all()
+            value = value.filter_by(id=value_id)
+
+        if variable_name:
+            value = value.join(YjVariableInfo).filter(YjVariableInfo.id == variable_id)
+
+        if variable_name:
+            value = value.join(YjVariableInfo).filter(YjVariableInfo.tag_name == variable_name)
+
+        if plc_id:
+            value = value.join(YjVariableInfo, YjPLCInfo).filter(YjPLCInfo.id == plc_id)
+
+        if plc_name:
+            value = value.join(YjVariableInfo, YjPLCInfo).filter(YjPLCInfo.name == plc_name)
+
+        if group_id:
+            value = value.join(YjVariableInfo, YjGroupInfo).filter(YjGroupInfo.id == group_id)
+
+        if group_name:
+            value = value.join(YjVariableInfo, YjGroupInfo).filter(YjGroupInfo.group_name == group_name)
+
+        if min_time:
+            value = value.filter(Value.time > min_time)
+
+        if max_time:
+            value = value.filter(Value.time < max_time)
+
+        if limit:
+            value = value.limit(limit)
+
+        value = value.all()
 
         if not value:
             return make_error(404)
@@ -50,9 +89,14 @@ class ValueResource(Resource):
         for v in value:
             data = dict()
             data['id'] = v.id
-            data['variable_name'] = v.variable_name
+            data['variable_id'] = v.variable_id
+            data['variable_name'] = v.yjvariableinfo.tag_name
+            data['group_id'] = v.yjvariableinfo.yjgroupinfo.id
+            data['group_name'] = v.yjvariableinfo.yjgroupinfo.group_name
+            data['plc_id'] = v.yjvariableinfo.yjplcinfo.id
+            data['plc_name'] = v.yjvariableinfo.yjplcinfo.name
             data['value'] = v.value
-            data['time'] = str(v.time)
+            data['time'] = int(v.time)
             info.append(data)
 
         information = jsonify({"ok": 0, "data": info})
