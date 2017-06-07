@@ -57,8 +57,6 @@ class VariableResource(Resource):
 
         info = []
         for v in variable:
-            plc = v.yjplcinfo
-            group = v.yjgroupinfo
 
             data = dict()
             data['id'] = v.id
@@ -75,11 +73,13 @@ class VariableResource(Resource):
             data['ten_id'] = v.ten_id
             data['item_id'] = v.item_id
 
+            plc = v.yjplcinfo
             if plc:
                 data['plc_name'] = plc.name
             else:
                 data['plc_name'] = None
 
+            group = v.yjgroupinfo
             if group:
                 data['group_name'] = group.group_name
             else:

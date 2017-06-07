@@ -87,15 +87,20 @@ class ValueResource(Resource):
 
         info = []
         for v in value:
-            variable = v.yjvariableinfo
-            plc = variable.yjplcinfo
-            group = variable.yjgroupinfo
 
             data = dict()
             data['id'] = v.id
             data['variable_id'] = v.variable_id
             data['value'] = v.value
             data['time'] = int(v.time)
+
+            variable = v.yjvariableinfo
+            if variable:
+                data['variable_name'] = variable.tag_name
+                plc = variable.yjplcinfo
+                group = variable.yjgroupinfo
+            else:
+                data['variable_name'] = None
 
             if plc:
                 data['plc_id'] = plc.id
@@ -110,11 +115,6 @@ class ValueResource(Resource):
             else:
                 data['group_id'] = None
                 data['group_name'] = None
-
-            if variable:
-                data['variable_name'] = variable.tag_name
-            else:
-                data['variable_name'] = None
 
             info.append(data)
 

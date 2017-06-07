@@ -46,7 +46,7 @@ class PLCResource(Resource):
             plc = YjPLCInfo.query.filter_by(station_id=station_id).all()
         else:
             plc = YjPLCInfo.query.all()
-        print plc
+
         if not plc:
             return make_error(404)
 
