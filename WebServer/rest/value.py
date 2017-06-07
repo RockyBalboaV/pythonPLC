@@ -92,7 +92,7 @@ class ValueResource(Resource):
             data['id'] = v.id
             data['variable_id'] = v.variable_id
             data['value'] = v.value
-            data['time'] = int(v.time)
+            data['time'] = v.time
 
             variable = v.yjvariableinfo
             if variable:
@@ -101,6 +101,8 @@ class ValueResource(Resource):
                 group = variable.yjgroupinfo
             else:
                 data['variable_name'] = None
+                plc = None
+                group = None
 
             if plc:
                 data['plc_id'] = plc.id
