@@ -50,7 +50,7 @@ class YjStationInfo(db.Model):
         self.modification = modification
 
     def __repr__(self):
-        return '<Station : %r >' % self.name
+        return '<Station : ID(%r) Name(%r) >' % self.id, self.name
 
 
 class YjPLCInfo(db.Model):
@@ -86,7 +86,7 @@ class YjPLCInfo(db.Model):
         self.item_id = item_id
 
     def __repr__(self):
-        return '<PLC : %r >' % self.name
+        return '<PLC : ID(%r) Name(%r) >' % (int(self.id), self.name)
 
 
 class YjGroupInfo(db.Model):
@@ -113,7 +113,7 @@ class YjGroupInfo(db.Model):
         self.item_id = item_id
 
     def __repr__(self):
-        return '<Group : %r >' % self.group_name
+        return '<Group :ID(%r) Name(%r) >' % (int(self.id), self.group_name)
 
 
 class YjVariableInfo(db.Model):
@@ -149,13 +149,12 @@ class YjVariableInfo(db.Model):
         self.upload = check_int(upload)
         self.acquisition_cycle = check_int(acquisition_cycle)
         self.server_record_cycle = check_int(server_record_cycle)
-        # self.writevalue = writevalue
         self.note = note
         self.ten_id = ten_id
         self.item_id = item_id
 
     def __repr__(self):
-        return '<Variable : %r >' % self.tag_name
+        return '<Variable :ID(%r) Name(%r) >' % (int(self.id), self.tag_name)
 
 
 class User(UserMixin, db.Model):
@@ -229,6 +228,8 @@ class Value(db.Model):
         self.value = value
         self.time = time
 
+    def __repr__(self):
+        return '<Value {} {} {} {}'.format(int(self.id), self.variable_id, self.value, self.time)
 
 class TransferLog(db.Model):
 

@@ -46,12 +46,14 @@ class PLCResource(Resource):
             plc = YjPLCInfo.query.filter_by(station_id=station_id).all()
         else:
             plc = YjPLCInfo.query.all()
-
+        print plc
         if not plc:
             return make_error(404)
 
         info = []
         for p in plc:
+            station = p.yjstationinfo
+
             data = dict()
             data['id'] = p.id
             data['name'] = p.name
@@ -63,7 +65,12 @@ class PLCResource(Resource):
             data['plc_type'] = p.plc_type
             data['ten_id'] = p.ten_id
             data['item_id'] = p.item_id
-            data['station_id_num'] = p.yjstationinfo.id_num
+
+            if station:
+                data['station_id_num'] = station.id_num
+            else:
+                data['station_id_num'] = None
+
             info.append(data)
 
         information = jsonify({"ok": 0, "data": info})

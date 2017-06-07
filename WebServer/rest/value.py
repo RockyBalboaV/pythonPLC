@@ -87,16 +87,35 @@ class ValueResource(Resource):
 
         info = []
         for v in value:
+            variable = v.yjvariableinfo
+            plc = variable.yjplcinfo
+            group = variable.yjgroupinfo
+
             data = dict()
             data['id'] = v.id
             data['variable_id'] = v.variable_id
-            data['variable_name'] = v.yjvariableinfo.tag_name
-            data['group_id'] = v.yjvariableinfo.yjgroupinfo.id
-            data['group_name'] = v.yjvariableinfo.yjgroupinfo.group_name
-            data['plc_id'] = v.yjvariableinfo.yjplcinfo.id
-            data['plc_name'] = v.yjvariableinfo.yjplcinfo.name
             data['value'] = v.value
             data['time'] = int(v.time)
+
+            if plc:
+                data['plc_id'] = plc.id
+                data['plc_name'] = plc.name
+            else:
+                data['plc_id'] = None
+                data['plc_name'] = None
+
+            if group:
+                data['group_id'] = group.id
+                data['group_name'] = group.group_name
+            else:
+                data['group_id'] = None
+                data['group_name'] = None
+
+            if variable:
+                data['variable_name'] = variable.tag_name
+            else:
+                data['variable_name'] = None
+
             info.append(data)
 
         information = jsonify({"ok": 0, "data": info})
@@ -128,21 +147,21 @@ class ValueResource(Resource):
             if not value:
                 return make_error(404)
 
-            if args['variable_name']:
-                value.value_name = args['variable_name']
+            if args['variable_id']:
+                value.variable_id = args['variable_id']
 
             if args['value']:
-                value.plc_id = args['value']
+                value.value = args['value']
 
             if args['time']:
-                value.note = args['time']
+                value.time = args['time']
 
             db.session.add(value)
             db.session.commit()
             return {'ok': 0}, 200
 
         else:
-            value = Value(variable_name=args['variable_name'], value=args['value'], time=args['time'])
+            value = Value(variable_id=args['variable_id'], value=args['value'], time=args['time'])
 
             db.session.add(value)
             db.session.commit()

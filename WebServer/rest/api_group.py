@@ -48,6 +48,8 @@ class GroupResource(Resource):
 
         info = []
         for g in group:
+            plc = g.yjplcinfo
+
             data = dict()
             data['id'] = g.id
             data['group_name'] = g.group_name
@@ -56,7 +58,12 @@ class GroupResource(Resource):
             data['note'] = g.note
             data['ten_id'] = g.ten_id
             data['item_id'] = g.item_id
-            data['plc_name'] = g.yjplcinfo.name
+
+            if plc:
+                data['plc_name'] = plc.name
+            else:
+                data['plc_name'] = None
+
             info.append(data)
 
         information = jsonify({"ok": 0, "data": info})
