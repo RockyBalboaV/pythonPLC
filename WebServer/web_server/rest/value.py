@@ -5,8 +5,8 @@ import time
 from flask import abort, jsonify
 from flask_restful import reqparse, Resource, marshal_with, fields
 
-from models import *
-from rest.parsers import value_parser, value_put_parser
+from web_server.models import *
+from web_server.rest.parsers import value_parser, value_put_parser
 
 value_field = {
     'id': fields.Integer,

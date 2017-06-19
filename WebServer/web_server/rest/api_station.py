@@ -2,8 +2,8 @@
 from flask import abort, jsonify
 from flask_restful import reqparse, Resource, marshal_with, fields
 
-from models import *
-from parsers import station_parser, station_put_parser
+from web_server.models import *
+from web_server.rest.parsers import station_parser, station_put_parser
 
 
 station_field = {

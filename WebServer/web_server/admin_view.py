@@ -4,7 +4,7 @@ from flask_admin.contrib.fileadmin import FileAdmin
 from flask_login import login_required
 
 from forms import CKTextAreaField
-from ext import admin_permission
+from web_server.ext import admin_permission
 
 
 class CustomView(BaseView):

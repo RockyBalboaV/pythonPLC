@@ -4,8 +4,8 @@ from flask import abort, current_app
 from flask_restful import Resource
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 
-from rest.parsers import plc_put_parser
-from models import *
+from web_server.rest.parsers import plc_put_parser
+from web_server.models import *
 
 
 class AuthApi(Resource):

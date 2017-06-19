@@ -2,8 +2,8 @@
 from flask import abort, jsonify
 from flask_restful import reqparse, Resource, marshal_with, fields
 
-from models import *
-from rest.parsers import variable_parser, variable_put_parser
+from web_server.models import *
+from web_server.rest.parsers import variable_parser, variable_put_parser
 
 variable_field = {
     'id': fields.Integer,

@@ -31,7 +31,7 @@ from rest.api_variable import VariableResource
 from rest.value import ValueResource
 from rest.auth import AuthApi
 
-from admin import CustomView, CustomModelView, CustomFileAdmin
+from web_server.admin_view import CustomView, CustomModelView, CustomFileAdmin
 
 # 设置默认编码
 # 不用这段会使得jinja渲染flash消息时产生编码错误
@@ -44,7 +44,7 @@ sys.setdefaultencoding("utf-8")
 def create_app(object_name):
     app = Flask(__name__, template_folder='templates')
 
-    here = os.path.abspath(os.path.dirname(__file__))
+    # here = os.path.abspath(os.path.dirname(__file__))
 
     if os.path.exists('dev'):
         app.config.from_object(DevConfig)
@@ -80,7 +80,7 @@ def create_app(object_name):
 
     admin.add_view(CustomView(name='Custom'))
     models = [YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, Value, TransferLog, User]
-
+    
     for model in models:
         admin.add_view(
             CustomModelView(model, db.session,
@@ -90,7 +90,6 @@ def create_app(object_name):
                                    '/static/',
                                    name='Static File'))
 
-
     def value2dict(std):
         return {
             "id": std.id,
@@ -98,10 +97,8 @@ def create_app(object_name):
             "value": std.value
         }
 
-
     def get_current_user():
         return session['username']
-
 
     def encryption(data):
         """
@@ -118,7 +115,6 @@ def create_app(object_name):
         digest = h.hexdigest()
         data = {"data": data, "digest": digest}
         return data
-
 
     def decryption(rj):
         """
@@ -140,7 +136,6 @@ def create_app(object_name):
             data = {"status": "Error"}
         return data
 
-
     def get_data_from_query(models):
         # 输入session.query()查询到的模型实例列表,读取每个实例每个值,放入列表返回
         data_list = []
@@ -151,7 +146,6 @@ def create_app(object_name):
             data_list.append(model_column)
         return data_list
 
-
     def get_data_from_model(model):
         # 读取一个模型实例中的每一项与值，放入字典
         model_column = {}
@@ -159,11 +153,9 @@ def create_app(object_name):
             model_column[c.name] = str(getattr(model, c.name, None))
         return model_column
 
-
     @app.errorhandler(500)
     def server_inner_error(error):
         return u"内部代码错误 by yakumo17s"
-
 
     @app.before_first_request
     def setup():
@@ -514,7 +506,3 @@ def create_app(object_name):
         return jsonify({'a': '1'})
 
     return app
-
-
-if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=11000, debug=True)

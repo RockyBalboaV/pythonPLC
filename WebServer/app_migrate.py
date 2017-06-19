@@ -1,26 +1,20 @@
 import os
 
 from flask import Flask
-from flask_script import Manager
+from flask_script import Manager, Server
 from flask_migrate import Migrate, MigrateCommand
 
-from web_server.ext import db
+from web_server import create_app
+from web_server.models import *
+from web_server.ext import db, socketio
 
-app = Flask(__name__)
-here = os.path.abspath(os.path.dirname(__file__))
+env = os.environ.get('WEBAPP_ENV', 'dev')
+app = create_app('web_server.config.{}Config'.format(env.capitalize()))
 
-if os.path.exists('config_dev'):
-    app.config.from_pyfile(os.path.join(here, 'config_dev/config.py'))
-    app.config.from_pyfile(os.path.join(here, 'config_dev/celery_config.py'))
-else:
-    app.config.from_pyfile(os.path.join(here, 'config_server/config.py'))
-    app.config.from_pyfile(os.path.join(here, 'config_server/celery_config.py'))
-
-db.init_app(app)
-import web_server.models
 migrate = Migrate(app, db)
 manager = Manager(app)
 manager.add_command('db', MigrateCommand)
+manager.add_command('server', Server())
 
 if __name__ == '__main__':
-    manager.run()
+    socketio.run(app, host='0.0.0.0', port=11000, debug=True)
