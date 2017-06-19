@@ -21,9 +21,36 @@ station_field = {
 def make_error(status_code):
     response = jsonify({
         'ok': 0,
-        'data': ""
+        'data': ''
     })
     response.status_code = status_code
+    return response
+
+
+def information(models):
+    if not models:
+        return make_error(404)
+
+    info = []
+    for m in models:
+
+        data = dict()
+        data['id'] = m.id
+        data['station_name'] = m.name
+        data['mac'] = m.mac
+        data['ip'] = m.ip
+        data['note'] = m.note
+        data['id_num'] = m.id_num
+        data['plc_count'] = m.plc_count
+        data['ten_id'] = m.ten_id
+        data['item_id'] = m.item_id
+        data['modification'] = m.modification
+
+        info.append(data)
+
+    response = jsonify({'ok': 0, "data": info})
+    response.status_code = 200
+
     return response
 
 
@@ -35,43 +62,35 @@ class StationResource(Resource):
         if not station_id:
             station_id = self.args['id']
 
+        station_name = self.args['station_name']
+
+        station_query = YjStationInfo.query
+
         if station_id:
-            station = YjStationInfo.query.filter_by(id=station_id).all()
-        else:
-            station = YjStationInfo.query.all()
+            station_query = station_query.filter_by(id=station_id)
 
-        if not station:
-            return make_error(404)
+        if station_name:
+            station_query = station_query.filter_by(name=station_name)
 
-        info = []
-        for s in station:
-            data = dict()
-            data['id'] = s.id
-            data['name'] = s.name
-            data['mac'] = s.mac
-            data['ip'] = s.ip
-            data['note'] = s.note
-            data['id_num'] = s.id_num
-            data['plc_count'] = s.plc_count
-            data['ten_id'] = s.ten_id
-            data['item_id'] = s.item_id
-            info.append(data)
+        station = station_query.all()
 
-        information = jsonify({"ok": 0, "data": info})
-
-        return information
+        return station
 
     def get(self, station_id=None):
 
         station = self.search(station_id)
 
-        return station
+        response = information(station)
+
+        return response
 
     def post(self, station_id=None):
 
         station = self.search(station_id)
 
-        return station
+        response = information(station)
+
+        return response
 
     def put(self, station_id=None):
         args = station_put_parser.parse_args()
@@ -126,9 +145,13 @@ class StationResource(Resource):
 
     def delete(self, station_id=None):
 
-        station = self.search(station_id)
+        models = self.search(station_id)
 
-        for s in station:
-            db.session.delete(s)
+        if not models:
+            return make_error(404)
+
+        for m in models:
+            db.session.delete(m)
         db.session.commit()
-        return {'ok': 0}, 204
+
+        return {'ok': 0}, 200

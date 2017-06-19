@@ -28,6 +28,39 @@ def make_error(status_code):
     return response
 
 
+def information(models):
+    if not models:
+        return make_error(404)
+
+    info = []
+    for m in models:
+        station = p.yjstationinfo
+
+        data = dict()
+        data['id'] = m.id
+        data['name'] = m.name
+        data['station_id'] = m.station_id
+        data['note'] = m.note
+        data['ip'] = m.ip
+        data['mpi'] = m.mpi
+        data['type'] = m.type
+        data['plc_type'] = m.plc_type
+        data['ten_id'] = m.ten_id
+        data['item_id'] = m.item_id
+
+        if station:
+            data['station_id_num'] = station.id_num
+        else:
+            data['station_id_num'] = None
+
+        info.append(data)
+
+    response = jsonify({'ok': 0, "data": info})
+    response.status_code = 200
+
+    return response
+
+
 class PLCResource(Resource):
 
     def __init__(self):
@@ -37,45 +70,27 @@ class PLCResource(Resource):
 
         if not plc_id:
             plc_id = self.args['id']
-
+        plc_name = self.args['plc_name']
         station_id = self.args['station_id']
+        station_name = self.args['station_name']
+
+        plc_query = YjPLCInfo.query
 
         if plc_id:
-            plc = YjPLCInfo.query.filter_by(id=plc_id).all()
-        elif station_id:
-            plc = YjPLCInfo.query.filter_by(station_id=station_id).all()
-        else:
-            plc = YjPLCInfo.query.all()
+            plc_query = plc_query.filter_by(id=plc_id)
 
-        if not plc:
-            return make_error(404)
+        if plc_name:
+            plc_query = plc_query.filter_by(name=plc_name)
 
-        info = []
-        for p in plc:
-            station = p.yjstationinfo
+        if station_id:
+            plc_query = plc_query.filter_by(station_id=station_id)
 
-            data = dict()
-            data['id'] = p.id
-            data['name'] = p.name
-            data['station_id'] = p.station_id
-            data['note'] = p.note
-            data['ip'] = p.ip
-            data['mpi'] = p.mpi
-            data['type'] = p.type
-            data['plc_type'] = p.plc_type
-            data['ten_id'] = p.ten_id
-            data['item_id'] = p.item_id
+        if station_name:
+            plc_query = plc_query.join(YjStationInfo, YjStationInfo.name == station_name)
 
-            if station:
-                data['station_id_num'] = station.id_num
-            else:
-                data['station_id_num'] = None
+        plc = plc_query.all()
 
-            info.append(data)
-
-        information = jsonify({"ok": 0, "data": info})
-
-        return information
+        return plc
 
     def verify(self):
 
@@ -89,19 +104,24 @@ class PLCResource(Resource):
 
         plc = self.search(plc_id)
 
-        return plc
+        response = information(plc)
+
+        return response
 
     def post(self, plc_id=None):
 
         plc = self.search(plc_id)
 
-        return plc
+        response = information(plc)
+
+        return response
 
     def put(self, plc_id=None):
         args = plc_put_parser.parse_args()
 
         if not plc_id:
             plc_id = args['id']
+
         if plc_id:
 
             plc = YjPLCInfo.query.get(plc_id)
@@ -135,13 +155,6 @@ class PLCResource(Resource):
             if args['item_id']:
                 plc.item_id = args['item_id']
 
-            # db.session.query(YjPLCInfo).filter(YjPLCInfo.id == plc_id).update({
-            #     YjPLCInfo.name: args['name'], YjPLCInfo.station_id: args['station_id'],
-            #     YjPLCInfo.note: args['note'], YjPLCInfo.ip: args['ip'], YjPLCInfo.mpi: args['mpi'],
-            #     YjPLCInfo.type: args['type'], YjPLCInfo.plc_type: args['plc_type'],
-            #     YjPLCInfo.ten_id: args['ten_id'], YjPLCInfo.item_id: args['item_id']
-            # })
-
             db.session.add(plc)
             db.session.commit()
 
@@ -159,10 +172,13 @@ class PLCResource(Resource):
 
     def delete(self, plc_id=None):
 
-        plc = self.search(plc_id)
+        models = self.search(plc_id)
 
-        for p in plc:
-            db.session.delete(p)
+        if not models:
+            return make_error(404)
+
+        for m in models:
+            db.session.delete(m)
         db.session.commit()
 
-        return {'ok': 0}, 204
+        return {'ok': 0}, 200

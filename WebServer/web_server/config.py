@@ -1,0 +1,78 @@
+# coding=utf-8
+from datetime import timedelta
+
+
+class Config(object):
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+
+    # csrf secret key
+    SECRET_KEY = 'yakumo17s'
+
+    # flask-cache
+    CACHE_TYPE = 'redis'
+    CACHE_REDIS_HOST = 'localhost'
+    CACHE_REDIS_PORT = '6379'
+    # CACHE_REDIS_PASSWORD = 'password'
+    CACHE_REDIS_DB = 0
+
+    # flask-debugtoolbar
+    DEBUG_TB_INTERCEPT_REDIRECTS = False
+    DEBUG_TB_PROFILER_ENABLED = True
+    DEBUG_TB_TEMPLATE_EDITOR_ENABLED = True
+
+    # wtform
+    WTF_CSRF_CHECK_DEFAULT = True
+
+    DEBUG = True
+
+    # 指定结果存储数据库
+    CELERY_RESULT_BACKEND = 'redis://localhost'
+    # 序列化方案
+    CELERY_TASK_SERIALIZER = 'msgpack'
+    # 任务结果读取格式
+    CELERY_RESULT_SERIALIZER = 'json'
+    # 任务过期时间
+    CELERY_TASK_RESULT_EXPIRES = 60 * 60 * 24
+    # 可接受的内容格式
+    CELERY_ACCEPT_CONTENT = ['json', 'msgpack']
+    # 定义任务队列
+    # CELERY_QUEUES = (
+    #     Queue('default', routing_key='task.#'),
+    #     Queue('web_tasks', routing_key='web.#'),
+    # )
+    # CELERY_DEFAULT_EXCHANGE = 'tasks'
+    # CELERY_DEFAULT_EXCHANGE_TYPE = 'topic'
+    # CELERY_DEFAULT_ROUTING_KEY = 'task.default'
+    #
+    # CELERY_ROUTES ={
+    #     'WebServer.tasks.add': {
+    #         'queue': 'web_tasks',
+    #         'routing_key': 'web.add',
+    #     },
+    #     'WebServer.tasks.div': {
+    #         'queue': 'web_tasks',
+    #         'routing_key': 'web.div'
+    #     }
+    #
+    # }
+    CELERYBEAT_SCHEDULE = {
+        'station_check': {
+            'task': 'app.station_check',
+            'schedule': timedelta(seconds=5),
+        }
+    }
+
+
+class DevConfig(Config):
+    # database
+    SQLALCHEMY_DATABASE_URI = 'mysql://web:web@localhost:3306/pyplc'
+
+    # 指定消息代理
+    BROKER_URL = 'pyamqp://yakumo17s:123456@localhost:5672/web_develop'
+
+
+class ProdConfig(Config):
+    SQLALCHEMY_DATABASE_URI = 'mysql://web:web@localhost:3306/pythonPLC'
+
+    # 指定消息代理
+    BROKER_URL = 'pyamqp://yakumo17s:touhou@localhost:5672/web_develop'

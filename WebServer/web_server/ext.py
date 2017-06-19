@@ -9,6 +9,7 @@ from flask_login import LoginManager
 from flask_wtf.csrf import CSRFProtect
 from flask_cache import Cache
 from flask_debugtoolbar import DebugToolbarExtension
+from flask_socketio import SocketIO
 
 mako = MakoTemplates()
 db = SQLAlchemy()
@@ -18,15 +19,16 @@ csrf = CSRFProtect()
 api = Api(decorators=[csrf.exempt])  # decorators参数，给所有api的url加上装饰器，免于csrf检查
 cache = Cache()
 debug_toolbar = DebugToolbarExtension()
-
+socketio = SocketIO()
 
 principlas = Principal()
 admin_permission = Permission(RoleNeed('admin'))
+user_permission = Permission(RoleNeed('user'))
 
 login_manager = LoginManager()
 login_manager.login_view = "login"
-login_manager.session_protection = "strong"
-login_manager.login_message = "Please login to access this page"
-login_manager.login_message_category = "info"
+login_manager.session_protection = "basic"
+login_manager.login_message = u"需要登录才能进入"
+login_manager.login_message_category = "warning"
 
 

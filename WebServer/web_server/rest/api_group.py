@@ -19,9 +19,39 @@ group_field = {
 def make_error(status_code):
     response = jsonify({
         'ok': 0,
-        'data': ""
+        'data': ''
     })
     response.status_code = status_code
+    return response
+
+
+def information(group):
+    if not group:
+        return make_error(404)
+
+    info = []
+    for g in group:
+
+        data = dict()
+        data['id'] = g.id
+        data['group_name'] = g.group_name
+        data['plc_id'] = g.plc_id
+        data['upload_cycle'] = g.upload_cycle
+        data['note'] = g.note
+        data['ten_id'] = g.ten_id
+        data['item_id'] = g.item_id
+
+        plc = g.yjplcinfo
+        if plc:
+            data['plc_name'] = plc.name
+        else:
+            data['plc_name'] = None
+
+        info.append(data)
+
+    response = jsonify({'ok': 0, "data": info})
+    response.status_code = 200
+
     return response
 
 
@@ -34,53 +64,44 @@ class GroupResource(Resource):
 
         if not group_id:
             group_id = self.args['id']
+
+        group_name = self.args['group_name']
         plc_id = self.args['plc_id']
+        plc_name = self.args['plc_name']
+
+        group_query = YjGroupInfo.query
 
         if group_id:
-            group = YjGroupInfo.query.filter_by(id=group_id).all()
-        elif plc_id:
-            group = YjGroupInfo.query.filter_by(plc_id=plc_id).all()
-        else:
-            group = YjGroupInfo.query.all()
+            group_query = group_query.filter_by(id=group_id)
 
-        if not group:
-            return make_error(404)
+        if group_name:
+            group_query = group_query.filter_by(group_name=group_name)
 
-        info = []
-        for g in group:
-            plc = g.yjplcinfo
+        if plc_id:
+            group_query = group_query.filter_by(plc_id=plc_id)
 
-            data = dict()
-            data['id'] = g.id
-            data['group_name'] = g.group_name
-            data['plc_id'] = g.plc_id
-            data['upload_cycle'] = g.upload_cycle
-            data['note'] = g.note
-            data['ten_id'] = g.ten_id
-            data['item_id'] = g.item_id
+        if plc_name:
+            group_query = group_query.join(YjPLCInfo, YjPLCInfo.name == plc_name)
 
-            if plc:
-                data['plc_name'] = plc.name
-            else:
-                data['plc_name'] = None
+        group = group_query.all()
 
-            info.append(data)
-
-        information = jsonify({"ok": 0, "data": info})
-
-        return information
+        return group
 
     def get(self, group_id=None):
 
         group = self.search(group_id)
 
-        return group
+        response = information(group)
+
+        return response
 
     def post(self, group_id=None):
 
         group = self.search(group_id)
 
-        return group
+        response = information(group)
+
+        return response
 
     def put(self, group_id=None):
         args = group_put_parser.parse_args()
@@ -113,11 +134,6 @@ class GroupResource(Resource):
             if args['item_id']:
                 group.item_id = args['item_id']
 
-            # db.session.query(YjGroupInfo).filter(YjGroupInfo.id == group_id).update({
-            #     YjGroupInfo.group_name: args['group_name'], YjGroupInfo.plc_id: args['plc_id'],
-            #     YjGroupInfo.note: args['note'], YjGroupInfo.upload_cycle: args['upload_cycle'],
-            #     YjGroupInfo.ten_id: args['ten_id'], YjGroupInfo.item_id: args['item_id']})
-
             db.session.add(group)
             db.session.commit()
             return {'ok': 0}, 200
@@ -134,9 +150,12 @@ class GroupResource(Resource):
 
         group = self.search(group_id)
 
+        if not group:
+            return make_error(404)
+
         for g in group:
             db.session.delete(g)
         db.session.commit()
 
-        return {'ok': 0}, 204
+        return {'ok': 0}, 200
 

@@ -4,7 +4,7 @@ from flask import Flask
 from flask_script import Manager
 from flask_migrate import Migrate, MigrateCommand
 
-from ext import db
+from web_server.ext import db
 
 app = Flask(__name__)
 here = os.path.abspath(os.path.dirname(__file__))
@@ -17,7 +17,7 @@ else:
     app.config.from_pyfile(os.path.join(here, 'config_server/celery_config.py'))
 
 db.init_app(app)
-import models
+import web_server.models
 migrate = Migrate(app, db)
 manager = Manager(app)
 manager.add_command('db', MigrateCommand)

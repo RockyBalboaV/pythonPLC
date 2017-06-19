@@ -16,6 +16,11 @@ def check_int(column):
         return column
 
 
+roles = db.Table('role_users',
+                 db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
+                 db.Column('role_id', db.Integer, db.ForeignKey('role.id')))
+
+
 class YjStationInfo(db.Model):
 
     __tablename__ = 'yjstationinfo'
@@ -157,22 +162,42 @@ class YjVariableInfo(db.Model):
         return '<Variable :ID(%r) Name(%r) >' % (int(self.id), self.tag_name)
 
 
+class Value(db.Model):
+
+    __tablename__ = 'values'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    variable_id = db.Column(db.Integer, db.ForeignKey('yjvariableinfo.id'))
+    value = db.Column(db.String(128))
+    time = db.Column(db.Integer)
+
+    def __init__(self, variable_id, value, time=None):
+        self.variable_id = variable_id
+        self.value = value
+        self.time = time
+
+    def __repr__(self):
+        return '<Value {} {} {} {}'.format(int(self.id), self.variable_id, self.value, self.time)
+
+
 class User(UserMixin, db.Model):
 
-    __tablename__ = 'users'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(32), nullable=False)
     email = db.Column(db.String(32))
     pw_hash = db.Column(db.String(128))
     login_count = db.Column(db.Integer, default=0)
     last_login_ip = db.Column(db.String(64), default='unknown')
-    level = db.Column(db.Integer)
 
-    def __init__(self, username, email, password, level=3):
+    roles = db.relationship(
+        'Role',
+        secondary=roles,
+        backref=db.backref('user', lazy='dynamic')
+    )
+
+    def __init__(self, username, password):
         self.username = username
-        self.email = email
-        self.set_password(password)
-        self.level = check_int(level)
+        # self.set_password(password)
+        self.pw_hash = password
 
     def __repr__(self):
         return '<User {}'.format(self.username)
@@ -212,24 +237,21 @@ class User(UserMixin, db.Model):
         self.pw_hash = generate_password_hash(password)
 
     def check_password(self, password):
-        return check_password_hash(self.pw_hash, password)
+        # return check_password_hash(self.pw_hash, password)
+        return self.pw_hash == password
 
 
-class Value(db.Model):
-
-    __tablename__ = 'values'
+class Role(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    variable_id = db.Column(db.Integer, db.ForeignKey('yjvariableinfo.id'))
-    value = db.Column(db.String(128))
-    time = db.Column(db.Integer)
+    name = db.Column(db.String(30), unique=True)
+    description = db.Column(db.String(255))
 
-    def __init__(self, variable_id, value, time=None):
-        self.variable_id = variable_id
-        self.value = value
-        self.time = time
+    def __init__(self, name):
+        self.name = name
 
     def __repr__(self):
-        return '<Value {} {} {} {}'.format(int(self.id), self.variable_id, self.value, self.time)
+        return '<Role {}>'.format(self.name)
+
 
 class TransferLog(db.Model):
 
@@ -237,7 +259,7 @@ class TransferLog(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     id_num = db.Column(db.String(200))
     level = db.Column(db.Integer)
-    time = db.Column(db.DateTime)
+    time = db.Column(db.Integer)
     note = db.Column(db.String(200))
 
     def __init__(self, id_num, level, time, note):

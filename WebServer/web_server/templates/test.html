@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>test</title>
+    <script src="https://unpkg.com/vue/dist/vue.js"></script>
+</head>
+<body>
+    <div id="login-form">
+        <p>{{ message }}</p>
+        <input name="username" v-model="message" />
+    </div>
+<script>
+            var username = new Vue({
+                el: '#login-form',
+                data: {
+                    message: 'abcd'
+                }
+            })
+        </script>
+</body>
+</html>

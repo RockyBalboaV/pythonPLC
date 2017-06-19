@@ -21,10 +21,54 @@ value_field = {
 
 def make_error(status_code):
     response = jsonify({
-        'ok': 0,
+        'ok': 1,
         'data': ""
     })
     response.status_code = status_code
+    return response
+
+
+def information(value):
+    if not value:
+        return make_error(404)
+
+    info = []
+    for v in value:
+
+        data = dict()
+        data['id'] = v.id
+        data['variable_id'] = v.variable_id
+        data['value'] = v.value
+        data['time'] = v.time
+
+        variable = v.yjvariableinfo
+        if variable:
+            data['variable_name'] = variable.tag_name
+            plc = variable.yjplcinfo
+            group = variable.yjgroupinfo
+        else:
+            data['variable_name'] = None
+            plc = None
+            group = None
+
+        if plc:
+            data['plc_id'] = plc.id
+            data['plc_name'] = plc.name
+        else:
+            data['plc_id'] = None
+            data['plc_name'] = None
+
+        if group:
+            data['group_id'] = group.id
+            data['group_name'] = group.group_name
+        else:
+            data['group_id'] = None
+            data['group_name'] = None
+
+        info.append(data)
+
+    response = jsonify({"ok": 0, "data": info})
+
     return response
 
 
@@ -44,6 +88,7 @@ class ValueResource(Resource):
         plc_name = self.args['plc_name']
         group_id = self.args['group_id']
         group_name = self.args['group_name']
+
         min_time = self.args['min_time']
         max_time = self.args['max_time']
         limit = self.args['limit']
@@ -82,59 +127,23 @@ class ValueResource(Resource):
 
         value = value.all()
 
-        if not value:
-            return make_error(404)
-
-        info = []
-        for v in value:
-
-            data = dict()
-            data['id'] = v.id
-            data['variable_id'] = v.variable_id
-            data['value'] = v.value
-            data['time'] = v.time
-
-            variable = v.yjvariableinfo
-            if variable:
-                data['variable_name'] = variable.tag_name
-                plc = variable.yjplcinfo
-                group = variable.yjgroupinfo
-            else:
-                data['variable_name'] = None
-                plc = None
-                group = None
-
-            if plc:
-                data['plc_id'] = plc.id
-                data['plc_name'] = plc.name
-            else:
-                data['plc_id'] = None
-                data['plc_name'] = None
-
-            if group:
-                data['group_id'] = group.id
-                data['group_name'] = group.group_name
-            else:
-                data['group_id'] = None
-                data['group_name'] = None
-
-            info.append(data)
-
-        information = jsonify({"ok": 0, "data": info})
-
-        return information
+        return value
 
     def get(self, value_id=None):
 
         value = self.search(value_id)
 
-        return value
+        response = information(value)
+
+        return response
 
     def post(self, value_id=None):
 
         value = self.search(value_id)
 
-        return value
+        response = information(value)
+
+        return response
 
     def put(self, value_id=None):
         args = value_put_parser.parse_args()
@@ -160,22 +169,28 @@ class ValueResource(Resource):
 
             db.session.add(value)
             db.session.commit()
-            return {'ok': 0}, 200
+            return {'ok': 0, "data": ""}, 200
 
         else:
             value = Value(variable_id=args['variable_id'], value=args['value'], time=args['time'])
 
             db.session.add(value)
             db.session.commit()
-            return {'ok': 0}, 201
+            return {'ok': 0, "data": ""}, 201
 
     def delete(self, value_id=None):
 
         value = self.search(value_id)
 
+        if not value:
+            return make_error(404)
+
         for v in value:
             db.session.delete(v)
         db.session.commit()
 
-        return {'ok': 0}, 204
+        response = jsonify({'ok': 0, 'data': ''})
+        response.status_code = 200
+
+        return response
 

@@ -31,6 +31,48 @@ def make_error(status_code):
     return response
 
 
+def information(models):
+    if not models:
+        return make_error(404)
+
+    info = []
+    for m in models:
+
+        data = dict()
+        data['id'] = m.id
+        data['tag_name'] = m.tag_name
+        data['plc_id'] = m.plc_id
+        data['group_id'] = m.group_id
+        data['address'] = m.address
+        data['data_type'] = m.data_type
+        data['rw_type'] = m.rw_type
+        data['upload'] = m.upload
+        data['acquisition_cycle'] = m.acquisition_cycle
+        data['server_record_cycle'] = m.server_record_cycle
+        data['note'] = m.note
+        data['ten_id'] = m.ten_id
+        data['item_id'] = m.item_id
+
+        plc = m.yjplcinfo
+        if plc:
+            data['plc_name'] = plc.name
+        else:
+            data['plc_name'] = None
+
+        group = m.yjgroupinfo
+        if group:
+            data['group_name'] = group.group_name
+        else:
+            data['group_name'] = None
+
+        info.append(data)
+
+    response = jsonify({'ok': 0, "data": info})
+    response.status_code = 200
+
+    return response
+
+
 class VariableResource(Resource):
 
     def __init__(self):
@@ -40,68 +82,51 @@ class VariableResource(Resource):
         if not variable_id:
             variable_id = self.args['id']
 
+        variable_name = self.args['variable_name']
         plc_id = self.args['plc_id']
+        plc_name = self.args['plc_name']
         group_id = self.args['group_id']
+        group_name = self.args['group_name']
+
+        variable_query = YjVariableInfo.query
 
         if variable_id:
-            variable = YjVariableInfo.query.filter_by(id=variable_id).all()
-        elif group_id:
-            variable = YjVariableInfo.query.filter_by(group_id=group_id).all()
-        elif plc_id:
-            variable = YjVariableInfo.query.filter_by(plc_id=plc_id).all()
-        else:
-            variable = YjVariableInfo.query.all()
+            variable_query = variable_query.filter_by(id=variable_id)
 
-        if not variable:
-            return make_error(404)
+        if variable_name:
+            variable_query = variable_query.filter_by(tag_name=variable_name)
 
-        info = []
-        for v in variable:
+        if group_id:
+            variable_query = variable_query.filter_by(group_id=group_id)
 
-            data = dict()
-            data['id'] = v.id
-            data['tag_name'] = v.tag_name
-            data['plc_id'] = v.plc_id
-            data['group_id'] = v.group_id
-            data['address'] = v.address
-            data['data_type'] = v.data_type
-            data['rw_type'] = v.rw_type
-            data['upload'] = v.upload
-            data['acquisition_cycle'] = v.acquisition_cycle
-            data['server_record_cycle'] = v.server_record_cycle
-            data['note'] = v.note
-            data['ten_id'] = v.ten_id
-            data['item_id'] = v.item_id
+        if group_name:
+            variable_query = variable_query.join(YjGroupInfo, YjGroupInfo.group_name == group_name)
 
-            plc = v.yjplcinfo
-            if plc:
-                data['plc_name'] = plc.name
-            else:
-                data['plc_name'] = None
+        if plc_id:
+            variable_query = variable_query.filter_by(plc_id=plc_id)
 
-            group = v.yjgroupinfo
-            if group:
-                data['group_name'] = group.group_name
-            else:
-                data['group_name'] = None
+        if plc_name:
+            variable_query = variable_query.join(YjPLCInfo, YjPLCInfo.name == plc_name)
 
-            info.append(data)
+        variable = variable_query.all()
 
-        information = jsonify({"ok": 0, "data": info})
-
-        return information
+        return variable
 
     def get(self, variable_id=None):
 
         variable = self.search(variable_id)
 
-        return variable
+        response = information(variable)
+
+        return response
 
     def post(self, variable_id=None):
 
         variable = self.search(variable_id)
 
-        return variable
+        response = information(variable)
+
+        return response
 
     def put(self, variable_id=None):
         args = variable_put_parser.parse_args()
@@ -152,15 +177,6 @@ class VariableResource(Resource):
             if args['item_id']:
                 variable.item_id = args['item_id']
 
-            #   db.session.query(YjVariableInfo).filter(YjVariableInfo.id == variable_id).update({
-            #       YjVariableInfo.tag_name: args['tag_name'], YjVariableInfo.plc_id: args['plc_id'],
-            #       YjVariableInfo.group_id: args['group_id'], YjVariableInfo.address: args['address'],
-            #       YjVariableInfo.data_type: args['data_type'], YjVariableInfo.rw_type: args['rw_type'],
-            #       YjVariableInfo.upload: args['upload'], YjVariableInfo.acquisition_cycle: args['acquisition_cycle'],
-            #       YjVariableInfo.server_record_cycle: args['server_record_cycle'], YjVariableInfo.note: args['note'],
-            #       YjVariableInfo.ten_id: args['ten_id'], YjVariableInfo.item_id: args['item_id']
-            #   })
-
             db.session.add(variable)
             db.session.commit()
 
@@ -181,11 +197,14 @@ class VariableResource(Resource):
 
     def delete(self, variable_id=None):
 
-        variable = self.search(variable_id)
+        models = self.search(variable_id)
 
-        for v in variable:
-            db.session.delete(v)
+        if not models:
+            return make_error(404)
+
+        for m in models:
+            db.session.delete(m)
         db.session.commit()
 
-        return {'ok': 0}, 204
+        return {'ok': 0}, 200
 
