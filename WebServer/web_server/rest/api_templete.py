@@ -14,7 +14,7 @@ class ApiResource(Resource):
     def search(self, id):
         pass
 
-    def information(self):
+    def information(self, models):
         pass
 
     def get(self, id=None):
@@ -27,7 +27,7 @@ class ApiResource(Resource):
 
     def post(self, id=None):
 
-        models = self.search(d)
+        models = self.search(id)
 
         response = self.information(models)
 
@@ -39,7 +39,7 @@ class ApiResource(Resource):
     def delete(self, id=None):
 
         models = self.search(id)
-        count = models.count()
+        count = len(models)
 
         if not models:
             return err_not_found()

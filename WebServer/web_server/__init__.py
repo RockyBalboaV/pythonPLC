@@ -28,7 +28,7 @@ from rest.api_plc import PLCResource
 from rest.api_station import StationResource
 from rest.api_group import GroupResource
 from rest.api_variable import VariableResource
-from rest.value import ValueResource
+from rest.api_value import ValueResource
 from rest.auth import AuthApi
 
 from web_server.admin_view import CustomView, CustomModelView, CustomFileAdmin

@@ -4,6 +4,7 @@ from flask_restful import reqparse, Resource, marshal_with, fields
 
 from web_server.models import *
 from web_server.rest.parsers import plc_parser, plc_put_parser
+from api_templete import ApiResource
 from err import err_not_found
 from response import rp_create, rp_delete, rp_modify
 
@@ -21,42 +22,10 @@ plc_field = {
 }
 
 
-def information(models):
-    if not models:
-        return err_not_found()
-
-    info = []
-    for m in models:
-        station = p.yjstationinfo
-
-        data = dict()
-        data['id'] = m.id
-        data['name'] = m.name
-        data['station_id'] = m.station_id
-        data['note'] = m.note
-        data['ip'] = m.ip
-        data['mpi'] = m.mpi
-        data['type'] = m.type
-        data['plc_type'] = m.plc_type
-        data['ten_id'] = m.ten_id
-        data['item_id'] = m.item_id
-
-        if station:
-            data['station_id_num'] = station.id_num
-        else:
-            data['station_id_num'] = None
-
-        info.append(data)
-
-    response = jsonify({'ok': 1, "data": info})
-    response.status_code = 200
-
-    return response
-
-
-class PLCResource(Resource):
+class PLCResource(ApiResource):
 
     def __init__(self):
+        super(ApiResource, self).__init__()
         self.args = plc_parser.parse_args()
 
     def search(self, plc_id=None):
@@ -85,6 +54,38 @@ class PLCResource(Resource):
 
         return plc
 
+    def information(self, models):
+        if not models:
+            return err_not_found()
+
+        info = []
+        for m in models:
+            station = m.yjstationinfo
+
+            data = dict()
+            data['id'] = m.id
+            data['name'] = m.name
+            data['station_id'] = m.station_id
+            data['note'] = m.note
+            data['ip'] = m.ip
+            data['mpi'] = m.mpi
+            data['type'] = m.type
+            data['plc_type'] = m.plc_type
+            data['ten_id'] = m.ten_id
+            data['item_id'] = m.item_id
+
+            if station:
+                data['station_id_num'] = station.id_num
+            else:
+                data['station_id_num'] = None
+
+            info.append(data)
+
+        response = jsonify({'ok': 1, "data": info})
+        response.status_code = 200
+
+        return response
+
     def verify(self):
 
         token = self.args['token']
@@ -92,22 +93,6 @@ class PLCResource(Resource):
 
         if not user:
             abort(401)
-
-    def get(self, plc_id=None):
-
-        plc = self.search(plc_id)
-
-        response = information(plc)
-
-        return response
-
-    def post(self, plc_id=None):
-
-        plc = self.search(plc_id)
-
-        response = information(plc)
-
-        return response
 
     def put(self, plc_id=None):
         args = plc_put_parser.parse_args()
@@ -163,16 +148,3 @@ class PLCResource(Resource):
 
             return rp_create()
 
-    def delete(self, plc_id=None):
-
-        models = self.search(plc_id)
-        count = models.count()
-
-        if not models:
-            return err_not_found()
-
-        for m in models:
-            db.session.delete(m)
-        db.session.commit()
-
-        return rp_delete(count)

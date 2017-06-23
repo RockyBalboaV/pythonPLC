@@ -4,6 +4,7 @@ from flask_restful import reqparse, Resource, marshal_with, fields
 
 from web_server.models import *
 from web_server.rest.parsers import group_parser, group_put_parser
+from api_templete import ApiResource
 from err import err_not_found
 from response import rp_create, rp_delete, rp_modify
 
@@ -18,39 +19,10 @@ group_field = {
 }
 
 
-def information(group):
-    if not group:
-        return err_not_found()
-
-    info = []
-    for g in group:
-
-        data = dict()
-        data['id'] = g.id
-        data['group_name'] = g.group_name
-        data['plc_id'] = g.plc_id
-        data['upload_cycle'] = g.upload_cycle
-        data['note'] = g.note
-        data['ten_id'] = g.ten_id
-        data['item_id'] = g.item_id
-
-        plc = g.yjplcinfo
-        if plc:
-            data['plc_name'] = plc.name
-        else:
-            data['plc_name'] = None
-
-        info.append(data)
-
-    response = jsonify({'ok': 1, "data": info})
-    response.status_code = 200
-
-    return response
-
-
-class GroupResource(Resource):
+class GroupResource(ApiResource):
 
     def __init__(self):
+        super(ApiResource, self).__init__()
         self.args = group_parser.parse_args()
 
     def search(self, group_id=None):
@@ -80,19 +52,32 @@ class GroupResource(Resource):
 
         return group
 
-    def get(self, group_id=None):
+    def information(self, group):
+        if not group:
+            return err_not_found()
 
-        group = self.search(group_id)
+        info = []
+        for g in group:
 
-        response = information(group)
+            data = dict()
+            data['id'] = g.id
+            data['group_name'] = g.group_name
+            data['plc_id'] = g.plc_id
+            data['upload_cycle'] = g.upload_cycle
+            data['note'] = g.note
+            data['ten_id'] = g.ten_id
+            data['item_id'] = g.item_id
 
-        return response
+            plc = g.yjplcinfo
+            if plc:
+                data['plc_name'] = plc.name
+            else:
+                data['plc_name'] = None
 
-    def post(self, group_id=None):
+            info.append(data)
 
-        group = self.search(group_id)
-
-        response = information(group)
+        response = jsonify({'ok': 1, "data": info})
+        response.status_code = 200
 
         return response
 
@@ -138,18 +123,4 @@ class GroupResource(Resource):
             db.session.add(group)
             db.session.commit()
             return rp_create()
-
-    def delete(self, group_id=None):
-
-        models = self.search(group_id)
-        count = models.count()
-
-        if not models:
-            return err_not_found()
-
-        for m in models:
-            db.session.delete(m)
-        db.session.commit()
-
-        return rp_delete(count)
 

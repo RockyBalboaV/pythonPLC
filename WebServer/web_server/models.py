@@ -1,5 +1,7 @@
 #coding=utf-8
-import os, datetime
+import os
+import datetime
+import time
 
 from flask import current_app
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -29,11 +31,11 @@ class YjStationInfo(db.Model):
     mac = db.Column(db.String(20))
     ip = db.Column(db.String(20))
     note = db.Column(db.String(200))
-    id_num = db.Column(db.Integer)
+    id_num = db.Column(db.String(200))
     plc_count = db.Column(db.Integer)
     ten_id = db.Column(db.String(255))
     item_id = db.Column(db.String(20))
-    con_date = db.Column(db.DateTime)
+    con_date = db.Column(db.Integer)
     modification = db.Column(db.Integer)
     version = db.Column(db.Integer, autoincrement=True)
 
@@ -50,7 +52,7 @@ class YjStationInfo(db.Model):
         self.ten_id = ten_id
         self.item_id = item_id
         if con_date is None:
-            con_date = datetime.datetime.utcnow()
+            con_date = int(time.time())
         self.con_date = con_date
         self.modification = modification
 

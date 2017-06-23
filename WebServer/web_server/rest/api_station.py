@@ -4,6 +4,7 @@ from flask_restful import reqparse, Resource, marshal_with, fields
 
 from web_server.models import *
 from web_server.rest.parsers import station_parser, station_put_parser
+from api_templete import ApiResource
 from err import err_not_found
 from response import rp_create, rp_delete, rp_modify
 
@@ -20,35 +21,9 @@ station_field = {
 }
 
 
-def information(models):
-    if not models:
-        return err_not_found()
-
-    info = []
-    for m in models:
-
-        data = dict()
-        data['id'] = m.id
-        data['station_name'] = m.name
-        data['mac'] = m.mac
-        data['ip'] = m.ip
-        data['note'] = m.note
-        data['id_num'] = m.id_num
-        data['plc_count'] = m.plc_count
-        data['ten_id'] = m.ten_id
-        data['item_id'] = m.item_id
-        data['modification'] = m.modification
-
-        info.append(data)
-
-    response = jsonify({'ok': 1, "data": info})
-    response.status_code = 200
-
-    return response
-
-
-class StationResource(Resource):
-    def __init__(self, ):
+class StationResource(ApiResource):
+    def __init__(self):
+        super(ApiResource, self).__init__()
         self.args = station_parser.parse_args()
 
     def search(self, station_id):
@@ -69,19 +44,28 @@ class StationResource(Resource):
 
         return station
 
-    def get(self, station_id=None):
+    def information(self, models):
+        if not models:
+            return err_not_found()
 
-        station = self.search(station_id)
+        info = []
+        for m in models:
+            data = dict()
+            data['id'] = m.id
+            data['station_name'] = m.name
+            data['mac'] = m.mac
+            data['ip'] = m.ip
+            data['note'] = m.note
+            data['id_num'] = m.id_num
+            data['plc_count'] = m.plc_count
+            data['ten_id'] = m.ten_id
+            data['item_id'] = m.item_id
+            data['modification'] = m.modification
 
-        response = information(station)
+            info.append(data)
 
-        return response
-
-    def post(self, station_id=None):
-
-        station = self.search(station_id)
-
-        response = information(station)
+        response = jsonify({'ok': 1, "data": info})
+        response.status_code = 200
 
         return response
 
@@ -135,17 +119,3 @@ class StationResource(Resource):
             db.session.add(station)
             db.session.commit()
             return rp_create()
-
-    def delete(self, station_id=None):
-
-        models = self.search(station_id)
-        count = models.count()
-
-        if not models:
-            return err_not_found()
-
-        for m in models:
-            db.session.delete(m)
-        db.session.commit()
-
-        return rp_delete(count)

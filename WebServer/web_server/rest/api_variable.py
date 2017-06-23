@@ -4,6 +4,7 @@ from flask_restful import reqparse, Resource, marshal_with, fields
 
 from web_server.models import *
 from web_server.rest.parsers import variable_parser, variable_put_parser
+from api_templete import ApiResource
 from err import err_not_found
 from response import rp_create, rp_delete, rp_modify
 
@@ -24,51 +25,10 @@ variable_field = {
 }
 
 
-def information(models):
-    if not models:
-        return err_not_found()
-
-    info = []
-    for m in models:
-
-        data = dict()
-        data['id'] = m.id
-        data['tag_name'] = m.tag_name
-        data['plc_id'] = m.plc_id
-        data['group_id'] = m.group_id
-        data['address'] = m.address
-        data['data_type'] = m.data_type
-        data['rw_type'] = m.rw_type
-        data['upload'] = m.upload
-        data['acquisition_cycle'] = m.acquisition_cycle
-        data['server_record_cycle'] = m.server_record_cycle
-        data['note'] = m.note
-        data['ten_id'] = m.ten_id
-        data['item_id'] = m.item_id
-
-        plc = m.yjplcinfo
-        if plc:
-            data['plc_name'] = plc.name
-        else:
-            data['plc_name'] = None
-
-        group = m.yjgroupinfo
-        if group:
-            data['group_name'] = group.group_name
-        else:
-            data['group_name'] = None
-
-        info.append(data)
-
-    response = jsonify({'ok': 0, "data": info})
-    response.status_code = 200
-
-    return response
-
-
-class VariableResource(Resource):
+class VariableResource(ApiResource):
 
     def __init__(self):
+        super(ApiResource, self).__init__()
         self.args = variable_parser.parse_args()
 
     def search(self, variable_id=None):
@@ -105,19 +65,44 @@ class VariableResource(Resource):
 
         return variable
 
-    def get(self, variable_id=None):
+    def information(self, models):
+        if not models:
+            return err_not_found()
 
-        variable = self.search(variable_id)
+        info = []
+        for m in models:
 
-        response = information(variable)
+            data = dict()
+            data['id'] = m.id
+            data['tag_name'] = m.tag_name
+            data['plc_id'] = m.plc_id
+            data['group_id'] = m.group_id
+            data['address'] = m.address
+            data['data_type'] = m.data_type
+            data['rw_type'] = m.rw_type
+            data['upload'] = m.upload
+            data['acquisition_cycle'] = m.acquisition_cycle
+            data['server_record_cycle'] = m.server_record_cycle
+            data['note'] = m.note
+            data['ten_id'] = m.ten_id
+            data['item_id'] = m.item_id
 
-        return response
+            plc = m.yjplcinfo
+            if plc:
+                data['plc_name'] = plc.name
+            else:
+                data['plc_name'] = None
 
-    def post(self, variable_id=None):
+            group = m.yjgroupinfo
+            if group:
+                data['group_name'] = group.group_name
+            else:
+                data['group_name'] = None
 
-        variable = self.search(variable_id)
+            info.append(data)
 
-        response = information(variable)
+        response = jsonify({'ok': 1, "data": info})
+        response.status_code = 200
 
         return response
 
@@ -187,18 +172,4 @@ class VariableResource(Resource):
             db.session.commit()
 
         return rp_create()
-
-    def delete(self, variable_id=None):
-
-        models = self.search(variable_id)
-        count = models.count()
-
-        if not models:
-            return err_not_found()
-
-        for m in models:
-            db.session.delete(m)
-        db.session.commit()
-
-        return rp_delete(count)
 
