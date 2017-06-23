@@ -4,6 +4,8 @@ from flask_restful import reqparse, Resource, marshal_with, fields
 
 from web_server.models import *
 from web_server.rest.parsers import group_parser, group_put_parser
+from err import err_not_found
+from response import rp_create, rp_delete, rp_modify
 
 group_field = {
     'id': fields.Integer,
@@ -16,18 +18,9 @@ group_field = {
 }
 
 
-def make_error(status_code):
-    response = jsonify({
-        'ok': 0,
-        'data': ''
-    })
-    response.status_code = status_code
-    return response
-
-
 def information(group):
     if not group:
-        return make_error(404)
+        return err_not_found()
 
     info = []
     for g in group:
@@ -49,7 +42,7 @@ def information(group):
 
         info.append(data)
 
-    response = jsonify({'ok': 0, "data": info})
+    response = jsonify({'ok': 1, "data": info})
     response.status_code = 200
 
     return response
@@ -114,7 +107,7 @@ class GroupResource(Resource):
             group = YjGroupInfo.query.get(group_id)
 
             if not group:
-                return make_error(404)
+                return err_not_found()
 
             if args['group_name']:
                 group.group_name = args['group_name']
@@ -136,7 +129,7 @@ class GroupResource(Resource):
 
             db.session.add(group)
             db.session.commit()
-            return {'ok': 0}, 200
+            return rp_modify()
 
         else:
             group = YjGroupInfo(group_name=args['group_name'], plc_id=args['plc_id'], note=args['note'],
@@ -144,18 +137,19 @@ class GroupResource(Resource):
 
             db.session.add(group)
             db.session.commit()
-            return {'ok': 0}, 201
+            return rp_create()
 
     def delete(self, group_id=None):
 
-        group = self.search(group_id)
+        models = self.search(group_id)
+        count = models.count()
 
-        if not group:
-            return make_error(404)
+        if not models:
+            return err_not_found()
 
-        for g in group:
-            db.session.delete(g)
+        for m in models:
+            db.session.delete(m)
         db.session.commit()
 
-        return {'ok': 0}, 200
+        return rp_delete(count)
 

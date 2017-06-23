@@ -1,5 +1,6 @@
 # coding=utf-8
 from datetime import timedelta
+import tempfile
 
 
 class Config(object):
@@ -23,7 +24,7 @@ class Config(object):
     # wtform
     WTF_CSRF_CHECK_DEFAULT = True
 
-    DEBUG = True
+
 
     # 指定结果存储数据库
     CELERY_RESULT_BACKEND = 'redis://localhost'
@@ -70,9 +71,27 @@ class DevConfig(Config):
     # 指定消息代理
     BROKER_URL = 'pyamqp://yakumo17s:123456@localhost:5672/web_develop'
 
+    # 开启调试模式
+    DEBUG = True
+
 
 class ProdConfig(Config):
     SQLALCHEMY_DATABASE_URI = 'mysql://web:web@localhost:3306/pythonPLC'
 
     # 指定消息代理
     BROKER_URL = 'pyamqp://yakumo17s:touhou@localhost:5672/web_develop'
+
+
+class TestConfig(Config):
+    db_file = tempfile.NamedTemporaryFile()
+
+    DEBUG = True
+    DEBUG_TB_ENABLED = False
+
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///' + db_file.name
+
+    CACHE_TyPE = 'null'
+    WTF_CSRF_ENABLED = False
+
+    CELERY_BROKER_URL = 'pyamqp://yakumo17s:123456@localhost:5672/web_develop'
+    CELERY_BACKEND_URL = 'pyamqp://yakumo17s:123456@localhost:5672/web_develop'

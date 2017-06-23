@@ -4,6 +4,8 @@ from flask_restful import reqparse, Resource, marshal_with, fields
 
 from web_server.models import *
 from web_server.rest.parsers import variable_parser, variable_put_parser
+from err import err_not_found
+from response import rp_create, rp_delete, rp_modify
 
 variable_field = {
     'id': fields.Integer,
@@ -22,18 +24,9 @@ variable_field = {
 }
 
 
-def make_error(status_code):
-    response = jsonify({
-        'ok': 0,
-        'data': ""
-    })
-    response.status_code = status_code
-    return response
-
-
 def information(models):
     if not models:
-        return make_error(404)
+        return err_not_found()
 
     info = []
     for m in models:
@@ -139,7 +132,7 @@ class VariableResource(Resource):
             variable = YjVariableInfo.query.get(variable_id)
 
             if not variable:
-                return make_error(404)
+                return err_not_found()
 
             if args['tag_name']:
                 variable.tag_name = args['tag_name']
@@ -180,7 +173,7 @@ class VariableResource(Resource):
             db.session.add(variable)
             db.session.commit()
 
-            return {'ok': 0}, 200
+            return rp_modify()
 
         else:
             variable = YjVariableInfo(tag_name=args['tag_name'], plc_id=args['plc_id'],
@@ -193,18 +186,19 @@ class VariableResource(Resource):
             db.session.add(variable)
             db.session.commit()
 
-        return {'ok': 0}, 201
+        return rp_create()
 
     def delete(self, variable_id=None):
 
         models = self.search(variable_id)
+        count = models.count()
 
         if not models:
-            return make_error(404)
+            return err_not_found()
 
         for m in models:
             db.session.delete(m)
         db.session.commit()
 
-        return {'ok': 0}, 200
+        return rp_delete(count)
 

@@ -4,6 +4,8 @@ from flask_restful import reqparse, Resource, marshal_with, fields
 
 from web_server.models import *
 from web_server.rest.parsers import station_parser, station_put_parser
+from err import err_not_found
+from response import rp_create, rp_delete, rp_modify
 
 
 station_field = {
@@ -18,18 +20,9 @@ station_field = {
 }
 
 
-def make_error(status_code):
-    response = jsonify({
-        'ok': 0,
-        'data': ''
-    })
-    response.status_code = status_code
-    return response
-
-
 def information(models):
     if not models:
-        return make_error(404)
+        return err_not_found()
 
     info = []
     for m in models:
@@ -48,7 +41,7 @@ def information(models):
 
         info.append(data)
 
-    response = jsonify({'ok': 0, "data": info})
+    response = jsonify({'ok': 1, "data": info})
     response.status_code = 200
 
     return response
@@ -102,7 +95,7 @@ class StationResource(Resource):
             station = YjStationInfo.query.get(station_id)
 
             if not station:
-                make_error(404)
+                return err_not_found()
 
             if args['name']:
                 station.name = args['name']
@@ -133,7 +126,7 @@ class StationResource(Resource):
 
             db.session.add(station)
             db.session.commit()
-            return {'ok': 0}, 200
+            return rp_modify()
 
         else:
             station = YjStationInfo(name=args['name'], mac=args['mac'], ip=args['ip'], note=args['note'],
@@ -141,17 +134,18 @@ class StationResource(Resource):
                                     item_id=args['item_id'], modification=args['modification'])
             db.session.add(station)
             db.session.commit()
-            return {'ok': 0}, 201
+            return rp_create()
 
     def delete(self, station_id=None):
 
         models = self.search(station_id)
+        count = models.count()
 
         if not models:
-            return make_error(404)
+            return err_not_found()
 
         for m in models:
             db.session.delete(m)
         db.session.commit()
 
-        return {'ok': 0}, 200
+        return rp_delete(count)

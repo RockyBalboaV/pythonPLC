@@ -14,7 +14,14 @@ app = create_app('web_server.config.{}Config'.format(env.capitalize()))
 migrate = Migrate(app, db)
 manager = Manager(app)
 manager.add_command('db', MigrateCommand)
-manager.add_command('server', Server())
+manager.add_command('server', Server(port=11000))
 
-if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=11000, debug=True)
+
+@manager.shell
+def make_shell_context():
+    return dict(app=app, db=db)
+# def Server():
+#     socketio.run(app, host='0.0.0.0', port=11000, debug=True)
+
+if __name__ == "__main__":
+    manager.run()

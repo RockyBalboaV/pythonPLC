@@ -7,6 +7,8 @@ from flask_restful import reqparse, Resource, marshal_with, fields
 
 from web_server.models import *
 from web_server.rest.parsers import value_parser, value_put_parser
+from err import err_not_found
+from response import rp_create, rp_delete, rp_modify
 
 value_field = {
     'id': fields.Integer,
@@ -19,18 +21,9 @@ value_field = {
 }
 
 
-def make_error(status_code):
-    response = jsonify({
-        'ok': 1,
-        'data': ""
-    })
-    response.status_code = status_code
-    return response
-
-
 def information(value):
     if not value:
-        return make_error(404)
+        return err_not_found()
 
     info = []
     for v in value:
@@ -156,7 +149,7 @@ class ValueResource(Resource):
             value = Value.query.get(value_id)
 
             if not value:
-                return make_error(404)
+                return err_not_found()
 
             if args['variable_id']:
                 value.variable_id = args['variable_id']
@@ -169,28 +162,26 @@ class ValueResource(Resource):
 
             db.session.add(value)
             db.session.commit()
-            return {'ok': 0, "data": ""}, 200
+            return rp_modify()
 
         else:
             value = Value(variable_id=args['variable_id'], value=args['value'], time=args['time'])
 
             db.session.add(value)
             db.session.commit()
-            return {'ok': 0, "data": ""}, 201
+            return rp_create()
 
     def delete(self, value_id=None):
 
-        value = self.search(value_id)
+        models = self.search(value_id)
+        count = len(models)
 
-        if not value:
-            return make_error(404)
+        if not models:
+            return err_not_found()
 
-        for v in value:
-            db.session.delete(v)
+        for m in models:
+            db.session.delete(m)
         db.session.commit()
 
-        response = jsonify({'ok': 0, 'data': ''})
-        response.status_code = 200
-
-        return response
+        return rp_delete(count)
 

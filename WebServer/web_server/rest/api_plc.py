@@ -4,6 +4,8 @@ from flask_restful import reqparse, Resource, marshal_with, fields
 
 from web_server.models import *
 from web_server.rest.parsers import plc_parser, plc_put_parser
+from err import err_not_found
+from response import rp_create, rp_delete, rp_modify
 
 plc_field = {
     'id': fields.Integer,
@@ -19,18 +21,9 @@ plc_field = {
 }
 
 
-def make_error(status_code):
-    response = jsonify({
-        'ok': 0,
-        'data': ""
-    })
-    response.status_code = status_code
-    return response
-
-
 def information(models):
     if not models:
-        return make_error(404)
+        return err_not_found()
 
     info = []
     for m in models:
@@ -55,7 +48,7 @@ def information(models):
 
         info.append(data)
 
-    response = jsonify({'ok': 0, "data": info})
+    response = jsonify({'ok': 1, "data": info})
     response.status_code = 200
 
     return response
@@ -126,7 +119,7 @@ class PLCResource(Resource):
 
             plc = YjPLCInfo.query.get(plc_id)
             if not plc:
-                return make_error(404)
+                return err_not_found()
 
             if args['name']:
                 plc.name = args['name']
@@ -158,7 +151,7 @@ class PLCResource(Resource):
             db.session.add(plc)
             db.session.commit()
 
-            return {'ok': 0}, 200
+            return rp_modify()
 
         else:
             plc = YjPLCInfo(name=args['name'], station_id=args['station_id'], note=args['note'], ip=args['ip'],
@@ -168,17 +161,18 @@ class PLCResource(Resource):
             db.session.add(plc)
             db.session.commit()
 
-            return {'ok': 0}, 201
+            return rp_create()
 
     def delete(self, plc_id=None):
 
         models = self.search(plc_id)
+        count = models.count()
 
         if not models:
-            return make_error(404)
+            return err_not_found()
 
         for m in models:
             db.session.delete(m)
         db.session.commit()
 
-        return {'ok': 0}, 200
+        return rp_delete(count)
