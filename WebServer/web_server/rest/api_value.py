@@ -7,6 +7,7 @@ from flask_restful import reqparse, Resource, marshal_with, fields
 
 from web_server.models import *
 from web_server.rest.parsers import value_parser, value_put_parser
+from api_templete import ApiResource
 from err import err_not_found
 from response import rp_create, rp_delete, rp_modify
 
@@ -21,53 +22,10 @@ value_field = {
 }
 
 
-def information(value):
-    if not value:
-        return err_not_found()
-
-    info = []
-    for v in value:
-
-        data = dict()
-        data['id'] = v.id
-        data['variable_id'] = v.variable_id
-        data['value'] = v.value
-        data['time'] = v.time
-
-        variable = v.yjvariableinfo
-        if variable:
-            data['variable_name'] = variable.tag_name
-            plc = variable.yjplcinfo
-            group = variable.yjgroupinfo
-        else:
-            data['variable_name'] = None
-            plc = None
-            group = None
-
-        if plc:
-            data['plc_id'] = plc.id
-            data['plc_name'] = plc.name
-        else:
-            data['plc_id'] = None
-            data['plc_name'] = None
-
-        if group:
-            data['group_id'] = group.id
-            data['group_name'] = group.group_name
-        else:
-            data['group_id'] = None
-            data['group_name'] = None
-
-        info.append(data)
-
-    response = jsonify({"ok": 0, "data": info})
-
-    return response
-
-
-class ValueResource(Resource):
+class ValueResource(ApiResource):
 
     def __init__(self):
+        super(ApiResource, self).__init__()
         self.args = value_parser.parse_args()
 
     def search(self, value_id=None):
@@ -122,19 +80,46 @@ class ValueResource(Resource):
 
         return value
 
-    def get(self, value_id=None):
+    def information(self, value):
+        if not value:
+            return err_not_found()
 
-        value = self.search(value_id)
+        info = []
+        for v in value:
 
-        response = information(value)
+            data = dict()
+            data['id'] = v.id
+            data['variable_id'] = v.variable_id
+            data['value'] = v.value
+            data['time'] = v.time
 
-        return response
+            variable = v.yjvariableinfo
+            if variable:
+                data['variable_name'] = variable.tag_name
+                plc = variable.yjplcinfo
+                group = variable.yjgroupinfo
+            else:
+                data['variable_name'] = None
+                plc = None
+                group = None
 
-    def post(self, value_id=None):
+            if plc:
+                data['plc_id'] = plc.id
+                data['plc_name'] = plc.name
+            else:
+                data['plc_id'] = None
+                data['plc_name'] = None
 
-        value = self.search(value_id)
+            if group:
+                data['group_id'] = group.id
+                data['group_name'] = group.group_name
+            else:
+                data['group_id'] = None
+                data['group_name'] = None
 
-        response = information(value)
+            info.append(data)
+
+        response = jsonify({"ok": 1, "data": info})
 
         return response
 
@@ -170,18 +155,4 @@ class ValueResource(Resource):
             db.session.add(value)
             db.session.commit()
             return rp_create()
-
-    def delete(self, value_id=None):
-
-        models = self.search(value_id)
-        count = len(models)
-
-        if not models:
-            return err_not_found()
-
-        for m in models:
-            db.session.delete(m)
-        db.session.commit()
-
-        return rp_delete(count)
 
