@@ -113,6 +113,8 @@ class PLCResource(ApiResource):
             if not plc:
                 return err_not_found()
 
+            print args['plc_name']
+
             if args['plc_name']:
                 plc.plc_name = args['plc_name']
 
