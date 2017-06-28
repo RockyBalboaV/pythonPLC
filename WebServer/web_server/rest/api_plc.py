@@ -35,6 +35,7 @@ class PLCResource(ApiResource):
         station_id = self.args['station_id']
         station_name = self.args['station_name']
 
+
         page = self.args['page']
         per_page = self.args['per_page'] if self.args['per_page'] else 10
 
@@ -44,13 +45,13 @@ class PLCResource(ApiResource):
             query = query.filter_by(id=plc_id)
 
         if plc_name:
-            query = query.filter_by(name=plc_name)
+            query = query.filter_by(plc_name=plc_name)
 
         if station_id:
             query = query.filter_by(station_id=station_id)
 
         if station_name:
-            query = query.join(YjStationInfo, YjStationInfo.name == station_name)
+            query = query.join(YjStationInfo, YjStationInfo.station_name == station_name)
 
         if page:
             query = query.paginate(page, per_page, False).items
@@ -69,7 +70,7 @@ class PLCResource(ApiResource):
 
             data = dict()
             data['id'] = m.id
-            data['name'] = m.name
+            data['plc_name'] = m.plc_name
             data['station_id'] = m.station_id
             data['note'] = m.note
             data['ip'] = m.ip
@@ -81,6 +82,7 @@ class PLCResource(ApiResource):
 
             if station:
                 data['station_id_num'] = station.id_num
+                data['station_name'] = station.station_name
             else:
                 data['station_id_num'] = None
 
@@ -111,8 +113,8 @@ class PLCResource(ApiResource):
             if not plc:
                 return err_not_found()
 
-            if args['name']:
-                plc.name = args['name']
+            if args['plc_name']:
+                plc.plc_name = args['plc_name']
 
             if args['station_id']:
                 plc.station_id = args['station_id']
@@ -144,7 +146,7 @@ class PLCResource(ApiResource):
             return rp_modify()
 
         else:
-            plc = YjPLCInfo(name=args['name'], station_id=args['station_id'], note=args['note'], ip=args['ip'],
+            plc = YjPLCInfo(plc_name=args['plc_name'], station_id=args['station_id'], note=args['note'], ip=args['ip'],
                             mpi=args['mpi'], type=args['type'], plc_type=args['plc_type'], ten_id=args['ten_id'],
                             item_id=args['item_id'])
 

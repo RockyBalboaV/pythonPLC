@@ -54,13 +54,13 @@ class ValueResource(ApiResource):
             query = query.join(YjVariableInfo).filter(YjVariableInfo.id == variable_id)
 
         if variable_name:
-            query = query.join(YjVariableInfo).filter(YjVariableInfo.tag_name == variable_name)
+            query = query.join(YjVariableInfo).filter(YjVariableInfo.variable_name == variable_name)
 
         if plc_id:
             query = query.join(YjVariableInfo, YjPLCInfo).filter(YjPLCInfo.id == plc_id)
 
         if plc_name:
-            query = query.join(YjVariableInfo, YjPLCInfo).filter(YjPLCInfo.name == plc_name)
+            query = query.join(YjVariableInfo, YjPLCInfo).filter(YjPLCInfo.plc_name == plc_name)
 
         if group_id:
             query = query.join(YjVariableInfo, YjGroupInfo).filter(YjGroupInfo.id == group_id)
@@ -99,7 +99,7 @@ class ValueResource(ApiResource):
 
             variable = v.yjvariableinfo
             if variable:
-                data['variable_name'] = variable.tag_name
+                data['variable_name'] = variable.variable_name
                 plc = variable.yjplcinfo
                 group = variable.yjgroupinfo
             else:
@@ -109,7 +109,7 @@ class ValueResource(ApiResource):
 
             if plc:
                 data['plc_id'] = plc.id
-                data['plc_name'] = plc.name
+                data['plc_name'] = plc.plc_name
             else:
                 data['plc_id'] = None
                 data['plc_name'] = None

@@ -27,7 +27,7 @@ class YjStationInfo(db.Model):
 
     __tablename__ = 'yjstationinfo'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name = db.Column(db.String(30))
+    station_name = db.Column(db.String(30))
     mac = db.Column(db.String(20))
     ip = db.Column(db.String(20))
     note = db.Column(db.String(200))
@@ -43,9 +43,9 @@ class YjStationInfo(db.Model):
 
     logs = db.relationship('TransferLog', backref='yjstationinfo', lazy='dynamic')
 
-    def __init__(self, name=None, mac=None, ip=None, note=None, id_num=None,
+    def __init__(self, station_name=None, mac=None, ip=None, note=None, id_num=None,
                  plc_count=None, ten_id=None, item_id=None, con_date=None, modification=0):
-        self.name = name
+        self.station_name = station_name
         self.mac = mac
         self.ip = ip
         self.note = note
@@ -66,7 +66,7 @@ class YjPLCInfo(db.Model):
 
     __tablename__ = 'yjplcinfo'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    name = db.Column(db.String(30))
+    plc_name = db.Column(db.String(30))
     note = db.Column(db.String(200))
     ip = db.Column(db.String(30))
     mpi = db.Column(db.Integer)
@@ -80,11 +80,11 @@ class YjPLCInfo(db.Model):
     variables = db.relationship('YjVariableInfo', backref='yjplcinfo', lazy='dynamic')
     groups = db.relationship('YjGroupInfo', backref='yjplcinfo', lazy='dynamic')
 
-    def __init__(self, name=None, station_id=None, note=None, ip=None,
+    def __init__(self, plc_name=None, station_id=None, note=None, ip=None,
                  mpi=None, type=None, plc_type=None,
                  ten_id=0, item_id=None):
 
-        self.name = name
+        self.plc_name = plc_name
         self.station_id = station_id
         self.note = note
         self.ip = ip
@@ -129,7 +129,8 @@ class YjVariableInfo(db.Model):
 
     __tablename__ = 'yjvariableinfo'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    tag_name = db.Column(db.String(20))
+    variable_name = db.Column(db.String(20))
+    db_num = db.Column(db.Integer)
     address = db.Column(db.String(20))
     data_type = db.Column(db.String(10))
     rw_type = db.Column(db.Integer)
@@ -145,13 +146,14 @@ class YjVariableInfo(db.Model):
 
     values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic')
 
-    def __init__(self, tag_name=None, plc_id=None, group_id=None, address=None,
+    def __init__(self, variable_name=None, plc_id=None, group_id=None, db_num = None, address=None,
                  data_type=None, rw_type=None, upload=None,
                  acquisition_cycle=None, server_record_cycle=None,
                  note=None, ten_id=None, item_id=None):
-        self.tag_name = tag_name
+        self.variable_name = variable_name
         self.plc_id = plc_id
         self.group_id = group_id
+        self.db_num = db_num
         self.address = address
         self.data_type = data_type
         self.rw_type = check_int(rw_type)

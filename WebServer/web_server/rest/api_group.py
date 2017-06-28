@@ -48,7 +48,7 @@ class GroupResource(ApiResource):
             query = query.filter_by(plc_id=plc_id)
 
         if plc_name:
-            query = query.join(YjPLCInfo, YjPLCInfo.name == plc_name)
+            query = query.join(YjPLCInfo, YjPLCInfo.plc_name == plc_name)
 
         if page:
             query = query.paginate(page, per_page, False).items
@@ -75,7 +75,7 @@ class GroupResource(ApiResource):
 
             plc = g.yjplcinfo
             if plc:
-                data['plc_name'] = plc.name
+                data['plc_name'] = plc.plc_name
             else:
                 data['plc_name'] = None
 

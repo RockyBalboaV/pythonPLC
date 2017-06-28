@@ -41,7 +41,7 @@ class StationResource(ApiResource):
             query = query.filter_by(id=station_id)
 
         if station_name:
-            query = query.filter_by(name=station_name)
+            query = query.filter_by(station_name=station_name)
 
         if page:
             query = query.paginate(page, per_page, False).items
@@ -58,7 +58,7 @@ class StationResource(ApiResource):
         for m in models:
             data = dict()
             data['id'] = m.id
-            data['station_name'] = m.name
+            data['station_name'] = m.station_name
             data['mac'] = m.mac
             data['ip'] = m.ip
             data['note'] = m.note
@@ -87,8 +87,8 @@ class StationResource(ApiResource):
             if not station:
                 return err_not_found()
 
-            if args['name']:
-                station.name = args['name']
+            if args['station_name']:
+                station.name = args['station_name']
 
             if args['mac']:
                 station.mac = args['mac']
@@ -119,7 +119,7 @@ class StationResource(ApiResource):
             return rp_modify()
 
         else:
-            station = YjStationInfo(name=args['name'], mac=args['mac'], ip=args['ip'], note=args['note'],
+            station = YjStationInfo(station_name=args['station_name'], mac=args['mac'], ip=args['ip'], note=args['note'],
                                     id_num=args['id_num'], plc_count=args['plc_count'], ten_id=args['ten_id'],
                                     item_id=args['item_id'], modification=args['modification'])
             db.session.add(station)

@@ -48,7 +48,7 @@ class VariableResource(ApiResource):
             query = query.filter_by(id=variable_id)
 
         if variable_name:
-            query = query.filter_by(tag_name=variable_name)
+            query = query.filter_by(variable_name=variable_name)
 
         if group_id:
             query = query.filter_by(group_id=group_id)
@@ -60,7 +60,7 @@ class VariableResource(ApiResource):
             query = query.filter_by(plc_id=plc_id)
 
         if plc_name:
-            query = query.join(YjPLCInfo, YjPLCInfo.name == plc_name)
+            query = query.join(YjPLCInfo, YjPLCInfo.plc_name == plc_name)
 
         if page:
             query = query.paginate(page, per_page, False).items
@@ -78,9 +78,10 @@ class VariableResource(ApiResource):
 
             data = dict()
             data['id'] = m.id
-            data['tag_name'] = m.tag_name
+            data['variable_name'] = m.variable_name
             data['plc_id'] = m.plc_id
             data['group_id'] = m.group_id
+            data['db_num'] = m.db_num
             data['address'] = m.address
             data['data_type'] = m.data_type
             data['rw_type'] = m.rw_type
@@ -93,7 +94,7 @@ class VariableResource(ApiResource):
 
             plc = m.yjplcinfo
             if plc:
-                data['plc_name'] = plc.name
+                data['plc_name'] = plc.plc_name
             else:
                 data['plc_name'] = None
 
@@ -124,13 +125,16 @@ class VariableResource(ApiResource):
                 return err_not_found()
 
             if args['tag_name']:
-                variable.tag_name = args['tag_name']
+                variable.variable_name = args['variable_name']
 
             if args['plc_id']:
                 variable.plc_id = args['plc_id']
 
             if args['group_id']:
                 variable.group_id = args['group_id']
+
+            if args['db_num']:
+                variable.db_num = args['db_num']
 
             if args['address']:
                 variable.address = args['address']
@@ -165,8 +169,8 @@ class VariableResource(ApiResource):
             return rp_modify()
 
         else:
-            variable = YjVariableInfo(tag_name=args['tag_name'], plc_id=args['plc_id'],
-                                      group_id=args['group_id'], address=args['address'],
+            variable = YjVariableInfo(variable_name=args['variable_name'], plc_id=args['plc_id'],
+                                      group_id=args['group_id'], db_num=args['db_num'], address=args['address'],
                                       data_type=args['data_type'], rw_type=args['rw_type'],
                                       upload=args['upload'], acquisition_cycle=args['acquisition_cycle'],
                                       server_record_cycle=args['server_record_cycle'], note=args['note'],
