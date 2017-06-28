@@ -23,7 +23,7 @@ station_field = {
 
 class StationResource(ApiResource):
     def __init__(self):
-        super(ApiResource, self).__init__()
+        super(StationResource, self).__init__()
         self.args = station_parser.parse_args()
 
     def search(self, station_id):
@@ -32,17 +32,23 @@ class StationResource(ApiResource):
 
         station_name = self.args['station_name']
 
-        station_query = YjStationInfo.query
+        page = self.args['page']
+        per_page = self.args['per_page'] if self.args['per_page'] else 10
+
+        query = YjStationInfo.query
 
         if station_id:
-            station_query = station_query.filter_by(id=station_id)
+            query = query.filter_by(id=station_id)
 
         if station_name:
-            station_query = station_query.filter_by(name=station_name)
+            query = query.filter_by(name=station_name)
 
-        station = station_query.all()
+        if page:
+            query = query.paginate(page, per_page, False).items
+        else:
+            query = query.all()
 
-        return station
+        return query
 
     def information(self, models):
         if not models:

@@ -23,9 +23,8 @@ plc_field = {
 
 
 class PLCResource(ApiResource):
-
     def __init__(self):
-        super(ApiResource, self).__init__()
+        super(PLCResource, self).__init__()
         self.args = plc_parser.parse_args()
 
     def search(self, plc_id=None):
@@ -36,23 +35,29 @@ class PLCResource(ApiResource):
         station_id = self.args['station_id']
         station_name = self.args['station_name']
 
-        plc_query = YjPLCInfo.query
+        page = self.args['page']
+        per_page = self.args['per_page'] if self.args['per_page'] else 10
+
+        query = YjPLCInfo.query
 
         if plc_id:
-            plc_query = plc_query.filter_by(id=plc_id)
+            query = query.filter_by(id=plc_id)
 
         if plc_name:
-            plc_query = plc_query.filter_by(name=plc_name)
+            query = query.filter_by(name=plc_name)
 
         if station_id:
-            plc_query = plc_query.filter_by(station_id=station_id)
+            query = query.filter_by(station_id=station_id)
 
         if station_name:
-            plc_query = plc_query.join(YjStationInfo, YjStationInfo.name == station_name)
+            query = query.join(YjStationInfo, YjStationInfo.name == station_name)
 
-        plc = plc_query.all()
+        if page:
+            query = query.paginate(page, per_page, False).items
+        else:
+            query = query.all()
 
-        return plc
+        return query
 
     def information(self, models):
         if not models:
@@ -147,4 +152,3 @@ class PLCResource(ApiResource):
             db.session.commit()
 
             return rp_create()
-

@@ -8,6 +8,8 @@ station_parser = reqparse.RequestParser()
 station_parser.add_argument('id', type=int, help='该数据的主键')
 station_parser.add_argument('station_name', type=str)
 
+station_parser.add_argument('page', type=int)
+station_parser.add_argument('per_page', type=int)
 station_parser.add_argument('limit', type=int)
 
 station_parser.add_argument('username', type=str)
@@ -42,6 +44,8 @@ plc_parser.add_argument('plc_name', type=str)
 plc_parser.add_argument('station_id', type=int, help='plc从属的station')
 plc_parser.add_argument('station_name', type=str)
 
+plc_parser.add_argument('page', type=int)
+plc_parser.add_argument('per_page', type=int)
 plc_parser.add_argument('limit', type=int)
 
 plc_parser.add_argument('username', type=str)
@@ -75,6 +79,8 @@ group_parser.add_argument('group_name', type=str)
 group_parser.add_argument('plc_id', type=int)
 group_parser.add_argument('plc_name', type=str)
 
+group_parser.add_argument('page', type=int)
+group_parser.add_argument('per_page', type=int)
 group_parser.add_argument('limit', type=int)
 
 group_parser.add_argument('username', type=str)
@@ -107,6 +113,8 @@ variable_parser.add_argument('plc_name', type=str)
 variable_parser.add_argument('group_id', type=int)
 variable_parser.add_argument('group_name', type=str)
 
+variable_parser.add_argument('page', type=int)
+variable_parser.add_argument('per_page', type=int)
 variable_parser.add_argument('limit', type=int)
 
 variable_parser.add_argument('username', type=str)
@@ -148,6 +156,8 @@ value_parser.add_argument('variable_name', type=str)
 value_parser.add_argument('min_time', type=int)
 value_parser.add_argument('max_time', type=int)
 
+value_parser.add_argument('page', type=int)
+value_parser.add_argument('per_page', type=int)
 value_parser.add_argument('limit', type=int)
 
 value_parser.add_argument('username', type=str)

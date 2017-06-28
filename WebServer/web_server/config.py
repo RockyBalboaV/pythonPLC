@@ -2,6 +2,8 @@
 from datetime import timedelta
 import tempfile
 
+from celery.schedules import crontab
+
 
 class Config(object):
     SQLALCHEMY_TRACK_MODIFICATIONS = False
@@ -58,11 +60,11 @@ class Config(object):
     # }
     CELERYBEAT_SCHEDULE = {
         'station_check': {
-            'task': 'app.station_check',
-            'schedule': timedelta(seconds=5),
+            'task': 'web_server.station_check',
+            'schedule':  timedelta(seconds=5),
         }
     }
-
+# crontab(minute=0) +
 
 class DevConfig(Config):
     # database

@@ -26,9 +26,8 @@ variable_field = {
 
 
 class VariableResource(ApiResource):
-
     def __init__(self):
-        super(ApiResource, self).__init__()
+        super(VariableResource, self).__init__()
         self.args = variable_parser.parse_args()
 
     def search(self, variable_id=None):
@@ -40,30 +39,35 @@ class VariableResource(ApiResource):
         plc_name = self.args['plc_name']
         group_id = self.args['group_id']
         group_name = self.args['group_name']
+        page = self.args['page']
+        per_page = self.args['per_page'] if self.args['per_page'] else 10
 
-        variable_query = YjVariableInfo.query
+        query = YjVariableInfo.query
 
         if variable_id:
-            variable_query = variable_query.filter_by(id=variable_id)
+            query = query.filter_by(id=variable_id)
 
         if variable_name:
-            variable_query = variable_query.filter_by(tag_name=variable_name)
+            query = query.filter_by(tag_name=variable_name)
 
         if group_id:
-            variable_query = variable_query.filter_by(group_id=group_id)
+            query = query.filter_by(group_id=group_id)
 
         if group_name:
-            variable_query = variable_query.join(YjGroupInfo, YjGroupInfo.group_name == group_name)
+            query = query.join(YjGroupInfo, YjGroupInfo.group_name == group_name)
 
         if plc_id:
-            variable_query = variable_query.filter_by(plc_id=plc_id)
+            query = query.filter_by(plc_id=plc_id)
 
         if plc_name:
-            variable_query = variable_query.join(YjPLCInfo, YjPLCInfo.name == plc_name)
+            query = query.join(YjPLCInfo, YjPLCInfo.name == plc_name)
 
-        variable = variable_query.all()
+        if page:
+            query = query.paginate(page, per_page, False).items
+        else:
+            query = query.all()
 
-        return variable
+        return query
 
     def information(self, models):
         if not models:
@@ -172,4 +176,3 @@ class VariableResource(ApiResource):
             db.session.commit()
 
         return rp_create()
-

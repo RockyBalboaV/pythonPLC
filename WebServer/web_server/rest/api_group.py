@@ -20,9 +20,8 @@ group_field = {
 
 
 class GroupResource(ApiResource):
-
     def __init__(self):
-        super(ApiResource, self).__init__()
+        super(GroupResource, self).__init__()
         self.args = group_parser.parse_args()
 
     def search(self, group_id=None):
@@ -34,23 +33,29 @@ class GroupResource(ApiResource):
         plc_id = self.args['plc_id']
         plc_name = self.args['plc_name']
 
-        group_query = YjGroupInfo.query
+        page = self.args['page']
+        per_page = self.args['per_page'] if self.args['per_page'] else 10
+
+        query = YjGroupInfo.query
 
         if group_id:
-            group_query = group_query.filter_by(id=group_id)
+            query = query.filter_by(id=group_id)
 
         if group_name:
-            group_query = group_query.filter_by(group_name=group_name)
+            query = query.filter_by(group_name=group_name)
 
         if plc_id:
-            group_query = group_query.filter_by(plc_id=plc_id)
+            query = query.filter_by(plc_id=plc_id)
 
         if plc_name:
-            group_query = group_query.join(YjPLCInfo, YjPLCInfo.name == plc_name)
+            query = query.join(YjPLCInfo, YjPLCInfo.name == plc_name)
 
-        group = group_query.all()
+        if page:
+            query = query.paginate(page, per_page, False).items
+        else:
+            query = query.all()
 
-        return group
+        return query
 
     def information(self, group):
         if not group:
@@ -123,4 +128,3 @@ class GroupResource(ApiResource):
             db.session.add(group)
             db.session.commit()
             return rp_create()
-

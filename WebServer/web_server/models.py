@@ -41,6 +41,8 @@ class YjStationInfo(db.Model):
 
     plcs = db.relationship('YjPLCInfo', backref='yjstationinfo', lazy='dynamic')
 
+    logs = db.relationship('TransferLog', backref='yjstationinfo', lazy='dynamic')
+
     def __init__(self, name=None, mac=None, ip=None, note=None, id_num=None,
                  plc_count=None, ten_id=None, item_id=None, con_date=None, modification=0):
         self.name = name
@@ -259,13 +261,13 @@ class TransferLog(db.Model):
 
     __tablename__ = 'logs'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    id_num = db.Column(db.String(200))
+    station_id = db.Column(db.Integer, db.ForeignKey('yjstationinfo.id'))
     level = db.Column(db.Integer)
     time = db.Column(db.Integer)
     note = db.Column(db.String(200))
 
-    def __init__(self, id_num, level, time, note):
-        self.id_num = id_num
+    def __init__(self, station_id, level, time, note):
+        self.station_id = station_id
         self.level = level
         self.time = time
         self.note = note

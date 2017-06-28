@@ -10,6 +10,7 @@ from flask_wtf.csrf import CSRFProtect
 from flask_cache import Cache
 from flask_debugtoolbar import DebugToolbarExtension
 from flask_socketio import SocketIO
+from flask_celery import Celery
 
 mako = MakoTemplates()
 db = SQLAlchemy()
@@ -20,6 +21,7 @@ api = Api(decorators=[csrf.exempt])  # decorators参数，给所有api的url加�
 cache = Cache()
 debug_toolbar = DebugToolbarExtension()
 socketio = SocketIO()
+celery = Celery()
 
 principlas = Principal()
 admin_permission = Permission(RoleNeed('admin'))

@@ -23,9 +23,8 @@ value_field = {
 
 
 class ValueResource(ApiResource):
-
     def __init__(self):
-        super(ApiResource, self).__init__()
+        super(ValueResource, self).__init__()
         self.args = value_parser.parse_args()
 
     def search(self, value_id=None):
@@ -43,42 +42,47 @@ class ValueResource(ApiResource):
         min_time = self.args['min_time']
         max_time = self.args['max_time']
         limit = self.args['limit']
+        page = self.args['page']
+        per_page = self.args['per_page'] if self.args['per_page'] else 10
 
-        value = Value.query
+        query = Value.query
 
         if value_id:
-            value = value.filter_by(id=value_id)
+            query = query.filter_by(id=value_id)
 
         if variable_name:
-            value = value.join(YjVariableInfo).filter(YjVariableInfo.id == variable_id)
+            query = query.join(YjVariableInfo).filter(YjVariableInfo.id == variable_id)
 
         if variable_name:
-            value = value.join(YjVariableInfo).filter(YjVariableInfo.tag_name == variable_name)
+            query = query.join(YjVariableInfo).filter(YjVariableInfo.tag_name == variable_name)
 
         if plc_id:
-            value = value.join(YjVariableInfo, YjPLCInfo).filter(YjPLCInfo.id == plc_id)
+            query = query.join(YjVariableInfo, YjPLCInfo).filter(YjPLCInfo.id == plc_id)
 
         if plc_name:
-            value = value.join(YjVariableInfo, YjPLCInfo).filter(YjPLCInfo.name == plc_name)
+            query = query.join(YjVariableInfo, YjPLCInfo).filter(YjPLCInfo.name == plc_name)
 
         if group_id:
-            value = value.join(YjVariableInfo, YjGroupInfo).filter(YjGroupInfo.id == group_id)
+            query = query.join(YjVariableInfo, YjGroupInfo).filter(YjGroupInfo.id == group_id)
 
         if group_name:
-            value = value.join(YjVariableInfo, YjGroupInfo).filter(YjGroupInfo.group_name == group_name)
+            query = query.join(YjVariableInfo, YjGroupInfo).filter(YjGroupInfo.group_name == group_name)
 
         if min_time:
-            value = value.filter(Value.time > min_time)
+            query = query.filter(Value.time > min_time)
 
         if max_time:
-            value = value.filter(Value.time < max_time)
+            query = query.filter(Value.time < max_time)
 
         if limit:
-            value = value.limit(limit)
+            query = query.limit(limit)
 
-        value = value.all()
+        if page:
+            query = query.paginate(page, per_page, False).items
+        else:
+            query = query.all()
 
-        return value
+        return query
 
     def information(self, value):
         if not value:
@@ -155,4 +159,3 @@ class ValueResource(ApiResource):
             db.session.add(value)
             db.session.commit()
             return rp_create()
-
