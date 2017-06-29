@@ -21,12 +21,12 @@ from ext import mako, hashing, api, admin, login_manager, csrf, cache, debug_too
 from forms import RegistrationForm, LoginForm
 from config import DevConfig, ProdConfig
 
-from rest.api_plc import PLCResource
-from rest.api_station import StationResource
-from rest.api_group import GroupResource
-from rest.api_variable import VariableResource
-from rest.api_value import ValueResource
-from rest.auth import AuthApi
+from web_server.rest.api_plc import PLCResource
+from web_server.rest.api_station import StationResource
+from web_server.rest.api_group import GroupResource
+from web_server.rest.api_variable import VariableResource
+from web_server.rest.api_value import ValueResource
+from web_server.rest.auth import AuthApi
 
 from web_server.admin_view import CustomView, CustomModelView, CustomFileAdmin
 
@@ -62,7 +62,7 @@ def create_app(object_name):
     debug_toolbar.init_app(app)
     cache.init_app(app)
 
-    SOCKETIO_REDIS_URL = app.config['CELERY_RESULT_BACKEND']
+    SOCKETIO_REDIS_URL = app.config['CELERY_BACKEND_URL']
     socketio.init_app(
         app, async_mode='eventlet',
         message_queue=SOCKETIO_REDIS_URL

@@ -1,7 +1,7 @@
 import os
 from web_server import create_app
 from celery import Celery
-from web_server.tasks import check_station
+from web_server.tasks import test, check_station
 
 
 def make_celery(app):
@@ -18,7 +18,7 @@ def make_celery(app):
             with app.app_context():
                 return TaskBase.__call__(self, *args, **kwargs)
 
-    celery.task = ContextTask
+    celery.Task = ContextTask
 
     return celery
 

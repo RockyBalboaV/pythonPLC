@@ -6,12 +6,14 @@ import json
 import base64
 import zlib
 import struct
+import time
 
 import snap7
 from celery import Celery
 from sqlalchemy.orm.exc import UnmappedInstanceError
 
 from models import *
+from config import *
 
 app = Celery()
 app.config_from_object('celeryconfig')
@@ -64,16 +66,16 @@ def get_data_from_query(models):
     # 输入session.query()查询到的模型实例列表,读取每个实例每个值,放入列表返回
     data_list = []
     for model in models:
-            model_column = {}
-            for c in model.__table__.columns:
-                model_column[c.name] = str(getattr(model, c.name, None))
-            data_list.append(model_column)
+        model_column = {}
+        for c in model.__table__.columns:
+            model_column[c.name] = str(getattr(model, c.name, None))
+        data_list.append(model_column)
     return data_list
 
 
 def get_data_from_model(model):
     # 读取一个模型实例中的每一项与值，放入字典
-    model_column ={}
+    model_column = {}
     for c in model.__table__.columns:
         model_column[c.name] = str(getattr(model, c.name, None))
     return model_column
@@ -81,9 +83,9 @@ def get_data_from_model(model):
 
 def get_station_info(name):
     station = session.query(YjStationInfo).filter(YjStationInfo.name == name).first()
-    idnum = station.idnum
+    station_id = station.idnum
     version = station.version
-    return {"idnum": idnum, "version": version}
+    return {"id": station_id, "version": version}
 
 
 def variable_size(variable):
@@ -99,6 +101,11 @@ def variable_size(variable):
         return 's', 1
     elif variable.datatype == 'BOOL':
         return '?', 1
+
+
+def database_reset():
+    Base.metadata.drop_all(bind=eng)
+    Base.metadata.create_all(bind=eng)
 
 
 def __init__():
@@ -127,10 +134,10 @@ def __init__():
 @app.task
 def beats():
     # 获取本机的信息
-    station_info = get_station_info(name)
+    station_info = get_station_info(name)  # todo 只需一次
     data = station_info
     # data = encryption(data)
-    rv = requests.post('http://127.0.0.1:11000/beats', json=data)
+    rv = requests.post(BEAT_URL, json=data)
     data = rv.json()
     # data = decryption(rv)
 
@@ -140,51 +147,54 @@ def beats():
 
 def get_config():
     # 获取本机的信息
-    station_info = get_station_info(name)
+    station_info = get_station_info(name)  # todo 只需一次
     # data = encryption(data)
-    rv = requests.post('http://127.0.0.1:11000/config', json=station_info)
+    rv = requests.post(CONFIG_URL, json=station_info)
     data = rv.json()
     try:
         session.delete(session.query(YjStationInfo).first())
     except UnmappedInstanceError:
-        pass
+        session.rollback()
     else:
         session.commit()
 
-    station = YjStationInfo(id=data["YjStationInfo"]["id"], name=data["YjStationInfo"]["name"],
+    version = data["YjStationInfo"]["version"]
+
+    station = YjStationInfo(id=data["YjStationInfo"]["id"], name=data["YjStationInfo"]["station_name"],
                             mac=data["YjStationInfo"]["mac"], ip=data["YjStationInfo"]["ip"],
-                            note=data["YjStationInfo"]["note"], idnum=data["YjStationInfo"]["idnum"],
-                            plcnum=data["YjStationInfo"]["plcnum"], tenid=data["YjStationInfo"]["tenid"],
-                            itemid=data["YjStationInfo"]["itemid"], version=data["YjStationInfo"]["version"],
-                            con_date=data["YjStationInfo"]["con_date"], modification=u'0')
+                            note=data["YjStationInfo"]["note"], id_num=data["YjStationInfo"]["id_num"],
+                            plc_num=data["YjStationInfo"]["plc_num"], ten_id=data["YjStationInfo"]["ten_id"],
+                            item_id=data["YjStationInfo"]["item_id"], version=version,
+                            con_date=data["YjStationInfo"]["con_date"], modification=["YjStationInfo"]["modification"])
     session.add(station)
-    session.commit()
 
     for plc in data["YjPLCInfo"]:
-        p = YjPLCInfo(id=plc["id"], name=plc["name"], station_id=plc["station_id"], note=plc["note"],
-                      ip=plc["ip"],mpi=plc["mpi"], type=plc["type"], plctype=plc["plctype"],
-                      tenid=plc["tenid"], itemid=plc["itemid"])
+        p = YjPLCInfo(id=plc["id"], name=plc["plc_name"], station_id=plc["station_id"], note=plc["note"],
+                      ip=plc["ip"], mpi=plc["mpi"], type=plc["type"], plc_type=plc["plc_type"],
+                      ten_id=plc["ten_id"], item_id=plc["item_id"])
         session.add(p)
-        session.commit()
 
     for group in data["YjGroupInfo"]:
-        g = YjGroupInfo(id=group["id"], groupname=group["groupname"], plc_id=group["plc_id"], note=group["note"],
-                        uploadcycle=group["uploadcycle"], tenid=group["tenid"], itemid=group["itemid"])
+        g = YjGroupInfo(id=group["id"], group_name=group["group_name"], plc_id=group["plc_id"], note=group["note"],
+                        upload_cycle=group["upload_cycle"], ten_id=group["ten_id"], item_id=group["item_id"])
         session.add(g)
-        session.commit()
 
     for variable in data["YjVariableInfo"]:
-        v = YjVariableInfo(id=variable["id"], tagname=variable["tagname"], plc_id=variable["plc_id"], group_id=variable["group_id"],
-                           address=variable["address"], datatype=variable["datatype"], rwtype=variable["rwtype"],
-                           upload=variable["upload"], acquisitioncycle=variable["acquisitioncycle"],
-                           serverrecordcycle=variable["serverrecordcycle"], writevalue=variable["writevalue"],
-                           note=variable["note"], tenid=variable["tenid"], itemid=variable["itemid"])
+        v = YjVariableInfo(id=variable["id"], variable_name=variable["variable_name"], plc_id=variable["plc_id"],
+                           group_id=variable["group_id"],
+                           address=variable["address"], data_type=variable["data_type"], rw_type=variable["rw_type"],
+                           upload=variable["upload"], acquisition_cycle=variable["acquisition_cycle"],
+                           server_record_cycle=variable["server_record_cycle"],
+                           note=variable["note"], ten_id=variable["ten_id"], item_id=variable["item_id"])
         session.add(v)
-        session.commit()
+
+    update_log = ConfigUpdateLog(time=int(time.time()), version=version)
+    session.add(update_log)
+
+    session.commit()
 
 
 def upload(group_name):
-
     # 记录本次上传时间
     upload_time = datetime.datetime.now()
 
@@ -215,12 +225,13 @@ def upload(group_name):
         if variable.upload:
             last_time = last_variable_upload_time
             # 读取需要上传的值,所有时间大于上次上传的值
-            all_values = session.query(Value).filter(Value.variable_name == variable.tagname).\
+            all_values = session.query(Value).filter(Value.variable_name == variable.tagname). \
                 filter(Value.get_time > last_time)
 
             # 循环从上次读取时间开始计算，每个一个记录周期提取一个数值
             while last_time < upload_time:
-                upload_value = all_values.filter(Value.get_time > last_time).filter(last_time + datetime.timedelta(seconds=variable.serverrecordcycle) > Value.get_time).first()
+                upload_value = all_values.filter(Value.get_time > last_time).filter(
+                    last_time + datetime.timedelta(seconds=variable.serverrecordcycle) > Value.get_time).first()
                 # 当上传时间小于采集时间时，会出现取值时间节点后无采集数据，得到None，使得后续语句报错。
                 try:
                     value_dict = get_data_from_model(upload_value)
@@ -261,11 +272,10 @@ def upload(group_name):
 
 @app.task
 def fake_data():
-
-        # 产生一个假数据
-        value = Value(variable_name='DB1', value=1, get_time=datetime.datetime.now(), up_time=1)
-        session.add(value)
-        session.commit()
+    # 产生一个假数据
+    value = Value(variable_name='DB1', value=1, get_time=datetime.datetime.now(), up_time=1)
+    session.add(value)
+    session.commit()
 
 
 @app.task
@@ -313,39 +323,38 @@ def get_value(tagname):
 
 
 if __name__ == '__main__':
-    #__init__()
+    # __init__()
+    database_reset()
+    # __test__get_config()
+    # check_group_upload_time()
+    # upload('g1')
+    # session.delete(session.query(YjStationInfo).first())
+    # session.commit()
+    # db_init()
+    # fake_data()
 
-    [get_value(a) for a in range(1, 9)]
-    #__test__get_config()
-    #check_group_upload_time()
-    #upload('g1')
-    #session.delete(session.query(YjStationInfo).first())
-    #session.commit()
-    #db_init()
-    #fake_data()
+    # while True:
 
-    #while True:
+    # Base.metadata.drop_all(bind=eng)
 
-    #Base.metadata.drop_all(bind=eng)
-
-    #Base.metadata.create_all(bind=eng)
-
+    # Base.metadata.create_all(bind=eng)
 
 
 
-    #Base.metadata.create_all(bind=eng)
-    #__test__transfer()
-    #__test__unicode()
-        #beats()
-    #__test__urllib()
-    #__test__get_config()
-        # time.sleep(5)
-    #__test__upload('g1')
-    #cProfile.run('__test__transfer()')
-    #prof = cProfile.Profile()
-    #prof.enable()
-    #__test__transfer()
-    #prof.create_stats()
-    #prof.print_stats()
-    #p = pstats.Stats(prof)
-    #p.print_callers()
+
+    # Base.metadata.create_all(bind=eng)
+    # __test__transfer()
+    # __test__unicode()
+    # beats()
+    # __test__urllib()
+    # __test__get_config()
+    # time.sleep(5)
+    # __test__upload('g1')
+    # cProfile.run('__test__transfer()')
+    # prof = cProfile.Profile()
+    # prof.enable()
+    # __test__transfer()
+    # prof.create_stats()
+    # prof.print_stats()
+    # p = pstats.Stats(prof)
+    # p.print_callers()

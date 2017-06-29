@@ -3,7 +3,7 @@ from flask_admin.contrib.sqla import ModelView
 from flask_admin.contrib.fileadmin import FileAdmin
 from flask_login import login_required
 
-from forms import CKTextAreaField
+from web_server.forms import CKTextAreaField
 from web_server.ext import admin_permission
 
 

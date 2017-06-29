@@ -26,10 +26,8 @@ class Config(object):
     # wtform
     WTF_CSRF_CHECK_DEFAULT = True
 
-
-
     # 指定结果存储数据库
-    CELERY_RESULT_BACKEND = 'redis://localhost'
+    CELERY_BACKEND_URL = 'redis://localhost'
     # 序列化方案
     CELERY_TASK_SERIALIZER = 'msgpack'
     # 任务结果读取格式
@@ -59,11 +57,13 @@ class Config(object):
     #
     # }
     CELERYBEAT_SCHEDULE = {
-        'station_check': {
-            'task': 'web_server.station_check',
-            'schedule':  timedelta(seconds=5),
+        'check_station': {
+            'task': 'web_server.tasks.check_station',
+            'schedule': crontab(minute=range(60)),
         }
     }
+
+
 # crontab(minute=0) +
 
 class DevConfig(Config):
@@ -71,7 +71,7 @@ class DevConfig(Config):
     SQLALCHEMY_DATABASE_URI = 'mysql://web:web@localhost:3306/pyplc'
 
     # 指定消息代理
-    BROKER_URL = 'pyamqp://yakumo17s:123456@localhost:5672/web_develop'
+    CELERY_BROKER_URL = 'pyamqp://yakumo17s:123456@localhost:5672/web_develop'
 
     # 开启调试模式
     DEBUG = True
@@ -81,7 +81,7 @@ class ProdConfig(Config):
     SQLALCHEMY_DATABASE_URI = 'mysql://web:web@localhost:3306/pythonPLC'
 
     # 指定消息代理
-    BROKER_URL = 'pyamqp://yakumo17s:touhou@localhost:5672/web_develop'
+    CELERY_BROKER_URL = 'pyamqp://yakumo17s:touhou@localhost:5672/web_develop'
 
 
 class TestConfig(Config):
@@ -97,3 +97,11 @@ class TestConfig(Config):
 
     CELERY_BROKER_URL = 'pyamqp://yakumo17s:123456@localhost:5672/web_develop'
     CELERY_BACKEND_URL = 'pyamqp://yakumo17s:123456@localhost:5672/web_develop'
+
+    CELERYBEAT_SCHEDULE = {
+        'test': {
+            'task': 'web_server.tasks.test',
+            'schedule': timedelta(seconds=5),
+            'args': ("It's test",)
+        }
+    }

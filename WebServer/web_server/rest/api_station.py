@@ -88,7 +88,7 @@ class StationResource(ApiResource):
                 return err_not_found()
 
             if args['station_name']:
-                station.name = args['station_name']
+                station.station_name = args['station_name']
 
             if args['mac']:
                 station.mac = args['mac']
