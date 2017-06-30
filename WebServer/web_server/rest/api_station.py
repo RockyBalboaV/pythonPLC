@@ -94,7 +94,7 @@ class StationResource(ApiResource):
                 station.mac = args['mac']
 
             if args['ip']:
-                station.ip = args['mac']
+                station.ip = args['ip']
 
             if args['note']:
                 station.note = args['note']
@@ -106,7 +106,7 @@ class StationResource(ApiResource):
                 station.plc_count = args['plc_count']
 
             if args['ten_id']:
-                station.ten_id = args['plc_count']
+                station.ten_id = args['ten_id']
 
             if args['item_id']:
                 station.item_id = args['item_id']

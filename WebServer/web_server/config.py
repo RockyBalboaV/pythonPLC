@@ -59,7 +59,7 @@ class Config(object):
     CELERYBEAT_SCHEDULE = {
         'check_station': {
             'task': 'web_server.tasks.check_station',
-            'schedule': crontab(minute=range(60)),
+            'schedule': timedelta(seconds=10),
         }
     }
 

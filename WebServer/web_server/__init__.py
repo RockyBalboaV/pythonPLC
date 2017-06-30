@@ -126,8 +126,6 @@ def create_app(object_name):
     def reverse_filter(s):
         return s.capitalize()
 
-
-
     @user_logged_in.connect_via(app)
     def _track_logins(sender, user, **extra):
         # 记录用户登录次数，登录IP

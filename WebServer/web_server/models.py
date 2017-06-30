@@ -82,7 +82,7 @@ class YjPLCInfo(db.Model):
 
     def __init__(self, plc_name=None, station_id=None, note=None, ip=None,
                  mpi=None, type=None, plc_type=None,
-                 ten_id=0, item_id=None):
+                 ten_id=None, item_id=None):
 
         self.plc_name = plc_name
         self.station_id = station_id
@@ -176,7 +176,7 @@ class Value(db.Model):
     value = db.Column(db.String(128))
     time = db.Column(db.Integer)
 
-    def __init__(self, variable_id, value, time=None):
+    def __init__(self, variable_id, value, time):
         self.variable_id = variable_id
         self.value = value
         self.time = time

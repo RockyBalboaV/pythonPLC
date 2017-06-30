@@ -124,7 +124,7 @@ class VariableResource(ApiResource):
             if not variable:
                 return err_not_found()
 
-            if args['tag_name']:
+            if args['variable_name']:
                 variable.variable_name = args['variable_name']
 
             if args['plc_id']:
