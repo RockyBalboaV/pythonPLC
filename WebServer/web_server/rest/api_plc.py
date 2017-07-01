@@ -35,7 +35,6 @@ class PLCResource(ApiResource):
         station_id = self.args['station_id']
         station_name = self.args['station_name']
 
-
         page = self.args['page']
         per_page = self.args['per_page'] if self.args['per_page'] else 10
 
@@ -79,6 +78,9 @@ class PLCResource(ApiResource):
             data['plc_type'] = m.plc_type
             data['ten_id'] = m.ten_id
             data['item_id'] = m.item_id
+            data['rack'] = m.rack
+            data['slot'] = m.slot
+            data['tcp_port'] = m.tcp_port
 
             if station:
                 data['station_id_num'] = station.id_num
@@ -113,8 +115,6 @@ class PLCResource(ApiResource):
             if not plc:
                 return err_not_found()
 
-            print args['plc_name']
-
             if args['plc_name']:
                 plc.plc_name = args['plc_name']
 
@@ -142,6 +142,15 @@ class PLCResource(ApiResource):
             if args['item_id']:
                 plc.item_id = args['item_id']
 
+            if args['rack']:
+                plc.rack = args['rack']
+
+            if args['slot']:
+                plc.slot = args['slot']
+
+            if args['tcp_port']:
+                plc.tcp_port = args['tcp_port']
+
             db.session.add(plc)
             db.session.commit()
 
@@ -150,7 +159,7 @@ class PLCResource(ApiResource):
         else:
             plc = YjPLCInfo(plc_name=args['plc_name'], station_id=args['station_id'], note=args['note'], ip=args['ip'],
                             mpi=args['mpi'], type=args['type'], plc_type=args['plc_type'], ten_id=args['ten_id'],
-                            item_id=args['item_id'])
+                            item_id=args['item_id'], rack=args['rack'], slot=args['slot'], tcp_port=args['tcp_port'])
 
             db.session.add(plc)
             db.session.commit()

@@ -70,6 +70,9 @@ plc_put_parser.add_argument('type', type=int)
 plc_put_parser.add_argument('plc_type', type=str)
 plc_put_parser.add_argument('ten_id', type=str)
 plc_put_parser.add_argument('item_id', type=str)
+plc_put_parser.add_argument('rack', type=int)
+plc_put_parser.add_argument('slot', type=int)
+plc_put_parser.add_argument('tcp_port', type=int)
 
 
 # group查询参数
@@ -133,7 +136,7 @@ variable_put_parser.add_argument('token', type=str)
 
 variable_put_parser.add_argument('variable_name', type=str)
 variable_put_parser.add_argument('db_num', type=int)
-variable_put_parser.add_argument('address', type=str)
+variable_put_parser.add_argument('address', type=int)
 variable_put_parser.add_argument('data_type', type=str)
 variable_put_parser.add_argument('rw_type', type=int)    
 variable_put_parser.add_argument('upload', type=bool)
@@ -157,6 +160,7 @@ value_parser.add_argument('variable_name', type=str)
 value_parser.add_argument('min_time', type=int)
 value_parser.add_argument('max_time', type=int)
 
+value_parser.add_argument('order_time', type=bool)
 value_parser.add_argument('page', type=int)
 value_parser.add_argument('per_page', type=int)
 value_parser.add_argument('limit', type=int)

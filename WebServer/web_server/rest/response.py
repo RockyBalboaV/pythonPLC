@@ -11,6 +11,7 @@ def make_response(msg, status_code, count=None):
         'msg': msg
     })
     response.status_code = status_code
+    print response
     return response
 
 rp_create = functools.partial(make_response, msg='创建成功', status_code=200)

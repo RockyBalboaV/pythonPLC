@@ -37,7 +37,7 @@ class YjStationInfo(db.Model):
     item_id = db.Column(db.String(20))
     con_date = db.Column(db.Integer)
     modification = db.Column(db.Integer)
-    version = db.Column(db.Integer, autoincrement=True)
+    version = db.Column(db.Integer)
 
     plcs = db.relationship('YjPLCInfo', backref='yjstationinfo', lazy='dynamic')
 
@@ -74,6 +74,10 @@ class YjPLCInfo(db.Model):
     plc_type = db.Column(db.String(20))
     ten_id = db.Column(db.String(255))
     item_id = db.Column(db.String(20))
+
+    rack = db.Column(db.Integer)
+    slot = db.Column(db.Integer)
+    tcp_port = db.Column(db.Integer)
 
     station_id = db.Column(db.Integer, db.ForeignKey('yjstationinfo.id'))
 
@@ -131,7 +135,7 @@ class YjVariableInfo(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     variable_name = db.Column(db.String(20))
     db_num = db.Column(db.Integer)
-    address = db.Column(db.String(20))
+    address = db.Column(db.Integer)
     data_type = db.Column(db.String(10))
     rw_type = db.Column(db.Integer)
     upload = db.Column(db.Integer)

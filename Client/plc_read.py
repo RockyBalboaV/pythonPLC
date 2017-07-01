@@ -89,6 +89,8 @@ class PythonPLC(object):
 
 with PythonPLC() as db:
     db = db.db_read(1, 0, 4)
-    print util.get_real(db, 0)
+value = struct.unpack('!{}'.format('f'), db)[0]
+print value
+print util.get_real(db, 0)
 
 

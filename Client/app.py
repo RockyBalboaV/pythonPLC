@@ -2,30 +2,26 @@
 
 import hmac
 import requests
+from requests.exceptions import ConnectionError
 import json
 import base64
 import zlib
 import struct
 import time
+import multiprocessing
 
 import snap7
 from celery import Celery
 from sqlalchemy.orm.exc import UnmappedInstanceError
 
 from models import *
-from config import *
+from config import DevConfig
+
+# from config import *
 
 app = Celery()
-app.config_from_object('celeryconfig')
-
-# 站点名称
-name = 's1'
-
-# 设置PLC的连接地址
-ip = '192.168.18.17'  # PLC的ip地址
-rack = 0  # 机架号
-slot = 2  # 插槽号
-tcpport = 102  # TCP端口号
+# app.config_from_object('celeryconfig')
+app.config_from_object(DevConfig)
 
 
 def encryption(data):
@@ -81,25 +77,27 @@ def get_data_from_model(model):
     return model_column
 
 
-def get_station_info(name):
-    station = session.query(YjStationInfo).filter(YjStationInfo.name == name).first()
-    station_id = station.idnum
-    version = station.version
-    return {"id": station_id, "version": version}
+def get_station_info(station_id_num):
+    try:
+        station = session.query(YjStationInfo).filter(YjStationInfo.id_num == station_id_num).first()
+        version = station.version
+    except AttributeError:
+        version = app.conf['VERSION']
+    return {"station_id_num": station_id_num, "version": version}
 
 
 def variable_size(variable):
-    if variable.datatype == 'FLOAT':
+    if variable.data_type == 'FLOAT':
         return 'f', 4
-    elif variable.datatype == 'INT':
+    elif variable.data_type == 'INT':
         return 'i', 4
-    elif variable.datatype == 'DINT':
+    elif variable.data_type == 'DINT':
         return 'i', 4
-    elif variable.datatype == 'WORD':
+    elif variable.data_type == 'WORD':
         return 'h', 2
-    elif variable.datatype == 'BYTE':
+    elif variable.data_type == 'BYTE':
         return 's', 1
-    elif variable.datatype == 'BOOL':
+    elif variable.data_type == 'BOOL':
         return '?', 1
 
 
@@ -108,253 +106,332 @@ def database_reset():
     Base.metadata.create_all(bind=eng)
 
 
-def __init__():
-    # Base.metadata.drop_all(bind=eng)
-    GroupUploadTime.__table__.drop(eng, checkfirst=True)
-    VariableGetTime.__table__.drop(eng, checkfirst=True)
+def first_running():
     Base.metadata.create_all(bind=eng)
     get_config()
-    groups = session.query(YjGroupInfo).filter().all()
-    current_time = datetime.datetime.now()
-    for g in groups:
-        g_upload_time = current_time + datetime.timedelta(seconds=g.uploadcycle)
-        g_upload = GroupUploadTime(group_name=g.groupname, next_time=g_upload_time)
-        session.add(g_upload)
-    session.commit()
 
-    variables = session.query(YjVariableInfo).filter().all()
-    current_time = datetime.datetime.now()
+    before_running()
+
+
+def before_running():
+    # 设定服务开始运行时间
+    current_time = int(time.time())
+    start_time = current_time + app.conf['START_TIMEDELTA']
+
+    # 设定变量组初始上传时间
+    groups = session.query(YjGroupInfo).all()
+    for g in groups:
+        g.upload_time = start_time + g.upload_cycle
+        g.uploading = False
+
+    # 设定变量初始采集时间
+    variables = session.query(YjVariableInfo).all()
     for v in variables:
-        v_get_time = current_time + datetime.timedelta(seconds=v.acquisitioncycle)
-        v_get = VariableGetTime(tagname=v.tagname, next_time=v_get_time)
-        session.add(v_get)
+        v.acquisition_time = start_time + v.acquisition_cycle
+
     session.commit()
 
 
 @app.task
 def beats():
     # 获取本机的信息
-    station_info = get_station_info(name)  # todo 只需一次
+    station_info = get_station_info(app.conf['ID_NUM'])  # todo 只需一次
     data = station_info
     # data = encryption(data)
-    rv = requests.post(BEAT_URL, json=data)
-    data = rv.json()
-    # data = decryption(rv)
 
-    if data["modification"] == 1:
-        get_config()
+    current_time = int(time.time())
+
+    try:
+        rv = requests.post(app.conf['BEAT_URL'], json=data)
+    except ConnectionError:
+        status = 'error'
+        note = '无法连接服务器，检查网络状态。'
+    else:
+        # data = decryption(rv)
+        data = rv.json()
+
+        if data["modification"] == 1:
+            get_config()
+            before_running()
+            note = '完成一次心跳连接，时间:{},发现配置信息有更新.'.format(datetime.datetime.fromtimestamp(current_time))
+        else:
+            note = '完成一次心跳连接，时间:{}.'.format(datetime.datetime.fromtimestamp(current_time))
+        status = 'OK'
+    finally:
+        log = TransferLog(trans_type='beats', time=current_time, status=status, note=note)
+        session.add(log)
+        session.commit()
 
 
 def get_config():
+    current_time = int(time.time())
     # 获取本机的信息
-    station_info = get_station_info(name)  # todo 只需一次
+    station_info = get_station_info(app.conf['ID_NUM'])  # todo 只需一次
     # data = encryption(data)
-    rv = requests.post(CONFIG_URL, json=station_info)
-    data = rv.json()
     try:
-        session.delete(session.query(YjStationInfo).first())
-    except UnmappedInstanceError:
-        session.rollback()
-    else:
+        response = requests.post(app.conf['CONFIG_URL'], json=station_info)
+    except ConnectionError:
+        status = 'error'
+        note = '无法连接服务器，检查网络状态。'
+        log = TransferLog(trans_type='config', time=current_time, status=status, note=note)
+        session.add(log)
         session.commit()
+        return 1
 
-    version = data["YjStationInfo"]["version"]
+    if response.status_code == 404:
+        status = 'error'
+        note = '获取配置信息失败'
+    elif response.status_code == 200:
+        data = response.json()['data']
+        print data
+        try:
+            session.delete(session.query(YjStationInfo).first())
+        except UnmappedInstanceError:
+            session.rollback()
+        else:
+            session.commit()
 
-    station = YjStationInfo(id=data["YjStationInfo"]["id"], name=data["YjStationInfo"]["station_name"],
-                            mac=data["YjStationInfo"]["mac"], ip=data["YjStationInfo"]["ip"],
-                            note=data["YjStationInfo"]["note"], id_num=data["YjStationInfo"]["id_num"],
-                            plc_num=data["YjStationInfo"]["plc_num"], ten_id=data["YjStationInfo"]["ten_id"],
-                            item_id=data["YjStationInfo"]["item_id"], version=version,
-                            con_date=data["YjStationInfo"]["con_date"], modification=["YjStationInfo"]["modification"])
-    session.add(station)
+        version = data["YjStationInfo"]["version"]
 
-    for plc in data["YjPLCInfo"]:
-        p = YjPLCInfo(id=plc["id"], name=plc["plc_name"], station_id=plc["station_id"], note=plc["note"],
-                      ip=plc["ip"], mpi=plc["mpi"], type=plc["type"], plc_type=plc["plc_type"],
-                      ten_id=plc["ten_id"], item_id=plc["item_id"])
-        session.add(p)
+        station = YjStationInfo(id=data["YjStationInfo"]["id"], name=data["YjStationInfo"]["station_name"],
+                                mac=data["YjStationInfo"]["mac"], ip=data["YjStationInfo"]["ip"],
+                                note=data["YjStationInfo"]["note"], id_num=data["YjStationInfo"]["id_num"],
+                                plc_count=data["YjStationInfo"]["plc_count"], ten_id=data["YjStationInfo"]["ten_id"],
+                                item_id=data["YjStationInfo"]["item_id"], version=version,
+                                con_date=data["YjStationInfo"]["con_date"])
+        session.add(station)
 
-    for group in data["YjGroupInfo"]:
-        g = YjGroupInfo(id=group["id"], group_name=group["group_name"], plc_id=group["plc_id"], note=group["note"],
-                        upload_cycle=group["upload_cycle"], ten_id=group["ten_id"], item_id=group["item_id"])
-        session.add(g)
+        for plc in data["YjPLCInfo"]:
+            p = YjPLCInfo(id=plc["id"], name=plc["plc_name"], station_id=plc["station_id"], note=plc["note"],
+                          ip=plc["ip"], mpi=plc["mpi"], type=plc["type"], plc_type=plc["plc_type"],
+                          ten_id=plc["ten_id"], item_id=plc["item_id"])
+            session.add(p)
 
-    for variable in data["YjVariableInfo"]:
-        v = YjVariableInfo(id=variable["id"], variable_name=variable["variable_name"], plc_id=variable["plc_id"],
-                           group_id=variable["group_id"],
-                           address=variable["address"], data_type=variable["data_type"], rw_type=variable["rw_type"],
-                           upload=variable["upload"], acquisition_cycle=variable["acquisition_cycle"],
-                           server_record_cycle=variable["server_record_cycle"],
-                           note=variable["note"], ten_id=variable["ten_id"], item_id=variable["item_id"])
-        session.add(v)
+        for group in data["YjGroupInfo"]:
+            g = YjGroupInfo(id=group["id"], group_name=group["group_name"], plc_id=group["plc_id"], note=group["note"],
+                            upload_cycle=group["upload_cycle"], ten_id=group["ten_id"], item_id=group["item_id"])
+            session.add(g)
 
-    update_log = ConfigUpdateLog(time=int(time.time()), version=version)
-    session.add(update_log)
+        for variable in data["YjVariableInfo"]:
+            v = YjVariableInfo(id=variable["id"], variable_name=variable["variable_name"], plc_id=variable["plc_id"],
+                               group_id=variable["group_id"], db_num=variable['db_num'],
+                               address=variable["address"], data_type=variable["data_type"],
+                               rw_type=variable["rw_type"],
+                               upload=variable["upload"], acquisition_cycle=variable["acquisition_cycle"],
+                               server_record_cycle=variable["server_record_cycle"],
+                               note=variable["note"], ten_id=variable["ten_id"], item_id=variable["item_id"])
+            session.add(v)
 
+        # update_log = ConfigUpdateLog(time=int(time.time()), version=version)
+        # session.add(update_log)
+        status = 'OK'
+        note = '成功将配置从version: {} 升级到 version: {}.'.format(station_info['version'], version)
+    else:
+        status = 'error'
+        note = '获取配置时发生未知问题，检查服务器代码。 {}'.format(response.status_code)
+    log = TransferLog(trans_type='config', time=current_time, status=status, note=note)
+    session.add(log)
     session.commit()
 
+    return 0
 
-def upload(group_name):
+
+def upload(group_model):
+    # group_model = session.query(YjGroupInfo).first()
+    # 获取该组信息
+    group_id = group_model.id
+    group_name = group_model.group_name
+
     # 记录本次上传时间
-    upload_time = datetime.datetime.now()
+    upload_time = int(time.time())
 
-    group = session.query(YjGroupInfo).filter(YjGroupInfo.groupname == group_name).first()
-    group_log = session.query(TransferLog).filter(TransferLog.type == 'group').filter(
-        TransferLog.note == group_name).order_by(TransferLog.date.desc()).first()
+    group_log = session.query(TransferLog).filter(TransferLog.trans_type == 'upload').filter(
+        TransferLog.note.like('%{}%'.format(group_id))).order_by(TransferLog.time.desc()).first()
 
     # 获取上次传输时间,没有上次时间就往前推一个上传周期
     if group_log:
-        last_variable_upload_time = group_log.date
+        last_time = group_log.time
     else:
-        timedelta = datetime.timedelta(seconds=group.uploadcycle)
-        last_variable_upload_time = upload_time - timedelta
+        timedelta = group_model.upload_cycle
+        last_time = upload_time - timedelta
 
-    # 获取该组包括的所有变量
-    # 记录中如果有原配置中有的组名，更改配置后会导致取到空值
-    try:
-        variables = session.query(YjGroupInfo).filter(YjGroupInfo.groupname == group_name).first().variables
-    except AttributeError as e:
-        session.delete(session.query(GroupUploadTime).filter(GroupUploadTime.group_name == group_name).first())
-        session.commit()
-        return 0
+
+
+    # # 获取该组包括的所有变量
+    # # 记录中如果有原配置中有的组名，更改配置后会导致取到空值
+    # try:
+    #     variables = session.query(YjGroupInfo).filter(YjGroupInfo.groupname == group_name).first().variables
+    # except AttributeError as e:
+    #     session.delete(session.query(GroupUploadTime).filter(GroupUploadTime.group_name == group_name).first())
+    #     session.commit()
+    #     return 0
+
+    variables = group_model.variables
 
     # 准备本次上传的数据
     variable_list = []
     for variable in variables:
         # 判断该变量是否需要上传
         if variable.upload:
-            last_time = last_variable_upload_time
             # 读取需要上传的值,所有时间大于上次上传的值
-            all_values = session.query(Value).filter(Value.variable_name == variable.tagname). \
-                filter(Value.get_time > last_time)
+            get_time = last_time
+            # all_values = variable.values.filter(get_time <= Value.time < upload_time)
+            all_values = session.query(Value).filter_by(variable_id=variable.id).filter(
+                get_time <= Value.time).filter(Value.time < upload_time)
+
+            # # test
+            # for a in all_values:
+            #     print a.id
 
             # 循环从上次读取时间开始计算，每个一个记录周期提取一个数值
-            while last_time < upload_time:
-                upload_value = all_values.filter(Value.get_time > last_time).filter(
-                    last_time + datetime.timedelta(seconds=variable.serverrecordcycle) > Value.get_time).first()
+            while get_time < upload_time:
+                upload_value = all_values.filter(
+                    get_time + variable.server_record_cycle > Value.time).filter(Value.time >= get_time).first()
                 # 当上传时间小于采集时间时，会出现取值时间节点后无采集数据，得到None，使得后续语句报错。
                 try:
                     value_dict = get_data_from_model(upload_value)
+                    variable_list.append(value_dict)
                 except AttributeError:
-                    break
+                    pass
 
-                variable_list.append(value_dict)
-                timedelta = datetime.timedelta(seconds=variable.serverrecordcycle)
-                last_time += timedelta
+                get_time += variable.server_record_cycle
 
     # 修改下次组传输时间
-    group_next = session.query(GroupUploadTime).filter(GroupUploadTime.group_name == group_name).first()
-    group_next.next_time = upload_time + datetime.timedelta(seconds=group.uploadcycle)
-    session.merge(group_next)
-    # # 记录本次传输
-    # session.add(TransferLog(type='group', date=upload_time, status='OK', note=group_name))
-    # session.commit()
+    group_model.upload_time = upload_time + group_model.upload_cycle
+    group_model.uploading = False
+    session.merge(group_model)
 
-    station = get_station_info(name)
+    # 记录本次传输
+    session.add(TransferLog(trans_type='group_upload',
+                            time=upload_time,
+                            status='OK',
+                            note='group_id: {} group_name:{} 将要上传.'.format(group_id, group_name)))
+    session.commit()
+
+    station = get_station_info(app.conf['ID_NUM'])  # todo 只需一次
 
     # 包装数据
-    data = {"station": station["idnum"], "version": station["version"], "GroupName": group_name, "Value": variable_list}
+    data = {"station_id_num": station["station_id_num"], "version": station["version"], "group_id": group_model.id,
+            "value": variable_list}
+    print data
     # data = encryption(data)
-    rv = requests.post("http://127.0.0.1:11000/upload", json=data)
-    data = rv.json()
+    try:
+        response = requests.post(app.conf['UPLOAD_URL'], json=data)
+    except ConnectionError:
+        status = 'error'
+        note = '无法连接服务器，检查网络状态。'
+        log = TransferLog(trans_type='upload_call_back', time=upload_time, status=status, note=note)
+        session.add(log)
+        session.commit()
+        return 1
+
+    data = response.json()
     # data = decryption(data)
 
     # 日志记录
-    log = TransferLog(type='upload', date=upload_time, status=data["status"], note=group_name)
+    # 正常传输
+    if response.status_code == 200:
+        note = 'group_id: {} group_name:{} 成功上传.'.format(group_id, group_name)
+
+    # 版本错误
+    elif response.status_code == 403:
+        note = 'group_id: {} group_name:{} 上传的数据不是在最新版本配置下采集的.'.format(group_id, group_name)
+        get_config()
+
+    # 未知错误
+    else:
+        note = 'group_id: {} group_name:{} 无法识别服务端反馈。'.format(group_id, group_name)
+    print data
+    log = TransferLog(trans_type='upload_call_back',
+                      time=upload_time,
+                      status=data["status"],
+                      note=note)
     session.add(log)
     session.commit()
 
-    # 错误处理
-    status = data["status"]
-    if status.startswith("V"):  # 版本错误
-        get_config()
 
-
-@app.task
-def fake_data():
-    # 产生一个假数据
-    value = Value(variable_name='DB1', value=1, get_time=datetime.datetime.now(), up_time=1)
-    session.add(value)
-    session.commit()
+# @app.task
+# def fake_data():
+#     # 产生一个假数据
+#     value = Value(variable_id=1, value=1, time=int(time.time()))
+#     session.add(value)
+#     session.commit()
 
 
 @app.task
 def check_group_upload_time():
-    current_time = datetime.datetime.now()
-    groups = session.query(GroupUploadTime).order_by(GroupUploadTime.next_time).all()
+    current_time = int(time.time())
+    print 'c'
+    groups = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).filter(YjGroupInfo.uploading != True).all()
+    # poll = multiprocessing.Pool(4)
     for g in groups:
-        if current_time > g.next_time:
-            upload(g.group_name)
-        if current_time < g.next_time:
-            break
+        print 'b'
+        g.uploading = True
+    session.commit()
+
+    for g in groups:
+        print 'a'
+        upload(g)  # todo 多线程
+        # poll.apply_async(upload, (g,))
 
 
 @app.task
 def check_variable_get_time():
-    current_time = datetime.datetime.now()
-    variables = session.query(VariableGetTime).filter(current_time > VariableGetTime.next_time).all()
+    current_time = int(time.time())
+    variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time)
+
+    # poll = multiprocessing.Pool(4)
     for v in variables:
-        get_value(v.tagname)
+        # print 'variable'
+        get_value(v)
+        # poll.apply_async(get_value, (v,))
 
 
-def get_value(tagname):
-    # 建立连接
-    client = snap7.client.Client()
-    client.connect(ip, rack, slot, tcpport)
-
+def get_value(variable_model):
     # 获得变量信息
-    variable = session.query(YjVariableInfo).filter(YjVariableInfo.tagname == tagname).first()
-    type_code, size = variable_size(variable)
-    start = variable.address
+    # variable_model = session.query(YjVariableInfo).first()
+    ip = variable_model.plc.ip
+    rack = app.conf['rack']
+    slot = app.conf['slot']
+    tcp_port = app.conf['tcp_port']
 
+    variable_db = variable_model.db_num
+    type_code, size = variable_size(variable_model)
+    address = int(variable_model.address)
     # 采集数据
-    result = client.db_read(db_number=11, start=int(start), size=size)
-    value, = struct.unpack('!{}'.format(type_code), result)
+    with PythonPLC(ip, rack, slot, tcp_port) as db:
+        result = db.db_read(db_number=variable_db, start=address, size=size)
+    value = struct.unpack('!{}'.format(type_code), result)[0]
+    # print value
 
     # 保存数据
-    time = datetime.datetime.now()
-    value = Value(variable_name=tagname, get_time=time, up_time=variable.serverrecordcycle, value=value)
+    value = Value(variable_id=variable_model.id, time=int(time.time()), value=value)
     session.add(value)
     session.commit()
 
-    # 断开连接
-    client.disconnect()
-    client.destroy()
+
+class PythonPLC(object):
+    def __init__(self, ip, rack, slot, tcp_port):
+        self.ip = ip
+        self.rack = rack
+        self.slot = slot
+        self.tcp_port = tcp_port
+
+    def __enter__(self):
+        self.client = snap7.client.Client()
+        self.client.connect(self.ip, self.rack, self.slot, self.tcp_port)
+        return self.client
+
+    def __exit__(self, *args):
+        self.client.disconnect()
+        self.client.destroy()
 
 
 if __name__ == '__main__':
-    # __init__()
-    database_reset()
-    # __test__get_config()
-    # check_group_upload_time()
-    # upload('g1')
-    # session.delete(session.query(YjStationInfo).first())
-    # session.commit()
-    # db_init()
-    # fake_data()
-
-    # while True:
-
-    # Base.metadata.drop_all(bind=eng)
-
-    # Base.metadata.create_all(bind=eng)
-
-
-
-
-    # Base.metadata.create_all(bind=eng)
-    # __test__transfer()
-    # __test__unicode()
+    # database_reset()
+    before_running()
+    # print app.conf['BEAT_URL']
     # beats()
-    # __test__urllib()
-    # __test__get_config()
-    # time.sleep(5)
-    # __test__upload('g1')
-    # cProfile.run('__test__transfer()')
-    # prof = cProfile.Profile()
-    # prof.enable()
-    # __test__transfer()
-    # prof.create_stats()
-    # prof.print_stats()
-    # p = pstats.Stats(prof)
-    # p.print_callers()
+    # get_config()
+    # get_value()
+    # upload()

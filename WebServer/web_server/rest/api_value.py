@@ -41,6 +41,7 @@ class ValueResource(ApiResource):
 
         min_time = self.args['min_time']
         max_time = self.args['max_time']
+        order_time = self.args['order_time']
         limit = self.args['limit']
         page = self.args['page']
         per_page = self.args['per_page'] if self.args['per_page'] else 10
@@ -73,6 +74,9 @@ class ValueResource(ApiResource):
 
         if max_time:
             query = query.filter(Value.time < max_time)
+
+        if order_time:
+            query = query.order_by(Value.time.desc())
 
         if limit:
             query = query.limit(limit)
