@@ -64,6 +64,7 @@ def get_data_from_model(model):
         model_column[c.name] = str(getattr(model, c.name, None))
     return model_column
 
+
 def configuration(station_model):
     # 读取staion表数据,根据外链,读出该station下的plc、group variable的数据.每一项数据为一个字典,每个表中所有数据存为一个列表.
     plcs_config = []
@@ -89,4 +90,4 @@ def configuration(station_model):
     data = {"YjStationInfo": station_config, "YjPLCInfo": plcs_config,
             "YjGroupInfo": groups_config, "YjVariableInfo": variables_config}
 
-    return jsonify(data)
+    return data
