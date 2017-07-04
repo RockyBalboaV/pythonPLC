@@ -46,12 +46,15 @@ class ValueResource(ApiResource):
         page = self.args['page']
         per_page = self.args['per_page'] if self.args['per_page'] else 10
 
-        query = Value.query
-
+        # query = db.session.query(db.distinct(Value.variable_id).label('variable_id'), Value)
+        query = db.session.query(Value, Value.variable_id)
+        # query = db.session.query(Value.cls).group_by(Value.variable_id)
+        # a = [a[0] for a in db.session.query(Value.variable_id).distinct()]
+        # query = db.session.query(Value).filter(Value.variable_id.in_(a))
         if value_id:
             query = query.filter_by(id=value_id)
 
-        if variable_name:
+        if variable_id:
             query = query.join(YjVariableInfo).filter(YjVariableInfo.id == variable_id)
 
         if variable_name:
@@ -78,13 +81,22 @@ class ValueResource(ApiResource):
         if order_time:
             query = query.order_by(Value.time.desc())
 
-        if limit:
-            query = query.limit(limit)
+        # if limit:
+        #     q = q.limit(limit)
 
         if page:
             query = query.paginate(page, per_page, False).items
+        elif limit:
+            query = db.session.query(Value.variable_id).distinct().group_by(Value.variable_id).all()
+            l = list()
+            for q in query:
+                model = Value.query.filter_by(variable_id=q[0]).order_by(Value.time.desc()).limit(limit).all()
+                l += model
+            query = l
         else:
             query = query.all()
+
+        # print query
 
         return query
 
