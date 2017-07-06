@@ -47,8 +47,10 @@ class ValueResource(ApiResource):
         per_page = self.args['per_page'] if self.args['per_page'] else 10
 
         # query = db.session.query(db.distinct(Value.variable_id).label('variable_id'), Value)
-        query = db.session.query(Value, Value.variable_id)
+        # query = db.session.query(Value, Value.variable_id)
+        query = Value.query
         # query = db.session.query(Value.cls).group_by(Value.variable_id)
+
         # a = [a[0] for a in db.session.query(Value.variable_id).distinct()]
         # query = db.session.query(Value).filter(Value.variable_id.in_(a))
         if value_id:
