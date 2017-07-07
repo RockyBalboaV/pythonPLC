@@ -180,3 +180,19 @@ value_put_parser.add_argument('token', type=str)
 value_put_parser.add_argument('value', type=str)
 value_put_parser.add_argument('time', type=int)
 
+
+# status查询参数
+status_parser = reqparse.RequestParser()
+status_parser.add_argument('id', type=int)
+
+status_parser.add_argument('min_time', type=int)
+status_parser.add_argument('max_time', type=int)
+
+status_parser.add_argument('order_time', type=bool)
+status_parser.add_argument('page', type=int)
+status_parser.add_argument('per_page', type=int)
+status_parser.add_argument('limit', type=int)
+
+status_parser.add_argument('username', type=str)
+status_parser.add_argument('password', type=str)
+status_parser.add_argument('token', type=str)

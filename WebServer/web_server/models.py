@@ -86,7 +86,7 @@ class YjPLCInfo(db.Model):
 
     def __init__(self, plc_name=None, station_id=None, note=None, ip=None,
                  mpi=None, type=None, plc_type=None,
-                 ten_id=None, item_id=None):
+                 ten_id=None, item_id=None, rack=0, slot=0, tcp_port=102):
 
         self.plc_name = plc_name
         self.station_id = station_id
@@ -97,6 +97,9 @@ class YjPLCInfo(db.Model):
         self.plc_type = plc_type
         self.ten_id = ten_id
         self.item_id = item_id
+        self.rack = rack
+        self.slot = slot
+        self.tcp_port = tcp_port
 
     def __repr__(self):
         return '<PLC : ID(%r) Name(%r) >' % (int(self.id), self.name)
