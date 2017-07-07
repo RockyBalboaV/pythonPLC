@@ -1,6 +1,6 @@
 # coding=utf-8
 import os, datetime
-from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, create_engine
+from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, create_engine, MetaData
 from sqlalchemy.orm import sessionmaker, relationship, backref
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -16,10 +16,11 @@ session = Session()
 
 
 def check_int(column):
+    print type(column)
     if column is not unicode("None"):
         return int(column)
     else:
-        return column
+        return 0
 
 
 class YjStationInfo(Base):
@@ -37,20 +38,20 @@ class YjStationInfo(Base):
     # modification = Column(Integer)
     version = Column(Integer)
 
-    def __init__(self, id, name=None, mac=None, ip=None, note=None, id_num=None,
+    def __init__(self, id, station_name=None, mac=None, ip=None, note=None, id_num=None,
                  plc_count=0, ten_id=None, item_id=None, con_date=None, version=0):
         self.id = id
-        self.name = name
+        self.station_name = station_name
         self.mac = mac
         self.ip = ip
         self.note = note
         self.id_num = id_num
-        self.plc_count = check_int(plc_count)
+        self.plc_count = plc_count
         self.ten_id = ten_id
         self.item_id = item_id
         self.con_date = con_date
         # self.modification = check_int(modification)
-        self.version = version
+        self.version = check_int(version)
 
     def __repr__(self):
         return '<Station : %r >' % self.station_name
@@ -65,7 +66,7 @@ class YjPLCInfo(Base):
     mpi = Column(Integer)
     type = Column(Integer)
     plc_type = Column(String(20))
-    ten_id = Column(String(255), nullable=False)
+    ten_id = Column(String(255))
     item_id = Column(String(20))
     rack = Column(Integer)
     slot = Column(Integer)
@@ -79,16 +80,16 @@ class YjPLCInfo(Base):
     # station_id = Column(Integer, ForeignKey('yjstationinfo.id'))
     # station = relationship('YjStationInfo', back_populates='plcs')
 
-    def __init__(self, id, name=None, station_id=None, note=None, ip=None,
+    def __init__(self, id, plc_name=None, station_id=None, note=None, ip=None,
                  mpi=None, type=None, plc_type=None,
                  ten_id=0, item_id=None):
         self.id = id
-        self.name = name
+        self.plc_name = plc_name
         self.station_id = station_id
         self.note = note
         self.ip = ip
-        self.mpi = check_int(mpi)
-        self.type = check_int(type)
+        self.mpi = mpi
+        self.type = type
         self.plc_type = plc_type
         self.ten_id = ten_id
         self.item_id = item_id
@@ -103,7 +104,7 @@ class YjGroupInfo(Base):
     group_name = Column(String(20))
     note = Column(String(100))
     upload_cycle = Column(Integer)
-    ten_id = Column(String(255), nullable=False)
+    ten_id = Column(String(255))
     item_id = Column(String(20))
 
     upload_time = Column(Integer)
@@ -121,9 +122,9 @@ class YjGroupInfo(Base):
                  upload_cycle=None, ten_id=None, item_id=None):
         self.id = id
         self.group_name = group_name
-        self.plc_id = check_int(plc_id)
+        self.plc_id = plc_id
         self.note = note
-        self.upload_cycle = check_int(upload_cycle)
+        self.upload_cycle = upload_cycle
         self.ten_id = ten_id
         self.item_id = item_id
 
@@ -143,7 +144,7 @@ class YjVariableInfo(Base):
     acquisition_cycle = Column(Integer)
     server_record_cycle = Column(Integer)
     note = Column(String(50))
-    ten_id = Column(String(200), nullable=False)
+    ten_id = Column(String(200))
     item_id = Column(String(20))
 
     acquisition_time = Column(Integer)
@@ -176,10 +177,10 @@ class YjVariableInfo(Base):
         self.db_num = db_num
         self.address = address
         self.data_type = data_type
-        self.rw_type = check_int(rw_type)
-        self.upload = check_int(upload)
-        self.acquisition_cycle = check_int(acquisition_cycle)
-        self.server_record_cycle = check_int(server_record_cycle)
+        self.rw_type = rw_type
+        self.upload = upload
+        self.acquisition_cycle = acquisition_cycle
+        self.server_record_cycle = server_record_cycle
         self.note = note
         self.ten_id = ten_id
         self.item_id = item_id

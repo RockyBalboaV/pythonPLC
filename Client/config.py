@@ -1,6 +1,7 @@
 # coding=utf-8
 from datetime import timedelta
 
+
 class Config(object):
     # 设置终端信息
 
@@ -15,9 +16,13 @@ class Config(object):
 class DevConfig(Config):
     # 设置服务器连接地址地址
 
-    BEAT_URL = 'http://127.0.0.1:11000/client/beats'
-    CONFIG_URL = 'http://127.0.0.1:11000/client/config'
-    UPLOAD_URL = 'http://127.0.0.1:11000/client/upload'
+    BEAT_URL = 'http://104.160.41.99:11000/client/beats'
+    CONFIG_URL = 'http://104.160.41.99:11000/client/config'
+    UPLOAD_URL = 'http://104.160.41.99:11000/client/upload'
+
+    # BEAT_URL = 'http://127.0.0.1:11000/client/beats'
+    # CONFIG_URL = 'http://127.0.0.1:11000/client/config'
+    # UPLOAD_URL = 'http://127.0.0.1:11000/client/upload'
 
     # 设置PLC的连接地址
 
@@ -42,6 +47,10 @@ class DevConfig(Config):
     CELERY_TASK_RESULT_EXPIRES = 60 * 60 * 24
     # 可接受的内容格式
     CELERY_ACCEPT_CONTENT = ['json', 'msgpack']
+    # 设置时区
+    CELERY_TIMEZONE = 'Asia/Shanghai'
+    # worker并发数
+    CELERYD_CONCURRENCY = 2
     # 定时任务
     CELERYBEAT_SCHEDULE = {
         'beats': {

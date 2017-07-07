@@ -8,10 +8,10 @@ import base64
 import zlib
 import struct
 import time
-import multiprocessing
+import multiprocessing as mp
 
 import snap7
-from celery import Celery
+from celery import Celery, group
 from sqlalchemy.orm.exc import UnmappedInstanceError
 
 from models import *
@@ -22,6 +22,9 @@ from config import DevConfig
 app = Celery()
 # app.config_from_object('celeryconfig')
 app.config_from_object(DevConfig)
+
+global con
+con = False
 
 
 def encryption(data):
@@ -157,12 +160,12 @@ def beats():
         else:
             note = '完成一次心跳连接，时间:{}.'.format(datetime.datetime.fromtimestamp(current_time))
         status = 'OK'
-    finally:
-        log = TransferLog(trans_type='beats', time=current_time, status=status, note=note)
-        session.add(log)
-        session.commit()
+    log = TransferLog(trans_type='beats', time=current_time, status=status, note=note)
+    session.add(log)
+    session.commit()
 
 
+@app.task
 def get_config():
     current_time = int(time.time())
     # 获取本机的信息
@@ -186,6 +189,12 @@ def get_config():
         print data
         try:
             session.delete(session.query(YjStationInfo).first())
+            # YjStationInfo.__table__.drop(eng, checkfirst=True)
+            # YjPLCInfo.__table__.drop(eng, checkfirst=True)
+            # YjGroupInfo.__table__.drop(eng, checkfirst=True)
+            # YjVariableInfo.__table__.drop(eng, checkfirst=True)
+            # Value.__table__.drop(eng, checkfirst=True)
+            # Base.metadata.create_all(bind=eng)
         except UnmappedInstanceError:
             session.rollback()
         else:
@@ -193,34 +202,65 @@ def get_config():
 
         version = data["YjStationInfo"]["version"]
 
-        station = YjStationInfo(id=data["YjStationInfo"]["id"], name=data["YjStationInfo"]["station_name"],
-                                mac=data["YjStationInfo"]["mac"], ip=data["YjStationInfo"]["ip"],
-                                note=data["YjStationInfo"]["note"], id_num=data["YjStationInfo"]["id_num"],
-                                plc_count=data["YjStationInfo"]["plc_count"], ten_id=data["YjStationInfo"]["ten_id"],
-                                item_id=data["YjStationInfo"]["item_id"], version=version,
-                                con_date=data["YjStationInfo"]["con_date"])
+        station = YjStationInfo(id=data["YjStationInfo"]["id"],
+                                station_name=data["YjStationInfo"]["station_name"],
+                                mac=data["YjStationInfo"]["mac"],
+                                ip=data["YjStationInfo"]["ip"],
+                                note=data["YjStationInfo"]["note"],
+                                id_num=data["YjStationInfo"]["id_num"],
+                                plc_count=data["YjStationInfo"]["plc_count"],
+                                ten_id=data["YjStationInfo"]["ten_id"],
+                                item_id=data["YjStationInfo"]["item_id"],
+                                version=version
+                                )
         session.add(station)
+        session.commit()
 
         for plc in data["YjPLCInfo"]:
-            p = YjPLCInfo(id=plc["id"], name=plc["plc_name"], station_id=plc["station_id"], note=plc["note"],
-                          ip=plc["ip"], mpi=plc["mpi"], type=plc["type"], plc_type=plc["plc_type"],
-                          ten_id=plc["ten_id"], item_id=plc["item_id"])
+            p = YjPLCInfo(id=plc["id"],
+                          plc_name=plc["plc_name"],
+                          station_id=plc["station_id"],
+                          note=plc["note"],
+                          ip=plc["ip"],
+                          mpi=plc["mpi"],
+                          type=plc["type"],
+                          plc_type=plc["plc_type"],
+                          ten_id=plc["ten_id"],
+                          item_id=plc["item_id"]
+                          )
             session.add(p)
+        session.commit()
 
         for group in data["YjGroupInfo"]:
-            g = YjGroupInfo(id=group["id"], group_name=group["group_name"], plc_id=group["plc_id"], note=group["note"],
-                            upload_cycle=group["upload_cycle"], ten_id=group["ten_id"], item_id=group["item_id"])
+            g = YjGroupInfo(id=group["id"],
+                            group_name=group["group_name"],
+                            plc_id=group["plc_id"],
+                            note=group["note"],
+                            upload_cycle=group["upload_cycle"],
+                            ten_id=group["ten_id"],
+                            item_id=group["item_id"]
+                            )
             session.add(g)
+        session.commit()
 
         for variable in data["YjVariableInfo"]:
-            v = YjVariableInfo(id=variable["id"], variable_name=variable["variable_name"], plc_id=variable["plc_id"],
-                               group_id=variable["group_id"], db_num=variable['db_num'],
-                               address=variable["address"], data_type=variable["data_type"],
+            v = YjVariableInfo(id=variable["id"],
+                               variable_name=variable["variable_name"],
+                               plc_id=variable["plc_id"],
+                               group_id=variable["group_id"],
+                               db_num=variable['db_num'],
+                               address=variable["address"],
+                               data_type=variable["data_type"],
                                rw_type=variable["rw_type"],
-                               upload=variable["upload"], acquisition_cycle=variable["acquisition_cycle"],
+                               upload=variable["upload"],
+                               acquisition_cycle=variable["acquisition_cycle"],
                                server_record_cycle=variable["server_record_cycle"],
-                               note=variable["note"], ten_id=variable["ten_id"], item_id=variable["item_id"])
+                               note=variable["note"],
+                               ten_id=variable["ten_id"],
+                               item_id=variable["item_id"]
+                               )
             session.add(v)
+        session.commit()
 
         # update_log = ConfigUpdateLog(time=int(time.time()), version=version)
         # session.add(update_log)
@@ -233,9 +273,10 @@ def get_config():
     session.add(log)
     session.commit()
 
-    return 0
+    return 1
 
 
+@app.task
 def upload(group_model):
     # group_model = session.query(YjGroupInfo).first()
     # 获取该组信息
@@ -246,7 +287,7 @@ def upload(group_model):
     upload_time = int(time.time())
 
     group_log = session.query(TransferLog).filter(TransferLog.trans_type == 'upload').filter(
-        TransferLog.note.like('%{}%'.format(group_id))).order_by(TransferLog.time.desc()).first()
+        TransferLog.note.like('% {} %'.format(group_id))).order_by(TransferLog.time.desc()).first()
 
     # 获取上次传输时间,没有上次时间就往前推一个上传周期
     if group_log:
@@ -254,8 +295,6 @@ def upload(group_model):
     else:
         timedelta = group_model.upload_cycle
         last_time = upload_time - timedelta
-
-
 
     # # 获取该组包括的所有变量
     # # 记录中如果有原配置中有的组名，更改配置后会导致取到空值
@@ -323,7 +362,7 @@ def upload(group_model):
         log = TransferLog(trans_type='upload_call_back', time=upload_time, status=status, note=note)
         session.add(log)
         session.commit()
-        return 1
+        return 0
 
     data = response.json()
     # data = decryption(data)
@@ -362,7 +401,11 @@ def upload(group_model):
 def check_group_upload_time():
     current_time = int(time.time())
     print 'c'
-    groups = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).filter(YjGroupInfo.uploading != True).all()
+    try:
+        groups = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).filter(
+            YjGroupInfo.uploading is not True).all()
+    except:
+        return 'skip'
     # poll = multiprocessing.Pool(4)
     for g in groups:
         print 'b'
@@ -371,23 +414,44 @@ def check_group_upload_time():
 
     for g in groups:
         print 'a'
-        upload(g)  # todo 多线程
-        # poll.apply_async(upload, (g,))
+        upload(g)
+    # curr_proc = mp.current_process()
+    # curr_proc.daemon = False
+    # p = mp.Pool(mp.cpu_count())
+    # curr_proc.daemon = True
+    # for g in groups:
+    #     print 'a'
+    #     p.apply_async(upload, args=(g,))  # todo 多线程
+    # p.close()
+    # p.join()
+    #
+    # return 1
+    # poll.apply_async(upload, (g,))
 
 
 @app.task
 def check_variable_get_time():
     current_time = int(time.time())
-    variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time)
+    try:
+        variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time)
+    except:
+        return 'skip'
 
+    # sig = group(get_value.s(v) for v in variables)
+    # sig.delay()
     # poll = multiprocessing.Pool(4)
     for v in variables:
         # print 'variable'
+        print 'get value'
         get_value(v)
         # poll.apply_async(get_value, (v,))
 
 
+@app.task
 def get_value(variable_model):
+    variable_model.acquisition_time += variable_model.acquisition_cycle
+    session.merge(variable_model)
+    session.commit()
     # 获得变量信息
     # variable_model = session.query(YjVariableInfo).first()
     ip = variable_model.plc.ip
@@ -429,7 +493,7 @@ class PythonPLC(object):
 
 if __name__ == '__main__':
     # database_reset()
-    before_running()
+    first_running()
     # print app.conf['BEAT_URL']
     # beats()
     # get_config()
