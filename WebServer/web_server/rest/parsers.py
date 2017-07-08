@@ -196,3 +196,12 @@ status_parser.add_argument('limit', type=int)
 status_parser.add_argument('username', type=str)
 status_parser.add_argument('password', type=str)
 status_parser.add_argument('token', type=str)
+
+# status put参数
+status_put_parser = reqparse.RequestParser()
+status_put_parser.add_argument('id', type=int)
+status_put_parser.add_argument('station_id', type=int)
+status_put_parser.add_argument('level', type=int)
+status_put_parser.add_argument('time', type=int)
+status_put_parser.add_argument('note', type=str)
+status_put_parser.add_argument('token', type=str)
