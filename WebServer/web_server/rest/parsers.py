@@ -16,7 +16,6 @@ station_parser.add_argument('username', type=str)
 station_parser.add_argument('password', type=str)
 station_parser.add_argument('token', type=str)
 
-
 # station添加参数
 station_put_parser = reqparse.RequestParser()
 station_put_parser.add_argument('id', type=int, help='该数据的主键')
@@ -36,7 +35,6 @@ station_put_parser.add_argument('ten_id', type=str)
 station_put_parser.add_argument('item_id', type=str)
 station_put_parser.add_argument('modification', type=bool)
 
-
 # plc查询参数
 plc_parser = reqparse.RequestParser()
 plc_parser.add_argument('id', type=int)
@@ -51,7 +49,6 @@ plc_parser.add_argument('limit', type=int)
 plc_parser.add_argument('username', type=str)
 plc_parser.add_argument('password', type=str)
 plc_parser.add_argument('token', type=str)
-
 
 # plc添加参数
 plc_put_parser = reqparse.RequestParser()
@@ -74,7 +71,6 @@ plc_put_parser.add_argument('rack', type=int)
 plc_put_parser.add_argument('slot', type=int)
 plc_put_parser.add_argument('tcp_port', type=int)
 
-
 # group查询参数
 group_parser = reqparse.RequestParser()
 group_parser.add_argument('id', type=int)
@@ -90,7 +86,6 @@ group_parser.add_argument('username', type=str)
 group_parser.add_argument('password', type=str)
 group_parser.add_argument('token', type=str)
 
-
 # group添加参数
 group_put_parser = reqparse.RequestParser()
 group_put_parser.add_argument('id', type=int)
@@ -105,7 +100,6 @@ group_put_parser.add_argument('note', type=str)
 group_put_parser.add_argument('upload_cycle', type=int)
 group_put_parser.add_argument('ten_id', type=str)
 group_put_parser.add_argument('item_id', type=str)
-
 
 # variable查询参数
 variable_parser = reqparse.RequestParser()
@@ -124,7 +118,6 @@ variable_parser.add_argument('username', type=str)
 variable_parser.add_argument('password', type=str)
 variable_parser.add_argument('token', type=str)
 
-
 # variable添加参数
 variable_put_parser = reqparse.RequestParser()
 variable_put_parser.add_argument('id', type=int)
@@ -138,14 +131,13 @@ variable_put_parser.add_argument('variable_name', type=str)
 variable_put_parser.add_argument('db_num', type=int)
 variable_put_parser.add_argument('address', type=int)
 variable_put_parser.add_argument('data_type', type=str)
-variable_put_parser.add_argument('rw_type', type=int)    
+variable_put_parser.add_argument('rw_type', type=int)
 variable_put_parser.add_argument('upload', type=bool)
 variable_put_parser.add_argument('acquisition_cycle', type=int)
 variable_put_parser.add_argument('server_record_cycle', type=int)
 variable_put_parser.add_argument('note', type=str)
 variable_put_parser.add_argument('ten_id', type=str)
 variable_put_parser.add_argument('item_id', type=str)
-
 
 # value查询参数
 value_parser = reqparse.RequestParser()
@@ -154,7 +146,7 @@ value_parser.add_argument('plc_id', type=int)
 value_parser.add_argument('plc_name', type=str)
 value_parser.add_argument('group_id', type=int)
 value_parser.add_argument('group_name', type=str)
-value_parser.add_argument('variable_id', type=int)
+value_parser.add_argument('variable_id', type=int, action='append')
 value_parser.add_argument('variable_name', type=str)
 
 value_parser.add_argument('min_time', type=int)
@@ -179,7 +171,6 @@ value_put_parser.add_argument('token', type=str)
 
 value_put_parser.add_argument('value', type=str)
 value_put_parser.add_argument('time', type=int)
-
 
 # status查询参数
 status_parser = reqparse.RequestParser()

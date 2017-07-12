@@ -32,6 +32,7 @@ class StatusResource(ApiResource):
         per_page = self.args['per_page'] if self.args['per_page'] else 10
 
         query = TransferLog.query
+        # print query.all()
 
         if model_id:
             query = query.filter_by(id=model_id)
@@ -51,35 +52,23 @@ class StatusResource(ApiResource):
         # if limit:
         #     query = query.limit(limit)
 
+        print limit
         if page:
             query = query.paginate(page, per_page, False).items
         elif limit:
-            # query = db.session.query(TransferLog.station_id).distinct().group_by(TransferLog.station_id).all()
-            # l = list()
-            # for q in query:
-            #     model = TransferLog.query.filter_by(station_id=q[0]).order_by(TransferLog.time.desc()).limit(
-            #         limit).all()
-            #     l += model
-            # query = l
-
             # time1 = time.time()
-            # models = query.all()
-
-            # station_id_list = set()
-            # for a in query:
-            #     station_id_list.add(a.station_id)
             station_id_list = set((a.station_id for a in query))
-            query2 = db.session.query(db.distinct(TransferLog.station_id)).filter(TransferLog.station_id.in_(station_id_list))
-            count = query2.count()
-            subquery = query2.subquery()
-            query = query.filter(TransferLog.station_id.in_(query2)).limit(limit * count)
-
+            query_list = list()
+            for s_id in station_id_list:
+                s_model = query.filter(TransferLog.station_id == s_id).limit(limit).all()
+                query_list += s_model
+            query = query_list
             # time2 = time.time()
             # print time2 - time1
         else:
             query = query.all()
 
-        # print query
+        # print query.all()
 
         return query
 

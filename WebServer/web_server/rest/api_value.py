@@ -57,7 +57,7 @@ class ValueResource(ApiResource):
             query = query.filter_by(id=value_id)
 
         if variable_id:
-            query = query.join(YjVariableInfo).filter(YjVariableInfo.id == variable_id)
+            query = query.join(YjVariableInfo).filter(YjVariableInfo.id.in_(variable_id))
 
         if variable_name:
             query = query.join(YjVariableInfo).filter(YjVariableInfo.variable_name == variable_name)
@@ -89,15 +89,15 @@ class ValueResource(ApiResource):
         if page:
             query = query.paginate(page, per_page, False).items
         elif limit:
-            time1 = time.time()
-            query = db.session.query(db.distinct(Value.variable_id)).group_by(Value.variable_id).all()
-            l = list()
-            for q in query:
-                model = Value.query.filter_by(variable_id=q[0]).order_by(Value.time.desc()).limit(limit).all()
-                l += model
-            query = l
-            time2 = time.time()
-            print time2 - time1
+            # time1 = time.time()
+            variable_id_list = set((v.variable_id for v in query))
+            query_list = list()
+            for variable_id in variable_id_list:
+                variable_query = query.filter(Value.variable_id == variable_id).limit(limit).all()
+                query_list += variable_query
+            query = query_list
+            # time2 = time.time()
+            # print time2 - time1
         else:
             query = query.all()
 

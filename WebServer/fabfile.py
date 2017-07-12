@@ -22,18 +22,18 @@ def setup():
     sudo('apt-get install -y python-pip')
     sudo('apt-get install -y python-all-dev')
 
-    sudo('useradd -d /home/deploy/ deploy')
-    sudo('gpasswd -a deploy sudo')
+    # sudo('useradd -d /home/deploy/ deploy')
+    # sudo('gpasswd -a deploy sudo')
 
-    sudo('chown -R deploy /usr/local')
-    sudo('chown -R deploy /usr/lib/python2.7')
+    # sudo('chown -R deploy /usr/local')
+    # sudo('chown -R deploy /usr/lib/python2.7')
 
     run('git config --global credential.helper store')
 
-    with cd('/home/deploy/'):
+    with cd('/home/yakumo17s/deploy'):
         run('git clone https://github.com/RockyBalboaV/pythonPLC.git')
 
-    with cd('/home/deploy/pythonPLC'):
+    with cd('/home/yakumo17s/deploy/pythonPLC/WebServer'):
         run('pip install -r requirements.txt')
         run('python manage.py createdb')
 
@@ -41,6 +41,6 @@ def setup():
 def deploy():
     test()
     upgrade_libs()
-    with cd('/home/deploy/pythonPLC'):
+    with cd('/home/yakumo17s/deploy/pythonPLC/WebServer'):
         run('git pull')
         run('pip install -r requirements.txt')
