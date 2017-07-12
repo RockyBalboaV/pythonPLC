@@ -22,6 +22,8 @@ class StatusResource(ApiResource):
         if not model_id:
             model_id = self.args['id']
 
+        station_id = self.args['station_id']
+
         min_time = self.args['min_time']
         max_time = self.args['max_time']
         order_time = self.args['order_time']
@@ -34,14 +36,17 @@ class StatusResource(ApiResource):
         if model_id:
             query = query.filter_by(id=model_id)
 
+        if station_id:
+            query = query.filter_by(station_id=station_id)
+
         if min_time:
-            query = query.filter(Value.time > min_time)
+            query = query.filter(TransferLog.time > min_time)
 
         if max_time:
-            query = query.filter(Value.time < max_time)
+            query = query.filter(TransferLog.time < max_time)
 
         if order_time:
-            query = query.order_by(Value.time.desc())
+            query = query.order_by(TransferLog.time.desc())
 
         # if limit:
         #     query = query.limit(limit)
@@ -49,13 +54,28 @@ class StatusResource(ApiResource):
         if page:
             query = query.paginate(page, per_page, False).items
         elif limit:
-            query = db.session.query(TransferLog.station_id).distinct().group_by(TransferLog.station_id).all()
-            l = list()
-            for q in query:
-                model = TransferLog.query.filter_by(station_id=q[0]).order_by(TransferLog.time.desc()).limit(
-                    limit).all()
-                l += model
-            query = l
+            # query = db.session.query(TransferLog.station_id).distinct().group_by(TransferLog.station_id).all()
+            # l = list()
+            # for q in query:
+            #     model = TransferLog.query.filter_by(station_id=q[0]).order_by(TransferLog.time.desc()).limit(
+            #         limit).all()
+            #     l += model
+            # query = l
+
+            # time1 = time.time()
+            # models = query.all()
+
+            # station_id_list = set()
+            # for a in query:
+            #     station_id_list.add(a.station_id)
+            station_id_list = set((a.station_id for a in query))
+            query2 = db.session.query(db.distinct(TransferLog.station_id)).filter(TransferLog.station_id.in_(station_id_list))
+            count = query2.count()
+            subquery = query2.subquery()
+            query = query.filter(TransferLog.station_id.in_(query2)).limit(limit * count)
+
+            # time2 = time.time()
+            # print time2 - time1
         else:
             query = query.all()
 

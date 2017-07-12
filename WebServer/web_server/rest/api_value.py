@@ -89,12 +89,15 @@ class ValueResource(ApiResource):
         if page:
             query = query.paginate(page, per_page, False).items
         elif limit:
-            query = db.session.query(Value.variable_id).distinct().group_by(Value.variable_id).all()
+            time1 = time.time()
+            query = db.session.query(db.distinct(Value.variable_id)).group_by(Value.variable_id).all()
             l = list()
             for q in query:
                 model = Value.query.filter_by(variable_id=q[0]).order_by(Value.time.desc()).limit(limit).all()
                 l += model
             query = l
+            time2 = time.time()
+            print time2 - time1
         else:
             query = query.all()
 

@@ -184,6 +184,7 @@ value_put_parser.add_argument('time', type=int)
 # status查询参数
 status_parser = reqparse.RequestParser()
 status_parser.add_argument('id', type=int)
+status_parser.add_argument('station_id', type=int)
 
 status_parser.add_argument('min_time', type=int)
 status_parser.add_argument('max_time', type=int)
