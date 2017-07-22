@@ -21,6 +21,7 @@ def setup():
     sudo('apt-get install -y python')
     sudo('apt-get install -y python-pip')
     sudo('apt-get install -y python-all-dev')
+    sudo('apt-get install -y nginx')
 
     # sudo('useradd -d /home/deploy/ deploy')
     # sudo('gpasswd -a deploy sudo')
@@ -30,10 +31,10 @@ def setup():
 
     run('git config --global credential.helper store')
 
-    with cd('/home/yakumo17s/deploy'):
+    with cd('/home/yakumo17s/'):
         run('git clone https://github.com/RockyBalboaV/pythonPLC.git')
 
-    with cd('/home/yakumo17s/deploy/pythonPLC/WebServer'):
+    with cd('/home/yakumo17s/pythonPLC/WebServer'):
         run('pip install -r requirements.txt')
         run('python manage.py createdb')
 
@@ -41,6 +42,12 @@ def setup():
 def deploy():
     test()
     upgrade_libs()
-    with cd('/home/yakumo17s/deploy/pythonPLC/WebServer'):
+    with cd('/home/yakumo17s/pythonPLC/WebServer'):
         run('git pull')
         run('pip install -r requirements.txt')
+        sudo('cp supervisor.conf /etc/supervisor/conf.d/web_server.conf')
+        sudo('cp nginx.conf /etc/nginx/sites-available/python_plc')
+        sudo('ln -sf /etc/nginx/sites-available/python-plc')
+
+    sudo('service supervisor restart')
+    sudo('service nginx restart')
