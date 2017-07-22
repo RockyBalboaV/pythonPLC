@@ -138,6 +138,8 @@ variable_put_parser.add_argument('server_record_cycle', type=int)
 variable_put_parser.add_argument('note', type=str)
 variable_put_parser.add_argument('ten_id', type=str)
 variable_put_parser.add_argument('item_id', type=str)
+variable_put_parser.add_argument('write_value', type=str)
+
 
 # value查询参数
 value_parser = reqparse.RequestParser()
@@ -175,7 +177,7 @@ value_put_parser.add_argument('time', type=int)
 # status查询参数
 status_parser = reqparse.RequestParser()
 status_parser.add_argument('id', type=int)
-status_parser.add_argument('station_id', type=int)
+status_parser.add_argument('station_id', type=int, action='append')
 
 status_parser.add_argument('min_time', type=int)
 status_parser.add_argument('max_time', type=int)

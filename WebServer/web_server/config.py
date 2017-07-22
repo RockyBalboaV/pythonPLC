@@ -18,6 +18,9 @@ class Config(object):
     # CACHE_REDIS_PASSWORD = 'password'
     CACHE_REDIS_DB = 0
 
+    # flask-restful
+    BUNDLE_ERRORS = True
+
     # flask-debugtoolbar
     DEBUG_TB_INTERCEPT_REDIRECTS = False
     DEBUG_TB_PROFILER_ENABLED = True

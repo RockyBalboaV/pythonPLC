@@ -147,6 +147,7 @@ class YjVariableInfo(db.Model):
     note = db.Column(db.String(50))
     ten_id = db.Column(db.String(200))
     item_id = db.Column(db.String(20))
+    write_value = db.Column(db.String(20))
 
     plc_id = db.Column(db.Integer, db.ForeignKey('yjplcinfo.id'))
     group_id = db.Column(db.Integer, db.ForeignKey('yjgroupinfo.id'))
@@ -156,7 +157,7 @@ class YjVariableInfo(db.Model):
     def __init__(self, variable_name=None, plc_id=None, group_id=None, db_num = None, address=None,
                  data_type=None, rw_type=None, upload=None,
                  acquisition_cycle=None, server_record_cycle=None,
-                 note=None, ten_id=None, item_id=None):
+                 note=None, ten_id=None, item_id=None, write_value=None):
         self.variable_name = variable_name
         self.plc_id = plc_id
         self.group_id = group_id
@@ -170,6 +171,7 @@ class YjVariableInfo(db.Model):
         self.note = note
         self.ten_id = ten_id
         self.item_id = item_id
+        self.write_value = write_value
 
     def __repr__(self):
         return '<Variable :ID(%r) Name(%r) >' % (int(self.id), self.tag_name)

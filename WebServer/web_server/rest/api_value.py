@@ -89,15 +89,15 @@ class ValueResource(ApiResource):
         if page:
             query = query.paginate(page, per_page, False).items
         elif limit:
-            # time1 = time.time()
-            variable_id_list = set((v.variable_id for v in query))
-            query_list = list()
-            for variable_id in variable_id_list:
-                variable_query = query.filter(Value.variable_id == variable_id).limit(limit).all()
-                query_list += variable_query
-            query = query_list
-            # time2 = time.time()
-            # print time2 - time1
+            time1 = time.time()
+            # variable_id_list = set((v.variable_id for v in query))
+            variable_id_list = variable_id
+            query = [model
+                     for variable_id in variable_id_list
+                     for model in query.filter(Value.variable_id == variable_id).order_by(Value.time.desc()).limit(limit).all()
+                     ]
+            time2 = time.time()
+            print time2 - time1
         else:
             query = query.all()
 
@@ -175,7 +175,10 @@ class ValueResource(ApiResource):
             return rp_modify()
 
         else:
-            value = Value(variable_id=args['variable_id'], value=args['value'], time=args['time'])
+            value = Value(variable_id=args['variable_id'],
+                          value=args['value'],
+                          time=args['time']
+                          )
 
             db.session.add(value)
             db.session.commit()

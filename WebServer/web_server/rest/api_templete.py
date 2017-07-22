@@ -19,9 +19,12 @@ class ApiResource(Resource):
 
     def get(self, id=None):
 
+        time1 = time.time()
         models = self.search(id)
 
         response = self.information(models)
+        time2 = time.time()
+        print time2 - time1
 
         return response
 

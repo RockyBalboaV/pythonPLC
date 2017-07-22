@@ -3,13 +3,26 @@ import datetime
 import time
 
 from flask import abort, jsonify
-from flask_restful import reqparse, Resource, marshal_with, fields
+from flask_restful import reqparse, Resource, marshal_with, fields, marshal
 
 from web_server.models import *
 from web_server.rest.parsers import status_parser, status_put_parser
 from api_templete import ApiResource
 from err import err_not_found
 from response import rp_create, rp_delete, rp_modify
+
+status_field = {
+
+    'id': fields.Integer,
+    'level': fields.Integer,
+    'note': fields.String,
+    'station_id': fields.Integer,
+    'time': fields.Integer
+}
+
+all_status_field = {
+    'data': fields.Nested(status_field)
+}
 
 
 class StatusResource(ApiResource):
@@ -38,7 +51,7 @@ class StatusResource(ApiResource):
             query = query.filter_by(id=model_id)
 
         if station_id:
-            query = query.filter_by(station_id=station_id)
+            query = query.filter(TransferLog.station_id.in_(station_id))
 
         if min_time:
             query = query.filter(TransferLog.time > min_time)
@@ -52,19 +65,18 @@ class StatusResource(ApiResource):
         # if limit:
         #     query = query.limit(limit)
 
-        print limit
         if page:
             query = query.paginate(page, per_page, False).items
         elif limit:
-            # time1 = time.time()
-            station_id_list = set((a.station_id for a in query))
-            query_list = list()
-            for s_id in station_id_list:
-                s_model = query.filter(TransferLog.station_id == s_id).limit(limit).all()
-                query_list += s_model
-            query = query_list
-            # time2 = time.time()
-            # print time2 - time1
+            time1 = time.time()
+            # station_id_list = set((a.station_id for a in query))
+            station_id_list = station_id
+            query = [model
+                     for s_id in station_id_list
+                     for model in query.filter(TransferLog.station_id == s_id).limit(limit).all()
+                     ]
+            time2 = time.time()
+            print time2 - time1
         else:
             query = query.all()
 
@@ -76,16 +88,13 @@ class StatusResource(ApiResource):
         if not models:
             return err_not_found()
 
-        info = []
-        for m in models:
-            data = dict()
-            data['id'] = m.id
-            data['station_id'] = m.station_id
-            data['level'] = m.level
-            data['note'] = m.note
-            data['time'] = m.time
-
-            info.append(data)
+        info = [dict(id=m.id,
+                     station_id=m.station_id,
+                     level=m.level,
+                     note=m.note,
+                     time=m.time)
+                for m in models
+                ]
 
         response = jsonify({"ok": 1, "data": info})
 

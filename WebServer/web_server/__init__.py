@@ -111,7 +111,6 @@ def create_app(object_name):
     # @app.teardown_appcontext
     # def teardown():
     #     pass
-
     def close_db_connection(sender, **extra):
         db.session.close()
         # sender.logger.debug('Database close.')

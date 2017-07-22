@@ -117,6 +117,7 @@ def variable_config(variable_model):
     variable_dict['rw_type'] = variable_model.rw_type
     variable_dict['acquisition_cycle'] = variable_model.acquisition_cycle
     variable_dict['server_record_cycle'] = variable_model.server_record_cycle
+    variable_dict['write_value'] = variable_model.write_value
     return variable_dict
 
 
@@ -184,7 +185,10 @@ def upload():
             response = make_response('version error', 403)
         else:
             for v in data["value"]:
-                value = Value(variable_id=v["variable_id"], value=v["value"], time=v["time"])
+                value = Value(variable_id=v["variable_id"],
+                              value=v["value"],
+                              time=v["time"]
+                              )
                 db.session.add(value)
             db.session.commit()
 
