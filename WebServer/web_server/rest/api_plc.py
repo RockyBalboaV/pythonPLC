@@ -1,6 +1,6 @@
 # coding=utf-8
-from flask import abort, jsonify
-from flask_restful import reqparse, Resource, marshal_with, fields
+from flask import  jsonify, Response
+from flask_restful import reqparse, Resource, marshal_with, fields, abort
 
 from web_server.models import *
 from web_server.rest.parsers import plc_parser, plc_put_parser
@@ -26,6 +26,7 @@ class PLCResource(ApiResource):
     def __init__(self):
         super(PLCResource, self).__init__()
         self.args = plc_parser.parse_args()
+        self.verify()
 
     def search(self, plc_id=None):
 
@@ -101,7 +102,7 @@ class PLCResource(ApiResource):
         user = User.verify_auth_token(token)
 
         if not user:
-            abort(401)
+            abort(401, msg='用户验证错误', ok=0)
 
     def put(self, plc_id=None):
         args = plc_put_parser.parse_args()
@@ -157,9 +158,19 @@ class PLCResource(ApiResource):
             return rp_modify()
 
         else:
-            plc = YjPLCInfo(plc_name=args['plc_name'], station_id=args['station_id'], note=args['note'], ip=args['ip'],
-                            mpi=args['mpi'], type=args['type'], plc_type=args['plc_type'], ten_id=args['ten_id'],
-                            item_id=args['item_id'], rack=args['rack'], slot=args['slot'], tcp_port=args['tcp_port'])
+            plc = YjPLCInfo(plc_name=args['plc_name'],
+                            station_id=args['station_id'],
+                            note=args['note'],
+                            ip=args['ip'],
+                            mpi=args['mpi'],
+                            type=args['type'],
+                            plc_type=args['plc_type'],
+                            ten_id=args['ten_id'],
+                            item_id=args['item_id'],
+                            rack=args['rack'],
+                            slot=args['slot'],
+                            tcp_port=args['tcp_port']
+                            )
 
             db.session.add(plc)
             db.session.commit()

@@ -38,6 +38,8 @@ class ValueResource(ApiResource):
         plc_name = self.args['plc_name']
         group_id = self.args['group_id']
         group_name = self.args['group_name']
+        query_id = self.args['query_id']
+        query_name = self.args['query_name']
 
         min_time = self.args['min_time']
         max_time = self.args['max_time']
@@ -73,6 +75,9 @@ class ValueResource(ApiResource):
 
         if group_name:
             query = query.join(YjVariableInfo, YjGroupInfo).filter(YjGroupInfo.group_name == group_name)
+
+        if query_id:
+            query = query.join(var_queries, var_queries.columns.query_id == query_id).filter(var_queries.columns.variable_id == Value.variable_id)
 
         if min_time:
             query = query.filter(Value.time > min_time)

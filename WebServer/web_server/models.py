@@ -1,4 +1,4 @@
-#coding=utf-8
+# coding=utf-8
 import os
 import datetime
 import time
@@ -22,9 +22,12 @@ roles = db.Table('role_users',
                  db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
                  db.Column('role_id', db.Integer, db.ForeignKey('role.id')))
 
+var_queries = db.Table('variables_queries',
+                       db.Column('query_id', db.Integer, db.ForeignKey('query_group.id')),
+                       db.Column('variable_id', db.Integer, db.ForeignKey('yjvariableinfo.id')))
+
 
 class YjStationInfo(db.Model):
-
     __tablename__ = 'yjstationinfo'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     station_name = db.Column(db.String(30))
@@ -63,7 +66,6 @@ class YjStationInfo(db.Model):
 
 
 class YjPLCInfo(db.Model):
-
     __tablename__ = 'yjplcinfo'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     plc_name = db.Column(db.String(30))
@@ -83,11 +85,11 @@ class YjPLCInfo(db.Model):
 
     variables = db.relationship('YjVariableInfo', backref='yjplcinfo', lazy='dynamic')
     groups = db.relationship('YjGroupInfo', backref='yjplcinfo', lazy='dynamic')
+    alarms = db.relationship('VarAlarmInfo', backref='yjplcinfo', lazy='dynamic')
 
     def __init__(self, plc_name=None, station_id=None, note=None, ip=None,
                  mpi=None, type=None, plc_type=None,
                  ten_id=None, item_id=None, rack=0, slot=0, tcp_port=102):
-
         self.plc_name = plc_name
         self.station_id = station_id
         self.note = note
@@ -106,7 +108,6 @@ class YjPLCInfo(db.Model):
 
 
 class YjGroupInfo(db.Model):
-
     __tablename__ = 'yjgroupinfo'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     group_name = db.Column(db.String(20))
@@ -133,7 +134,6 @@ class YjGroupInfo(db.Model):
 
 
 class YjVariableInfo(db.Model):
-
     __tablename__ = 'yjvariableinfo'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     variable_name = db.Column(db.String(20))
@@ -154,7 +154,7 @@ class YjVariableInfo(db.Model):
 
     values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic')
 
-    def __init__(self, variable_name=None, plc_id=None, group_id=None, db_num = None, address=None,
+    def __init__(self, variable_name=None, plc_id=None, group_id=None, db_num=None, address=None,
                  data_type=None, rw_type=None, upload=None,
                  acquisition_cycle=None, server_record_cycle=None,
                  note=None, ten_id=None, item_id=None, write_value=None):
@@ -178,7 +178,6 @@ class YjVariableInfo(db.Model):
 
 
 class Value(db.Model):
-
     __tablename__ = 'values'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     variable_id = db.Column(db.Integer, db.ForeignKey('yjvariableinfo.id'))
@@ -195,13 +194,13 @@ class Value(db.Model):
 
 
 class User(UserMixin, db.Model):
-
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     username = db.Column(db.String(32), nullable=False)
     email = db.Column(db.String(32))
     pw_hash = db.Column(db.String(128))
     login_count = db.Column(db.Integer, default=0)
     last_login_ip = db.Column(db.String(64), default='unknown')
+    last_login_time = db.Column(db.Integer)
 
     roles = db.relationship(
         'Role',
@@ -209,10 +208,11 @@ class User(UserMixin, db.Model):
         backref=db.backref('user', lazy='dynamic')
     )
 
-    def __init__(self, username, password):
+    def __init__(self, username, password, email=None):
         self.username = username
         # self.set_password(password)
         self.pw_hash = password
+        self.email = email
 
     def __repr__(self):
         return '<User {}'.format(self.username)
@@ -220,14 +220,21 @@ class User(UserMixin, db.Model):
     @staticmethod
     def verify_auth_token(token):
         s = Serializer(current_app.config['SECRET_KEY'])
-
         try:
             data = s.loads(token)
         except SignatureExpired:
             return None
         except BadSignature:
             return None
+        except TypeError:
+            return None
         user = User.query.get(data['id'])
+
+        try:
+            assert(data['time'] == user.last_login_time)
+        except AssertionError:
+            return None
+
         return user
 
     def is_authenticated(self):
@@ -269,7 +276,6 @@ class Role(db.Model):
 
 
 class TransferLog(db.Model):
-
     __tablename__ = 'logs'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     station_id = db.Column(db.Integer, db.ForeignKey('yjstationinfo.id'))
@@ -283,4 +289,35 @@ class TransferLog(db.Model):
         self.time = time
         self.note = note
 
+
+class QueryGroup(db.Model):
+    __tablename__ = 'query_group'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(32))
+
+    vars = db.relationship(
+        'YjVariableInfo',
+        secondary=var_queries,
+        backref=db.backref('querys', lazy='dynamic')
+    )
+
+
+class VarAlarmLog(db.Model):
+    __tablename__ = 'var_alarm_log'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    alarm_id = db.Column(db.Integer, db.ForeignKey('var_alarm_info.id'))
+    time = db.Column(db.Integer)
+    confirm = db.Column(db.Boolean)
+
+
+class VarAlarmInfo(db.Model):
+    __tablename__ = 'var_alarm_info'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    plc_id = db.Column(db.Integer, db.ForeignKey('yjplcinfo.id'))
+    db_num = db.Column(db.Integer)
+    address = db.Column(db.Integer)
+    alarm_type = db.Column(db.String(32))
+    note = db.Column(db.String(128))
+
+    logs = db.relationship('VarAlarmLog', backref='var_alarm_info', lazy='dynamic')
 

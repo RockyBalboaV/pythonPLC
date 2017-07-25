@@ -140,7 +140,6 @@ variable_put_parser.add_argument('ten_id', type=str)
 variable_put_parser.add_argument('item_id', type=str)
 variable_put_parser.add_argument('write_value', type=str)
 
-
 # value查询参数
 value_parser = reqparse.RequestParser()
 value_parser.add_argument('id', type=int)
@@ -150,6 +149,8 @@ value_parser.add_argument('group_id', type=int)
 value_parser.add_argument('group_name', type=str)
 value_parser.add_argument('variable_id', type=int, action='append')
 value_parser.add_argument('variable_name', type=str)
+value_parser.add_argument('query_id', type=int)
+value_parser.add_argument('query_name', type=str)
 
 value_parser.add_argument('min_time', type=int)
 value_parser.add_argument('max_time', type=int)
@@ -199,3 +200,68 @@ status_put_parser.add_argument('level', type=int)
 status_put_parser.add_argument('time', type=int)
 status_put_parser.add_argument('note', type=str)
 status_put_parser.add_argument('token', type=str)
+
+# 查询变量组查询参数
+query_parser = reqparse.RequestParser()
+query_parser.add_argument('id', type=int)
+query_parser.add_argument('variable_id', type=int, action='append')
+query_parser.add_argument('name', type=str)
+
+query_parser.add_argument('min_time', type=int)
+query_parser.add_argument('max_time', type=int)
+query_parser.add_argument('order_time', type=bool)
+query_parser.add_argument('page', type=int)
+query_parser.add_argument('per_page', type=int)
+query_parser.add_argument('limit', type=int)
+
+# 查询变量组添加参数
+query_put_parser = reqparse.RequestParser()
+query_put_parser.add_argument('id', type=int)
+query_put_parser.add_argument('name', type=str)
+query_put_parser.add_argument('variable_id', type=int, action='append')
+
+# 变量警告查询
+
+alarm_parser = reqparse.RequestParser()
+alarm_parser.add_argument('id', type=int)
+alarm_parser.add_argument('confirm', type=bool)
+
+alarm_parser.add_argument('alarm_id', type=int, action='append')
+alarm_parser.add_argument('plc_id', type=int, action='append')
+alarm_parser.add_argument('alarm_num', type=int)
+alarm_parser.add_argument('alarm_type', type=str, action='append')
+alarm_parser.add_argument('time', type=int)
+
+alarm_parser.add_argument('min_time', type=int)
+alarm_parser.add_argument('max_time', type=int)
+alarm_parser.add_argument('order_time', type=bool)
+alarm_parser.add_argument('page', type=int)
+alarm_parser.add_argument('per_page', type=int)
+alarm_parser.add_argument('limit', type=int)
+
+# 变量报警信息查询
+alarm_info_parser = reqparse.RequestParser()
+alarm_info_parser.add_argument('id', type=int)
+alarm_info_parser.add_argument('plc_id', type=int)
+alarm_info_parser.add_argument('alarm_type', type=str)
+alarm_info_parser.add_argument('limit', type=int)
+alarm_info_parser.add_argument('page', type=int)
+alarm_info_parser.add_argument('per_page', type=int)
+
+# 变量报警信息设置
+alarm_info_put_parser = reqparse.RequestParser()
+alarm_info_put_parser.add_argument('id', type=int)
+alarm_info_put_parser.add_argument('plc_id', type=int)
+alarm_info_put_parser.add_argument('db_num', type=int)
+alarm_info_put_parser.add_argument('address', type=int)
+alarm_info_put_parser.add_argument('alarm_type', type=str)
+alarm_info_put_parser.add_argument('note', type=str)
+
+# 用户登录
+user_parser = reqparse.RequestParser()
+user_parser.add_argument('username', type=str)
+user_parser.add_argument('password', type=str)
+user_parser.add_argument('email', type=str)
+user_parser.add_argument('expires', type=int)
+user_parser.add_argument('pw_confirm', type=str)
+
