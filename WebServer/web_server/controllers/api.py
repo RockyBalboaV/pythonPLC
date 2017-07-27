@@ -14,6 +14,9 @@ from web_server.rest.api_query import QueryResource
 from web_server.rest.api_alarm_log import AlarmLogResource
 from web_server.rest.api_alarm_info import AlarmInfoResource
 from web_server.rest.auth import AuthApi
+from web_server.rest.api_user import UserResource
+from web_server.rest.api_interface_log import InterfaceLogResource
+from web_server.rest.err import custom_errors
 
 api_blueprint = Blueprint('api',
                           __name__,
@@ -22,12 +25,16 @@ api_blueprint = Blueprint('api',
 
 api = Api(api_blueprint)
 api.add_resource(AuthApi, '/auth')
-api.add_resource(StationResource, '/station', '/station/<int:id>')
-api.add_resource(PLCResource, '/plc', '/plc/<int:id>')
-api.add_resource(GroupResource, '/group', '/group/<int:id>')
-api.add_resource(VariableResource, '/variable', '/variable/<int:id>')
-api.add_resource(ValueResource, '/value', '/value/<int:id>')
-api.add_resource(StatusResource, '/status', '/status/<int:id>')
-api.add_resource(QueryResource, '/query', '/query/<int:id>')
-api.add_resource(AlarmInfoResource, '/alarm_info', '/alarm_info/<int:id>')
-api.add_resource(AlarmLogResource, '/alarm_log', '/alarm_log/<int:id>')
+api.add_resource(StationResource, '/station', endpoint='yjstationinfo')
+api.add_resource(PLCResource, '/plc', endpoint='yjplcinfo')
+api.add_resource(GroupResource, '/group', endpoint='yjgroupinfo')
+api.add_resource(VariableResource, '/variable', endpoint='yjvariableinfo')
+api.add_resource(ValueResource, '/value', endpoint='value')
+api.add_resource(StatusResource, '/status', endpoint='transferlog')
+api.add_resource(QueryResource, '/query', endpoint='querygroup')
+api.add_resource(AlarmInfoResource, '/alarm_info', endpoint='varalarminfo')
+api.add_resource(AlarmLogResource, '/alarm_log', endpoint='varalarmlog')
+api.add_resource(UserResource, '/user', endpoint='user')
+api.add_resource(InterfaceLogResource, '/interface_log', endpoint='interfacelog')
+print api.endpoints
+print api.resources

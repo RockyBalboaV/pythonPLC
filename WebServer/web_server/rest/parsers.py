@@ -238,15 +238,17 @@ alarm_parser.add_argument('order_time', type=bool)
 alarm_parser.add_argument('page', type=int)
 alarm_parser.add_argument('per_page', type=int)
 alarm_parser.add_argument('limit', type=int)
+alarm_parser.add_argument('token', type=str)
 
 # 变量报警信息查询
 alarm_info_parser = reqparse.RequestParser()
 alarm_info_parser.add_argument('id', type=int)
-alarm_info_parser.add_argument('plc_id', type=int)
+alarm_info_parser.add_argument('plc_id', type=int, action='append')
 alarm_info_parser.add_argument('alarm_type', type=str)
 alarm_info_parser.add_argument('limit', type=int)
 alarm_info_parser.add_argument('page', type=int)
 alarm_info_parser.add_argument('per_page', type=int)
+alarm_info_parser.add_argument('token', type=str)
 
 # 变量报警信息设置
 alarm_info_put_parser = reqparse.RequestParser()
@@ -254,14 +256,46 @@ alarm_info_put_parser.add_argument('id', type=int)
 alarm_info_put_parser.add_argument('plc_id', type=int)
 alarm_info_put_parser.add_argument('db_num', type=int)
 alarm_info_put_parser.add_argument('address', type=int)
+
 alarm_info_put_parser.add_argument('alarm_type', type=str)
 alarm_info_put_parser.add_argument('note', type=str)
+alarm_info_put_parser.add_argument('token', type=str)
 
-# 用户登录
+# 用户认证、用户新建（无认证）
+auth_parser = reqparse.RequestParser()
+auth_parser.add_argument('username', type=str)
+auth_parser.add_argument('password', type=str)
+auth_parser.add_argument('email', type=str)
+auth_parser.add_argument('expires', type=int)
+auth_parser.add_argument('pw_confirm', type=str)
+auth_parser.add_argument('role', type=str, action='append')
+
+# 用户查询、用户管理（有认证）
 user_parser = reqparse.RequestParser()
+user_parser.add_argument('id', type=int)
 user_parser.add_argument('username', type=str)
-user_parser.add_argument('password', type=str)
 user_parser.add_argument('email', type=str)
-user_parser.add_argument('expires', type=int)
-user_parser.add_argument('pw_confirm', type=str)
+user_parser.add_argument('role', type=str, action='append')
+user_parser.add_argument('limit', type=int)
+user_parser.add_argument('page', type=int)
+user_parser.add_argument('per_page', type=int)
+user_parser.add_argument('token', type=str)
+
+# 接口日志
+interface_parser = reqparse.RequestParser()
+interface_parser.add_argument('id', type=int)
+interface_parser.add_argument('username', type=str)
+interface_parser.add_argument('host_url', type=str)
+interface_parser.add_argument('method', type=str)
+
+interface_parser.add_argument('repeal', type=bool)
+
+interface_parser.add_argument('min_time', type=int)
+interface_parser.add_argument('max_time', type=int)
+interface_parser.add_argument('order_time', type=bool)
+interface_parser.add_argument('page', type=int)
+interface_parser.add_argument('per_page', type=int)
+interface_parser.add_argument('limit', type=int)
+interface_parser.add_argument('token', type=str)
+
 

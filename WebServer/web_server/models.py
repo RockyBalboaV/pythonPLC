@@ -7,6 +7,7 @@ from flask import current_app
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_login import UserMixin, AnonymousUserMixin
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer, BadSignature, SignatureExpired
+from sqlalchemy.orm import class_mapper
 
 from ext import db
 
@@ -16,6 +17,14 @@ def check_int(column):
         return int(column)
     else:
         return column
+
+
+def serialize(model):
+    """Transforms a model into a dictionary which can be dumped to JSON."""
+    # first we get the names of all the columns on your model
+    columns = [c.key for c in class_mapper(model.__class__).columns]
+    # then we return their values in a dict
+    return dict((c, getattr(model, c)) for c in columns)
 
 
 roles = db.Table('role_users',
@@ -208,11 +217,12 @@ class User(UserMixin, db.Model):
         backref=db.backref('user', lazy='dynamic')
     )
 
-    def __init__(self, username, password, email=None):
+    def __init__(self, username, password, email=None, roles=None):
         self.username = username
         # self.set_password(password)
         self.pw_hash = password
         self.email = email
+        self.roles = roles
 
     def __repr__(self):
         return '<User {}'.format(self.username)
@@ -228,10 +238,11 @@ class User(UserMixin, db.Model):
             return None
         except TypeError:
             return None
-        user = User.query.get(data['id'])
+        user_id = data['id']
+        user = User.query.get(user_id)
 
         try:
-            assert(data['time'] == user.last_login_time)
+            assert (data['time'] == user.last_login_time)
         except AssertionError:
             return None
 
@@ -321,3 +332,15 @@ class VarAlarmInfo(db.Model):
 
     logs = db.relationship('VarAlarmLog', backref='var_alarm_info', lazy='dynamic')
 
+
+class InterfaceLog(db.Model):
+    __tablename__ = 'interface_log'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    username = db.Column(db.String(32))
+    host_url = db.Column(db.String(32))
+    method = db.Column(db.String(8))
+    time = db.Column(db.Integer)
+    param = db.Column(db.Text)
+    old_data = db.Column(db.Text)
+    new_data = db.Column(db.Text)
+    endpoint = db.Column(db.String(32))

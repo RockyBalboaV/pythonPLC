@@ -1,6 +1,5 @@
 # coding=utf-8
-from flask import  jsonify, Response
-from flask_restful import reqparse, Resource, marshal_with, fields, abort
+from flask import jsonify, Response
 
 from web_server.models import *
 from web_server.rest.parsers import plc_parser, plc_put_parser
@@ -8,25 +7,12 @@ from api_templete import ApiResource
 from err import err_not_found
 from response import rp_create, rp_delete, rp_modify
 
-plc_field = {
-    'id': fields.Integer,
-    'name': fields.String,
-    'station_id': fields.Integer,
-    'note': fields.String,
-    'ip': fields.String,
-    'mpi': fields.Integer,
-    'type': fields.Integer,
-    'plc_type': fields.String,
-    'ten_id': fields.String,
-    'item_id': fields.String
-}
-
 
 class PLCResource(ApiResource):
     def __init__(self):
-        super(PLCResource, self).__init__()
         self.args = plc_parser.parse_args()
-        self.verify()
+        self.query = YjPLCInfo.query
+        super(PLCResource, self).__init__()
 
     def search(self, plc_id=None):
 
@@ -57,6 +43,8 @@ class PLCResource(ApiResource):
             query = query.paginate(page, per_page, False).items
         else:
             query = query.all()
+
+        self.query = query
 
         return query
 
@@ -95,14 +83,6 @@ class PLCResource(ApiResource):
         response.status_code = 200
 
         return response
-
-    def verify(self):
-
-        token = self.args['token']
-        user = User.verify_auth_token(token)
-
-        if not user:
-            abort(401, msg='用户验证错误', ok=0)
 
     def put(self, plc_id=None):
         args = plc_put_parser.parse_args()

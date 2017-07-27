@@ -27,8 +27,8 @@ variable_field = {
 
 class VariableResource(ApiResource):
     def __init__(self):
-        super(VariableResource, self).__init__()
         self.args = variable_parser.parse_args()
+        super(VariableResource, self).__init__()
 
     def search(self, variable_id=None):
         if not variable_id:

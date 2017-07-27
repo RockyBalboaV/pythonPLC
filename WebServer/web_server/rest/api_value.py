@@ -24,8 +24,8 @@ value_field = {
 
 class ValueResource(ApiResource):
     def __init__(self):
-        super(ValueResource, self).__init__()
         self.args = value_parser.parse_args()
+        super(ValueResource, self).__init__()
 
     def search(self, value_id=None):
 
@@ -77,7 +77,13 @@ class ValueResource(ApiResource):
             query = query.join(YjVariableInfo, YjGroupInfo).filter(YjGroupInfo.group_name == group_name)
 
         if query_id:
-            query = query.join(var_queries, var_queries.columns.query_id == query_id).filter(var_queries.columns.variable_id == Value.variable_id)
+            query = query.join(var_queries, var_queries.columns.query_id == query_id).filter(
+                var_queries.columns.variable_id == Value.variable_id)
+
+        if query_name:
+            query = query.join(QueryGroup, QueryGroup.name == query_name).\
+                join(var_queries, var_queries.columns.query_id == QueryGroup.id).filter(
+                var_queries.columns.variable_id == Value.variable_id)
 
         if min_time:
             query = query.filter(Value.time > min_time)
@@ -94,15 +100,16 @@ class ValueResource(ApiResource):
         if page:
             query = query.paginate(page, per_page, False).items
         elif limit:
-            time1 = time.time()
+            # time1 = time.time()
             # variable_id_list = set((v.variable_id for v in query))
             variable_id_list = variable_id
             query = [model
                      for variable_id in variable_id_list
-                     for model in query.filter(Value.variable_id == variable_id).order_by(Value.time.desc()).limit(limit).all()
+                     for model in
+                     query.filter(Value.variable_id == variable_id).order_by(Value.time.desc()).limit(limit).all()
                      ]
-            time2 = time.time()
-            print time2 - time1
+            # time2 = time.time()
+            # print time2 - time1
         else:
             query = query.all()
 

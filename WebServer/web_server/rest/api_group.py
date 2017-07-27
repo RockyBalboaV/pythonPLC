@@ -1,6 +1,5 @@
 # coding=utf-8
 from flask import abort, jsonify
-from flask_restful import reqparse, Resource, marshal_with, fields
 
 from web_server.models import *
 from web_server.rest.parsers import group_parser, group_put_parser
@@ -8,21 +7,13 @@ from api_templete import ApiResource
 from err import err_not_found
 from response import rp_create, rp_delete, rp_modify
 
-group_field = {
-    'id': fields.Integer,
-    'group_name': fields.String,
-    'plc_id': fields.Integer,
-    'note': fields.String,
-    'upload_cycle': fields.Integer,
-    'ten_id': fields.String,
-    'item_id': fields.String
-}
 
 
 class GroupResource(ApiResource):
     def __init__(self):
-        super(GroupResource, self).__init__()
         self.args = group_parser.parse_args()
+        super(GroupResource, self).__init__()
+
 
     def search(self, group_id=None):
 

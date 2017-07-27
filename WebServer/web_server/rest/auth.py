@@ -1,10 +1,10 @@
 # coding=utf-8
 
-from flask import abort, current_app, jsonify, request
-from flask_restful import Resource
+from flask import current_app, jsonify, request
+from flask_restful import Resource, abort
 from itsdangerous import TimedJSONWebSignatureSerializer as Serializer
 
-from web_server.rest.parsers import user_parser
+from web_server.rest.parsers import auth_parser
 from web_server.models import *
 from web_server.rest.err import err_pw, err_user_not_exist, make_error
 from web_server.rest.response import rp_user_create
@@ -22,7 +22,7 @@ class AuthApi(Resource):
 
     def post(self):
         current_time = int(time.time())
-        args = user_parser.parse_args()
+        args = auth_parser.parse_args()
 
         try:
             user = User.query.filter_by(username=args['username']).first()
@@ -44,7 +44,7 @@ class AuthApi(Resource):
             return err_pw()
 
     def put(self):
-        args = user_parser.parse_args()
+        args = auth_parser.parse_args()
 
         if args['password']:
             password = args['password']
@@ -63,11 +63,15 @@ class AuthApi(Resource):
         if not password == args['pw_confirm']:
             return make_error('两次密码需要一致')
 
+        role = args['role']
+
+        role_models = Role.query.filter(Role.id.in_(role))
+
         user = User(username=args['username'], password=args['password'], email=args['email'])
+
+        user.roles += role_models
+
         db.session.add(user)
         db.session.commit()
 
         return rp_user_create()
-
-
-

@@ -30,3 +30,4 @@ err_not_contain = functools.partial(make_error, msg='查询的结果不包含选
 err_user_not_exist = functools.partial(make_error, msg='用户名不存在', status_code=404)
 err_pw = functools.partial(make_error, msg='密码不正确', status_code=401)
 err_user_token = functools.partial(make_error, msg='用户验证错误')
+err_user_already_exist = functools.partial(make_error, msg='该用户已存在', status_code=400)

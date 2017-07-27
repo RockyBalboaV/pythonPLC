@@ -3,7 +3,6 @@ import datetime
 import time
 
 from flask import abort, jsonify
-from flask_restful import reqparse, Resource, marshal_with, fields
 
 from web_server.models import db, QueryGroup, YjVariableInfo, Value
 from web_server.rest.parsers import query_parser, query_put_parser
@@ -11,21 +10,11 @@ from api_templete import ApiResource
 from err import err_not_found, err_not_contain
 from response import rp_create, rp_delete, rp_modify, rp_delete_ration
 
-value_field = {
-    'id': fields.Integer,
-    'value_name': fields.String,
-    'plc_id': fields.Integer,
-    'note': fields.String,
-    'upload_cycle': fields.Integer,
-    'ten_id': fields.String,
-    'item_id': fields.String
-}
-
 
 class QueryResource(ApiResource):
     def __init__(self):
-        super(QueryResource, self).__init__()
         self.args = query_parser.parse_args()
+        super(QueryResource, self).__init__()
 
     def search(self, model_id=None):
 

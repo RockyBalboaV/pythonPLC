@@ -3,7 +3,6 @@ import datetime
 import time
 
 from flask import abort, jsonify
-from flask_restful import reqparse, Resource, marshal_with, fields, marshal
 
 from web_server.models import *
 from web_server.rest.parsers import status_parser, status_put_parser
@@ -11,24 +10,11 @@ from api_templete import ApiResource
 from err import err_not_found
 from response import rp_create, rp_delete, rp_modify
 
-status_field = {
-
-    'id': fields.Integer,
-    'level': fields.Integer,
-    'note': fields.String,
-    'station_id': fields.Integer,
-    'time': fields.Integer
-}
-
-all_status_field = {
-    'data': fields.Nested(status_field)
-}
-
 
 class StatusResource(ApiResource):
     def __init__(self):
-        super(StatusResource, self).__init__()
         self.args = status_parser.parse_args()
+        super(StatusResource, self).__init__()
 
     def search(self, model_id=None):
 
@@ -68,15 +54,15 @@ class StatusResource(ApiResource):
         if page:
             query = query.paginate(page, per_page, False).items
         elif limit:
-            time1 = time.time()
+            # time1 = time.time()
             # station_id_list = set((a.station_id for a in query))
             station_id_list = station_id
             query = [model
                      for s_id in station_id_list
                      for model in query.filter(TransferLog.station_id == s_id).limit(limit).all()
                      ]
-            time2 = time.time()
-            print time2 - time1
+            # time2 = time.time()
+            # print time2 - time1
         else:
             query = query.all()
 

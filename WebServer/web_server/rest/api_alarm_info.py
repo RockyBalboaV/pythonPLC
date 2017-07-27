@@ -3,7 +3,6 @@ import datetime
 import time
 
 from flask import abort, jsonify
-from flask_restful import reqparse, Resource, marshal_with, fields, marshal
 
 from web_server.models import *
 from web_server.rest.parsers import alarm_info_parser, alarm_info_put_parser
@@ -14,8 +13,8 @@ from response import rp_create, rp_delete, rp_modify
 
 class AlarmInfoResource(ApiResource):
     def __init__(self):
-        super(AlarmInfoResource, self).__init__()
         self.args = alarm_info_parser.parse_args()
+        super(AlarmInfoResource, self).__init__()
 
     def search(self, model_id=None):
 
@@ -80,25 +79,25 @@ class AlarmInfoResource(ApiResource):
             model_id = args['id']
 
         if model_id:
-            model = VarAlarmLog.query.get(model_id)
+            model = VarAlarmInfo.query.get(model_id)
 
             if not model:
                 return err_not_found()
 
             if args['plc_id']:
-                model.alarm_num = args['plc_id']
+                model.plc_id = args['plc_id']
 
             if args['db_num']:
-                model.alarm_type = args['db_num']
+                model.db_num = args['db_num']
 
             if args['address']:
-                model.time = args['address']
+                model.address = args['address']
 
             if args['alarm_type']:
-                model.time = args['alarm_type']
+                model.alarm_type = args['alarm_type']
 
             if args['note']:
-                model.time = args['note']
+                model.note = args['note']
 
             db.session.add(model)
             db.session.commit()

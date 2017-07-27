@@ -3,7 +3,6 @@ import datetime
 import time
 
 from flask import abort, jsonify
-from flask_restful import reqparse, Resource, marshal_with, fields, marshal
 
 from web_server.models import *
 from web_server.rest.parsers import alarm_parser
@@ -14,8 +13,9 @@ from response import rp_create, rp_delete, rp_modify
 
 class AlarmLogResource(ApiResource):
     def __init__(self):
-        super(AlarmLogResource, self).__init__()
+
         self.args = alarm_parser.parse_args()
+        super(AlarmLogResource, self).__init__()
 
     def search(self, model_id=None):
 
@@ -60,12 +60,20 @@ class AlarmLogResource(ApiResource):
         if order_time:
             query = query.order_by(VarAlarmLog.time.desc())
 
-        if limit:
-            query = query.limit(limit)
+        # if limit:
+        #     query = query.limit(limit)
 
         if page:
             query = query.paginate(page, per_page, False).items
-
+        elif limit:
+            plc_id_list = plc_id
+            print plc_id_list
+            query = [model
+                     for plc_id in plc_id_list
+                     # for model in query.join(VarAlarmInfo, VarAlarmInfo.id == VarAlarmLog.alarm_id).filter(VarAlarmInfo.plc_id == plc_id).limit(limit).all()
+                     for model in VarAlarmLog.query.join(VarAlarmInfo).filter(VarAlarmInfo.plc_id == plc_id).limit(limit)
+                     # if model.var_alarm_info.plc_id == plc_id
+                     ]
         else:
             query = query.all()
 
@@ -113,7 +121,7 @@ class AlarmLogResource(ApiResource):
                 model.alarm_id = args['alarm_id']
 
             if args['confirm']:
-                model.alarm_type = args['confirm']
+                model.confirm = args['confirm']
 
             if args['time']:
                 model.time = args['time']
