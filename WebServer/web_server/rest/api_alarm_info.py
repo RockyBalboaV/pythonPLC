@@ -64,6 +64,7 @@ class AlarmInfoResource(ApiResource):
                 id=m.id,
                 plc_id=m.yjvariableinfo.plc_id if m.yjvariableinfo else None,
                 variable_id=m.variable_id,
+                variable_name=m.yjvariableinfo.variable_name if m.yjvariableinfo else None,
                 alarm_type=m.alarm_type,
                 note=m.note,
             )
