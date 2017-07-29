@@ -8,12 +8,10 @@ from err import err_not_found
 from response import rp_create, rp_delete, rp_modify
 
 
-
 class GroupResource(ApiResource):
     def __init__(self):
         self.args = group_parser.parse_args()
         super(GroupResource, self).__init__()
-
 
     def search(self, group_id=None):
 
@@ -63,6 +61,7 @@ class GroupResource(ApiResource):
             data['note'] = g.note
             data['ten_id'] = g.ten_id
             data['item_id'] = g.item_id
+            data['upload'] = g.upload
 
             plc = g.yjplcinfo
             if plc:
@@ -108,13 +107,22 @@ class GroupResource(ApiResource):
             if args['item_id']:
                 group.item_id = args['item_id']
 
+            if args['upload']:
+                group.item_id = args['upload']
+
             db.session.add(group)
             db.session.commit()
             return rp_modify()
 
         else:
-            group = YjGroupInfo(group_name=args['group_name'], plc_id=args['plc_id'], note=args['note'],
-                                upload_cycle=args['upload_cycle'], ten_id=args['ten_id'], item_id=args['item_id'])
+            group = YjGroupInfo(group_name=args['group_name'],
+                                plc_id=args['plc_id'],
+                                note=args['note'],
+                                upload_cycle=args['upload_cycle'],
+                                ten_id=args['ten_id'],
+                                item_id=args['item_id'],
+                                upload=args['upload']
+                                )
 
             db.session.add(group)
             db.session.commit()

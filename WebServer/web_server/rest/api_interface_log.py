@@ -6,7 +6,6 @@ import json
 
 from flask import abort, jsonify, url_for
 
-
 from web_server.models import db, InterfaceLog
 from web_server.rest.parsers import interface_parser
 from api_templete import ApiResource
@@ -16,10 +15,9 @@ from response import rp_create, rp_delete, rp_modify, rp_delete_ration
 
 class InterfaceLogResource(ApiResource):
     def __init__(self):
-        self.model = InterfaceLog
         self.args = interface_parser.parse_args()
-        self.query = InterfaceLog.query
         super(InterfaceLogResource, self).__init__()
+        self.query = InterfaceLog.query
 
         self.model_id = self.args['id']
 
@@ -81,7 +79,7 @@ class InterfaceLogResource(ApiResource):
                 time=m.time,
                 param=m.param,
                 old_data=m.old_data,
-                new_data=m.new_data
+                new_data_id=m.new_data_id
             )
             for m in models
         ]
@@ -91,20 +89,34 @@ class InterfaceLogResource(ApiResource):
         return response
 
     def post(self):
-
         self.search()
         if self.repeal:
-            from web_server.controllers.api import api
 
             for model in self.query:
                 model_dict_list = json.loads(model.old_data)
                 model_class = model.endpoint.split('.')[1]
-                # print api.owns_endpoint('api.user')
-                # print api.resources
-                # print InterfaceLog.__class__
 
                 if model.method == 'put':
-                    pass
+                    for m in db.Model.__subclasses__():
+                        if m.__name__.lower() == model_class:
+                            # 修改
+                            print model.new_data_id
+                            if hasattr(json.loads(model.param), 'id'):
+
+                                for model_dict in model_dict_list:
+                                    model = m.query.get(model_dict['id'])
+                                    for item in model_dict.items():
+                                        model.__setattr__(item[0], item[1])
+                                    db.session.add(model)
+                                    db.session.commit()
+
+                            # 新建
+                            else:
+                                model = m.query.get(model.new_data_id)
+                                print model
+                                db.session.delete(model)
+                                db.session.commit()
+
                 elif model.method == 'delete':
                     for m in db.Model.__subclasses__():
                         if m.__name__.lower() == model_class:

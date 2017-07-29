@@ -29,12 +29,15 @@ def authenticate(func):
 class ApiResource(Resource):
     # method_decorators = [authenticate]
     def __init__(self):
-        self.user = self.verify()
+        self.user = None
+        # self.user = self.verify()
+        self.new_id = None
+        self.query = None
         pass
 
     def __del__(self):
         try:
-            self.interface_log(self.user, self.query)
+            self.interface_log(self.user, self.query, self.new_id)
         except AttributeError:
             pass
 
@@ -48,7 +51,8 @@ class ApiResource(Resource):
         return user
 
     @staticmethod
-    def interface_log(user, query):
+    def interface_log(user, query, new_id):
+        print 'a'
         current_time = int(time.time())
         param = request.json
         del param['token']
@@ -67,7 +71,8 @@ class ApiResource(Resource):
                            time=current_time,
                            param=json.dumps(param),
                            old_data=old_data,
-                           endpoint=request.endpoint
+                           endpoint=request.endpoint,
+                           new_data_id=new_id
                            )
         db.session.add(log)
         db.session.commit()

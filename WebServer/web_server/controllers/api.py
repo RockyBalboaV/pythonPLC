@@ -36,5 +36,3 @@ api.add_resource(AlarmInfoResource, '/alarm_info', endpoint='varalarminfo')
 api.add_resource(AlarmLogResource, '/alarm_log', endpoint='varalarmlog')
 api.add_resource(UserResource, '/user', endpoint='user')
 api.add_resource(InterfaceLogResource, '/interface_log', endpoint='interfacelog')
-print api.endpoints
-print api.resources

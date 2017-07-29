@@ -63,13 +63,13 @@ class AuthApi(Resource):
         if not password == args['pw_confirm']:
             return make_error('两次密码需要一致')
 
+        user = User(username=args['username'], password=args['password'])
         role = args['role']
+        print role
+        if role:
+            role_models = Role.query.filter(Role.id.in_(role))
 
-        role_models = Role.query.filter(Role.id.in_(role))
-
-        user = User(username=args['username'], password=args['password'], email=args['email'])
-
-        user.roles += role_models
+            user.roles += role_models
 
         db.session.add(user)
         db.session.commit()

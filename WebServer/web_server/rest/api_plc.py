@@ -11,8 +11,8 @@ from response import rp_create, rp_delete, rp_modify
 class PLCResource(ApiResource):
     def __init__(self):
         self.args = plc_parser.parse_args()
-        self.query = YjPLCInfo.query
         super(PLCResource, self).__init__()
+        self.query = YjPLCInfo.query
 
     def search(self, plc_id=None):
 
@@ -93,6 +93,8 @@ class PLCResource(ApiResource):
         if plc_id:
 
             plc = YjPLCInfo.query.get(plc_id)
+            self.query = [].append(plc)
+            print self.query
             if not plc:
                 return err_not_found()
 
@@ -138,6 +140,7 @@ class PLCResource(ApiResource):
             return rp_modify()
 
         else:
+            self.query = []
             plc = YjPLCInfo(plc_name=args['plc_name'],
                             station_id=args['station_id'],
                             note=args['note'],
@@ -154,5 +157,5 @@ class PLCResource(ApiResource):
 
             db.session.add(plc)
             db.session.commit()
-
+            self.new_id = plc.id
             return rp_create()

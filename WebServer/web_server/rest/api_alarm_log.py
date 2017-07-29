@@ -25,6 +25,7 @@ class AlarmLogResource(ApiResource):
         confirm = self.args['confirm']
         alarm_id = self.args['alarm_id']
         plc_id = self.args['plc_id']
+        variable_id = self.args['variable_id']
         alarm_type = self.args['alarm_type']
 
         min_time = self.args['min_time']
@@ -43,7 +44,10 @@ class AlarmLogResource(ApiResource):
             query = query.join(VarAlarmInfo, VarAlarmInfo.alarm_type.in_(alarm_type))
 
         if plc_id:
-            query = query.join(VarAlarmInfo, VarAlarmInfo.plc_id.in_(plc_id))
+            query = query.join(VarAlarmInfo, YjVariableInfo).filter(YjVariableInfo.plc_id.in_(plc_id))
+
+        if variable_id:
+            query = query.join(VarAlarmInfo, YjVariableInfo).filter(YjVariableInfo.id.in_(variable_id))
 
         if alarm_id:
             query = query.filter(VarAlarmLog.alarm_id.in_(alarm_id))
@@ -66,13 +70,10 @@ class AlarmLogResource(ApiResource):
         if page:
             query = query.paginate(page, per_page, False).items
         elif limit:
-            plc_id_list = plc_id
-            print plc_id_list
             query = [model
-                     for plc_id in plc_id_list
-                     # for model in query.join(VarAlarmInfo, VarAlarmInfo.id == VarAlarmLog.alarm_id).filter(VarAlarmInfo.plc_id == plc_id).limit(limit).all()
-                     for model in VarAlarmLog.query.join(VarAlarmInfo).filter(VarAlarmInfo.plc_id == plc_id).limit(limit)
-                     # if model.var_alarm_info.plc_id == plc_id
+                     for p in plc_id
+                     for model in
+                     VarAlarmLog.query.join(VarAlarmInfo).join(YjPLCInfo).filter(YjPLCInfo.id == p).limit(limit)
                      ]
         else:
             query = query.all()
@@ -89,9 +90,8 @@ class AlarmLogResource(ApiResource):
             dict(
                 id=m.id,
                 alarm_id=m.alarm_id,
-                plc_id=m.var_alarm_info.plc_id,
-                db_num=m.var_alarm_info.db_num,
-                address=m.var_alarm_info.address,
+                variable_id = m.var_alarm_info.yjvariableinfo.id if m.var_alarm_info.yjvariableinfo else None,
+                plc_id=m.var_alarm_info.yjvariableinfo.plc_id if m.var_alarm_info.yjvariableinfo else None,
                 alarm_type=m.var_alarm_info.alarm_type,
                 note=m.var_alarm_info.note,
                 time=m.time,

@@ -22,6 +22,7 @@ class AlarmInfoResource(ApiResource):
             model_id = self.args['id']
 
         plc_id = self.args['plc_id']
+        variable_id = self.args['variable_id']
         alarm_type = self.args['alarm_type']
 
         limit = self.args['limit']
@@ -37,7 +38,10 @@ class AlarmInfoResource(ApiResource):
             query = query.filter(VarAlarmInfo.alarm_type.in_(alarm_type))
 
         if plc_id:
-            query = query.filter(VarAlarmInfo.plc_id.in_(plc_id))
+            query = query.join(YjVariableInfo).filter(YjVariableInfo.plc_id.in_(plc_id))
+
+        if variable_id:
+            query = query.filter(VarAlarmInfo.variable_id.in_(variable_id))
 
         if limit:
             query = query.limit(limit)
@@ -59,9 +63,8 @@ class AlarmInfoResource(ApiResource):
         info = [
             dict(
                 id=m.id,
-                plc_id=m.plc_id,
-                db_num=m.db_num,
-                address=m.address,
+                plc_id=m.yjvariableinfo.plc_id if m.yjvariableinfo else None,
+                variable_id=m.variable_id,
                 alarm_type=m.alarm_type,
                 note=m.note,
             )
@@ -84,14 +87,8 @@ class AlarmInfoResource(ApiResource):
             if not model:
                 return err_not_found()
 
-            if args['plc_id']:
-                model.plc_id = args['plc_id']
-
-            if args['db_num']:
-                model.db_num = args['db_num']
-
-            if args['address']:
-                model.address = args['address']
+            if args['variable_id']:
+                model.variable_id = args['variable_id']
 
             if args['alarm_type']:
                 model.alarm_type = args['alarm_type']
@@ -105,9 +102,7 @@ class AlarmInfoResource(ApiResource):
 
         else:
             model = VarAlarmInfo(
-                plc_id=args['plc_id'],
-                db_num=args['db_num'],
-                address=args['address'],
+                variable_id=args['variable_id'],
                 alarm_type=args['alarm_type'],
                 note=args['note']
             )

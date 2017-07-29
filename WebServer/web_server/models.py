@@ -94,7 +94,7 @@ class YjPLCInfo(db.Model):
 
     variables = db.relationship('YjVariableInfo', backref='yjplcinfo', lazy='dynamic')
     groups = db.relationship('YjGroupInfo', backref='yjplcinfo', lazy='dynamic')
-    alarms = db.relationship('VarAlarmInfo', backref='yjplcinfo', lazy='dynamic')
+
 
     def __init__(self, plc_name=None, station_id=None, note=None, ip=None,
                  mpi=None, type=None, plc_type=None,
@@ -113,7 +113,7 @@ class YjPLCInfo(db.Model):
         self.tcp_port = tcp_port
 
     def __repr__(self):
-        return '<PLC : ID(%r) Name(%r) >' % (int(self.id), self.name)
+        return '<PLC : ID(%r) Name(%r) >' % (int(self.id), self.plc_name)
 
 
 class YjGroupInfo(db.Model):
@@ -121,6 +121,7 @@ class YjGroupInfo(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     group_name = db.Column(db.String(20))
     note = db.Column(db.String(100))
+    upload = db.Column(db.Boolean)
     upload_cycle = db.Column(db.Integer)
     ten_id = db.Column(db.String(255))
     item_id = db.Column(db.String(20))
@@ -130,13 +131,14 @@ class YjGroupInfo(db.Model):
     variables = db.relationship('YjVariableInfo', backref='yjgroupinfo', lazy='dynamic')
 
     def __init__(self, group_name=None, plc_id=None, note=None,
-                 upload_cycle=None, ten_id=None, item_id=None):
+                 upload_cycle=None, upload=True, ten_id=None, item_id=None):
         self.group_name = group_name
         self.plc_id = check_int(plc_id)
         self.note = note
         self.upload_cycle = check_int(upload_cycle)
         self.ten_id = ten_id
         self.item_id = item_id
+        self.upload = upload
 
     def __repr__(self):
         return '<Group :ID(%r) Name(%r) >' % (int(self.id), self.group_name)
@@ -162,6 +164,7 @@ class YjVariableInfo(db.Model):
     group_id = db.Column(db.Integer, db.ForeignKey('yjgroupinfo.id'))
 
     values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic')
+    alarms = db.relationship('VarAlarmInfo', backref='yjvariableinfo', lazy='dynamic')
 
     def __init__(self, variable_name=None, plc_id=None, group_id=None, db_num=None, address=None,
                  data_type=None, rw_type=None, upload=None,
@@ -217,12 +220,11 @@ class User(UserMixin, db.Model):
         backref=db.backref('user', lazy='dynamic')
     )
 
-    def __init__(self, username, password, email=None, roles=None):
+    def __init__(self, username, password, email=None):
         self.username = username
         # self.set_password(password)
         self.pw_hash = password
         self.email = email
-        self.roles = roles
 
     def __repr__(self):
         return '<User {}'.format(self.username)
@@ -324,10 +326,8 @@ class VarAlarmLog(db.Model):
 class VarAlarmInfo(db.Model):
     __tablename__ = 'var_alarm_info'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    plc_id = db.Column(db.Integer, db.ForeignKey('yjplcinfo.id'))
-    db_num = db.Column(db.Integer)
-    address = db.Column(db.Integer)
-    alarm_type = db.Column(db.String(32))
+    variable_id = db.Column(db.Integer, db.ForeignKey('yjvariableinfo.id'))
+    alarm_type = db.Column(db.Integer)
     note = db.Column(db.String(128))
 
     logs = db.relationship('VarAlarmLog', backref='var_alarm_info', lazy='dynamic')
@@ -342,5 +342,5 @@ class InterfaceLog(db.Model):
     time = db.Column(db.Integer)
     param = db.Column(db.Text)
     old_data = db.Column(db.Text)
-    new_data = db.Column(db.Text)
+    new_data_id = db.Column(db.Integer)
     endpoint = db.Column(db.String(32))

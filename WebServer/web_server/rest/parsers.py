@@ -100,6 +100,7 @@ group_put_parser.add_argument('note', type=str)
 group_put_parser.add_argument('upload_cycle', type=int)
 group_put_parser.add_argument('ten_id', type=str)
 group_put_parser.add_argument('item_id', type=str)
+group_put_parser.add_argument('upload', type=bool)
 
 # variable查询参数
 variable_parser = reqparse.RequestParser()
@@ -228,7 +229,7 @@ alarm_parser.add_argument('confirm', type=bool)
 
 alarm_parser.add_argument('alarm_id', type=int, action='append')
 alarm_parser.add_argument('plc_id', type=int, action='append')
-alarm_parser.add_argument('alarm_num', type=int)
+alarm_parser.add_argument('variable_id', type=int, action='append')
 alarm_parser.add_argument('alarm_type', type=str, action='append')
 alarm_parser.add_argument('time', type=int)
 
@@ -244,6 +245,7 @@ alarm_parser.add_argument('token', type=str)
 alarm_info_parser = reqparse.RequestParser()
 alarm_info_parser.add_argument('id', type=int)
 alarm_info_parser.add_argument('plc_id', type=int, action='append')
+alarm_info_parser.add_argument('variable_id', type=int, action='append')
 alarm_info_parser.add_argument('alarm_type', type=str)
 alarm_info_parser.add_argument('limit', type=int)
 alarm_info_parser.add_argument('page', type=int)
@@ -253,11 +255,9 @@ alarm_info_parser.add_argument('token', type=str)
 # 变量报警信息设置
 alarm_info_put_parser = reqparse.RequestParser()
 alarm_info_put_parser.add_argument('id', type=int)
-alarm_info_put_parser.add_argument('plc_id', type=int)
-alarm_info_put_parser.add_argument('db_num', type=int)
-alarm_info_put_parser.add_argument('address', type=int)
+alarm_info_put_parser.add_argument('variable_id', type=int, action='append')
 
-alarm_info_put_parser.add_argument('alarm_type', type=str)
+alarm_info_put_parser.add_argument('alarm_type', type=int, action='append')
 alarm_info_put_parser.add_argument('note', type=str)
 alarm_info_put_parser.add_argument('token', type=str)
 
