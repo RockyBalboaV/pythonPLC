@@ -101,8 +101,10 @@ class ValueResource(ApiResource):
             query = query.paginate(page, per_page, False).items
         elif limit:
             # time1 = time.time()
-            # variable_id_list = set((v.variable_id for v in query))
-            variable_id_list = variable_id
+            if variable_id:
+                variable_id_list = variable_id
+            else:
+                variable_id_list = set((v.variable_id for v in query))
             query = [model
                      for variable_id in variable_id_list
                      for model in
