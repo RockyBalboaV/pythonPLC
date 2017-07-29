@@ -16,10 +16,9 @@ class AlarmInfoResource(ApiResource):
         self.args = alarm_info_parser.parse_args()
         super(AlarmInfoResource, self).__init__()
 
-    def search(self, model_id=None):
+    def search(self):
 
-        if not model_id:
-            model_id = self.args['id']
+        model_id = self.args['id']
 
         plc_id = self.args['plc_id']
         variable_id = self.args['variable_id']

@@ -56,69 +56,69 @@ def configuration(station_model):
     return data
 
 
-def station_config(station_model):
-    station_dict = dict()
-    station_dict['id'] = station_model.id
-    station_dict['station_name'] = station_model.station_name
-    station_dict['id_num'] = station_model.id_num
-    station_dict['ip'] = station_model.ip
-    station_dict['item_id'] = station_model.item_id
-    station_dict['ten_id'] = station_model.ten_id
-    station_dict['version'] = station_model.version
-    station_dict['plc_count'] = station_model.plc_count
-    station_dict['mac'] = station_model.mac
-    station_dict['note'] = station_model.note
-    return station_dict
-
-
-def plc_config(plc_model):
-    plc_dict = dict()
-    plc_dict['id'] = plc_model.id
-    plc_dict['plc_name'] = plc_model.plc_name
-    plc_dict['station_id'] = plc_model.station_id
-    plc_dict['ip'] = plc_model.ip
-    plc_dict['item_id'] = plc_model.item_id
-    plc_dict['ten_id'] = plc_model.ten_id
-    plc_dict['note'] = plc_model.note
-    plc_dict['plc_type'] = plc_model.plc_type
-    plc_dict['mpi'] = plc_model.mpi
-    plc_dict['type'] = plc_model.type
-    plc_dict['rack'] = plc_model.rack
-    plc_dict['slot'] = plc_model.slot
-    plc_dict['tcp_port'] = plc_model.tcp_port
-    return plc_dict
-
-
-def group_config(group_model):
-    group_dict = dict()
-    group_dict['id'] = group_model.id
-    group_dict['group_name'] = group_model.group_name
-    group_dict['plc_id'] = group_model.plc_id
-    group_dict['item_id'] = group_model.item_id
-    group_dict['ten_id'] = group_model.ten_id
-    group_dict['note'] = group_model.note
-    group_dict['upload_cycle'] = group_model.upload_cycle
-    return group_dict
-
-
-def variable_config(variable_model):
-    variable_dict = dict()
-    variable_dict['id'] = variable_model.id
-    variable_dict['variable_name'] = variable_model.variable_name
-    variable_dict['plc_id'] = variable_model.plc_id
-    variable_dict['group_id'] = variable_model.group_id
-    variable_dict['db_num'] = variable_model.db_num
-    variable_dict['item_id'] = variable_model.item_id
-    variable_dict['ten_id'] = variable_model.ten_id
-    variable_dict['note'] = variable_model.note
-    variable_dict['address'] = variable_model.address
-    variable_dict['upload'] = variable_model.upload
-    variable_dict['data_type'] = variable_model.data_type
-    variable_dict['rw_type'] = variable_model.rw_type
-    variable_dict['acquisition_cycle'] = variable_model.acquisition_cycle
-    variable_dict['server_record_cycle'] = variable_model.server_record_cycle
-    variable_dict['write_value'] = variable_model.write_value
-    return variable_dict
+# def station_config(station_model):
+#     station_dict = dict()
+#     station_dict['id'] = station_model.id
+#     station_dict['station_name'] = station_model.station_name
+#     station_dict['id_num'] = station_model.id_num
+#     station_dict['ip'] = station_model.ip
+#     station_dict['item_id'] = station_model.item_id
+#     station_dict['ten_id'] = station_model.ten_id
+#     station_dict['version'] = station_model.version
+#     station_dict['plc_count'] = station_model.plc_count
+#     station_dict['mac'] = station_model.mac
+#     station_dict['note'] = station_model.note
+#     return station_dict
+#
+#
+# def plc_config(plc_model):
+#     plc_dict = dict()
+#     plc_dict['id'] = plc_model.id
+#     plc_dict['plc_name'] = plc_model.plc_name
+#     plc_dict['station_id'] = plc_model.station_id
+#     plc_dict['ip'] = plc_model.ip
+#     plc_dict['item_id'] = plc_model.item_id
+#     plc_dict['ten_id'] = plc_model.ten_id
+#     plc_dict['note'] = plc_model.note
+#     plc_dict['plc_type'] = plc_model.plc_type
+#     plc_dict['mpi'] = plc_model.mpi
+#     plc_dict['type'] = plc_model.type
+#     plc_dict['rack'] = plc_model.rack
+#     plc_dict['slot'] = plc_model.slot
+#     plc_dict['tcp_port'] = plc_model.tcp_port
+#     return plc_dict
+#
+#
+# def group_config(group_model):
+#     group_dict = dict()
+#     group_dict['id'] = group_model.id
+#     group_dict['group_name'] = group_model.group_name
+#     group_dict['plc_id'] = group_model.plc_id
+#     group_dict['item_id'] = group_model.item_id
+#     group_dict['ten_id'] = group_model.ten_id
+#     group_dict['note'] = group_model.note
+#     group_dict['upload_cycle'] = group_model.upload_cycle
+#     return group_dict
+#
+#
+# def variable_config(variable_model):
+#     variable_dict = dict()
+#     variable_dict['id'] = variable_model.id
+#     variable_dict['variable_name'] = variable_model.variable_name
+#     variable_dict['plc_id'] = variable_model.plc_id
+#     variable_dict['group_id'] = variable_model.group_id
+#     variable_dict['db_num'] = variable_model.db_num
+#     variable_dict['item_id'] = variable_model.item_id
+#     variable_dict['ten_id'] = variable_model.ten_id
+#     variable_dict['note'] = variable_model.note
+#     variable_dict['address'] = variable_model.address
+#     variable_dict['upload'] = variable_model.upload
+#     variable_dict['data_type'] = variable_model.data_type
+#     variable_dict['rw_type'] = variable_model.rw_type
+#     variable_dict['acquisition_cycle'] = variable_model.acquisition_cycle
+#     variable_dict['server_record_cycle'] = variable_model.server_record_cycle
+#     variable_dict['write_value'] = variable_model.write_value
+#     return variable_dict
 
 
 @client_blueprint.route('/beats', methods=['GET', 'POST'])
@@ -149,10 +149,10 @@ def set_config():
         # data = decryption(data)
 
         # data = configuration(station)
-        data = {"YjStationInfo": station_config(station),
-                "YjPLCInfo": [plc_config(plc) for plc in station.plcs],
-                "YjGroupInfo": [group_config(group) for plc in station.plcs for group in plc.groups],
-                "YjVariableInfo": [variable_config(variable) for plc in station.plcs for variable in plc.variables]}
+        data = {"YjStationInfo": serialize(station),
+                "YjPLCInfo": [serialize(plc) for plc in station.plcs],
+                "YjGroupInfo": [serialize(group) for plc in station.plcs for group in plc.groups],
+                "YjVariableInfo": [serialize(variable) for plc in station.plcs for variable in plc.variables]}
 
         # 将本次发送过配置的站点数据表设置为无更新
         station.modification = 0

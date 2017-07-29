@@ -13,10 +13,9 @@ class GroupResource(ApiResource):
         self.args = group_parser.parse_args()
         super(GroupResource, self).__init__()
 
-    def search(self, group_id=None):
+    def search(self):
 
-        if not group_id:
-            group_id = self.args['id']
+        group_id = self.args['id']
 
         group_name = self.args['group_name']
         plc_id = self.args['plc_id']

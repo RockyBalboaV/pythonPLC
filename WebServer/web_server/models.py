@@ -95,7 +95,6 @@ class YjPLCInfo(db.Model):
     variables = db.relationship('YjVariableInfo', backref='yjplcinfo', lazy='dynamic')
     groups = db.relationship('YjGroupInfo', backref='yjplcinfo', lazy='dynamic')
 
-
     def __init__(self, plc_name=None, station_id=None, note=None, ip=None,
                  mpi=None, type=None, plc_type=None,
                  ten_id=None, item_id=None, rack=0, slot=0, tcp_port=102):

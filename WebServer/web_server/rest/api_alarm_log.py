@@ -17,10 +17,9 @@ class AlarmLogResource(ApiResource):
         self.args = alarm_parser.parse_args()
         super(AlarmLogResource, self).__init__()
 
-    def search(self, model_id=None):
+    def search(self):
 
-        if not model_id:
-            model_id = self.args['id']
+        model_id = self.args['id']
 
         confirm = self.args['confirm']
         alarm_id = self.args['alarm_id']
@@ -90,7 +89,8 @@ class AlarmLogResource(ApiResource):
             dict(
                 id=m.id,
                 alarm_id=m.alarm_id,
-                variable_id = m.var_alarm_info.yjvariableinfo.id if m.var_alarm_info.yjvariableinfo else None,
+                variable_id=m.var_alarm_info.yjvariableinfo.id if m.var_alarm_info.yjvariableinfo else None,
+                variable_name=m.var_alarm_info.yjvariableinfo.variable_name if m.var_alarm_info.yjvariableinfo else None,
                 plc_id=m.var_alarm_info.yjvariableinfo.plc_id if m.var_alarm_info.yjvariableinfo else None,
                 alarm_type=m.var_alarm_info.alarm_type,
                 note=m.var_alarm_info.note,

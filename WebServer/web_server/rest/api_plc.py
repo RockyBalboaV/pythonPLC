@@ -14,10 +14,9 @@ class PLCResource(ApiResource):
         super(PLCResource, self).__init__()
         self.query = YjPLCInfo.query
 
-    def search(self, plc_id=None):
+    def search(self):
 
-        if not plc_id:
-            plc_id = self.args['id']
+        plc_id = self.args['id']
         plc_name = self.args['plc_name']
         station_id = self.args['station_id']
         station_name = self.args['station_name']

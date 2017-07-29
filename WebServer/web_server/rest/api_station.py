@@ -13,9 +13,8 @@ class StationResource(ApiResource):
         self.args = station_parser.parse_args()
         super(StationResource, self).__init__()
 
-    def search(self, station_id):
-        if not station_id:
-            station_id = self.args['id']
+    def search(self):
+        station_id = self.args['id']
 
         station_name = self.args['station_name']
 
