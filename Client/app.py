@@ -97,11 +97,11 @@ def variable_size(variable):
     if variable.data_type == 'FLOAT':
         return 'f', 4
     elif variable.data_type == 'INT':
-        return 'i', 4
+        return 'h', 2
     elif variable.data_type == 'DINT':
         return 'i', 4
     elif variable.data_type == 'WORD':
-        return 'h', 2
+        return 'H', 2
     elif variable.data_type == 'BYTE':
         return 's', 1
     elif variable.data_type == 'BOOL':
@@ -117,10 +117,10 @@ def first_running():
     Base.metadata.create_all(bind=eng)
     get_config()
 
-    before_running()
 
 
 def before_running():
+    print 'running setup'
     # 设定服务开始运行时间
     current_time = int(time.time())
     start_time = current_time + app.conf['START_TIMEDELTA']
@@ -134,14 +134,15 @@ def before_running():
     # 设定变量,需要读取的值设定初始采集时间，需要写入的值立即写入PLC
     variables = session.query(YjVariableInfo).all()
     for v in variables:
-        if v.rw_type == 2 or v.rw_type == 3:
+        if v.rw_type == 2 or v.rw_type == 3 and v.write_value:
             ip = v.plc.ip
             rack = v.plc.rack
             slot = v.plc.slot
             tcp_port = v.plc.tcp_port
             variable_db = v.db_num
             type_code, size = variable_size(v)
-            address = int(v.address)
+            address = v.address
+
             write_value = struct.pack('!{}'.format(type_code), v.write_value)
 
             with PythonPLC(ip, rack, slot, tcp_port) as db:
@@ -170,7 +171,7 @@ def beats():
 
     data = station_info
     # data = encryption(data)
-
+    # todo 报警变量加到data里
 
 
     try:
@@ -180,12 +181,12 @@ def beats():
         note = '无法连接服务器，检查网络状态。'
     else:
         # data = decryption(rv)
+        print rv
         data = rv.json()
 
         if data["modification"] == 1:
             get_config.delay()
             print 'get_config'
-            before_running()
             note = '完成一次心跳连接，时间:{},发现配置信息有更新.'.format(datetime.datetime.fromtimestamp(current_time))
         else:
             note = '完成一次心跳连接，时间:{}.'.format(datetime.datetime.fromtimestamp(current_time))
@@ -307,7 +308,7 @@ def get_config():
     session.add(log)
     session.commit()
 
-    return 1
+    before_running()
 
 
 @app.task
@@ -441,10 +442,10 @@ def check_group_upload_time():
     except:
         return 'skip'
     # poll = multiprocessing.Pool(4)
-    for g in groups:
-        print 'b'
-        g.uploading = True
-    session.commit()
+    # for g in groups:
+    #     print 'b'
+    #     g.uploading = True
+    # session.commit()
 
     for g in groups:
         print 'a'
@@ -506,8 +507,9 @@ def get_value(variable_model):
 
     variable_db = variable_model.db_num
     type_code, size = variable_size(variable_model)
-    address = int(variable_model.address)
+    address = variable_model.address
     # 采集数据
+    print ip, rack, slot, tcp_port
     with PythonPLC(ip, rack, slot, tcp_port) as db:
         result = db.db_read(db_number=variable_db, start=address, size=size)
     value = struct.unpack('!{}'.format(type_code), result)[0]
@@ -547,14 +549,17 @@ if __name__ == '__main__':
         database_reset()
 
     if args.start:
-        before_running()
+        first_running()
         subprocess.call('celery -B -A app worker -l info', shell=True)
-    # database_reset()
-    # first_running()
-    # print app.conf['BEAT_URL']
-    # mp.doc.main()
-    # beats()
-    # get_config()
-    # get_value()
-    # upload()
+        # database_reset()
+        # first_running()
+        # print app.conf['BEAT_URL']
+        # mp.doc.main()
+        # beats()
+        # get_config()
+        # get_value()
+        # upload()
 
+    # with PythonPLC('192.168.18.17', 0, 2, 102) as db:
+    #     v = db.db_read(2, 0, 2)
+    #     print struct.unpack('!', v)
