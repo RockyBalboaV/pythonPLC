@@ -133,6 +133,12 @@ def beats():
         station.modification = 1
 
     db.session.add(station)
+
+    if data['alarm_log']:
+        for log in data['alarm_log']:
+            l = VarAlarmLog(alarm_id=log['alarm_id'], time=log['time'], confirm=log['confirm'])
+            db.session.add(l)
+
     db.session.commit()
 
     data = {"modification": station.modification, "status": 'OK'}

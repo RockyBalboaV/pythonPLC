@@ -9,9 +9,13 @@ import zlib
 import struct
 import time
 import multiprocessing as mp
+import argparse
+import subprocess
 
 import snap7
-from celery import Celery, group
+from celery import Celery, group, signature
+from celery.signals import worker_process_init
+import billiard
 from sqlalchemy.orm.exc import UnmappedInstanceError
 
 from models import *
@@ -67,7 +71,7 @@ def get_data_from_query(models):
     for model in models:
         model_column = {}
         for c in model.__table__.columns:
-            model_column[c.name] = str(getattr(model, c.name, None))
+            model_column[c.name] = getattr(model, c.name, None)
         data_list.append(model_column)
     return data_list
 
@@ -76,7 +80,7 @@ def get_data_from_model(model):
     # 读取一个模型实例中的每一项与值，放入字典
     model_column = {}
     for c in model.__table__.columns:
-        model_column[c.name] = str(getattr(model, c.name, None))
+        model_column[c.name] = getattr(model, c.name, None)
     return model_column
 
 
@@ -127,22 +131,47 @@ def before_running():
         g.upload_time = start_time + g.upload_cycle
         g.uploading = False
 
-    # 设定变量初始采集时间
+    # 设定变量,需要读取的值设定初始采集时间，需要写入的值立即写入PLC
     variables = session.query(YjVariableInfo).all()
     for v in variables:
-        v.acquisition_time = start_time + v.acquisition_cycle
+        if v.rw_type == 2 or v.rw_type == 3:
+            ip = v.plc.ip
+            rack = v.plc.rack
+            slot = v.plc.slot
+            tcp_port = v.plc.tcp_port
+            variable_db = v.db_num
+            type_code, size = variable_size(v)
+            address = int(v.address)
+            write_value = struct.pack('!{}'.format(type_code), v.write_value)
+
+            with PythonPLC(ip, rack, slot, tcp_port) as db:
+                db.db_write(db_number=variable_db, start=address, data=write_value)
+
+        if v.rw_type == 1 or v.rw_type == 3:
+            v.acquisition_time = start_time + v.acquisition_cycle
 
     session.commit()
+
+
+@worker_process_init.connect
+def fix_mutilprocessing(**kwargs):
+    try:
+        mp.current_process()._authkey
+    except AttributeError:
+        mp.current_process()._authkey = mp.current_process().authkey
 
 
 @app.task
 def beats():
     # 获取本机的信息
     station_info = get_station_info(app.conf['ID_NUM'])  # todo 只需一次
+
+    current_time = int(time.time())
+
     data = station_info
     # data = encryption(data)
 
-    current_time = int(time.time())
+
 
     try:
         rv = requests.post(app.conf['BEAT_URL'], json=data)
@@ -154,7 +183,8 @@ def beats():
         data = rv.json()
 
         if data["modification"] == 1:
-            get_config()
+            get_config.delay()
+            print 'get_config'
             before_running()
             note = '完成一次心跳连接，时间:{},发现配置信息有更新.'.format(datetime.datetime.fromtimestamp(current_time))
         else:
@@ -202,7 +232,7 @@ def get_config():
 
         version = data["YjStationInfo"]["version"]
 
-        station = YjStationInfo(id=data["YjStationInfo"]["id"],
+        station = YjStationInfo(model_id=data["YjStationInfo"]["id"],
                                 station_name=data["YjStationInfo"]["station_name"],
                                 mac=data["YjStationInfo"]["mac"],
                                 ip=data["YjStationInfo"]["ip"],
@@ -217,7 +247,7 @@ def get_config():
         session.commit()
 
         for plc in data["YjPLCInfo"]:
-            p = YjPLCInfo(id=plc["id"],
+            p = YjPLCInfo(model_id=plc["id"],
                           plc_name=plc["plc_name"],
                           station_id=plc["station_id"],
                           note=plc["note"],
@@ -226,13 +256,16 @@ def get_config():
                           type=plc["type"],
                           plc_type=plc["plc_type"],
                           ten_id=plc["ten_id"],
-                          item_id=plc["item_id"]
+                          item_id=plc["item_id"],
+                          rack=plc['rack'],
+                          slot=plc['slot'],
+                          tcp_port=plc['tcp_port']
                           )
             session.add(p)
         session.commit()
 
         for group in data["YjGroupInfo"]:
-            g = YjGroupInfo(id=group["id"],
+            g = YjGroupInfo(model_id=group["id"],
                             group_name=group["group_name"],
                             plc_id=group["plc_id"],
                             note=group["note"],
@@ -244,7 +277,7 @@ def get_config():
         session.commit()
 
         for variable in data["YjVariableInfo"]:
-            v = YjVariableInfo(id=variable["id"],
+            v = YjVariableInfo(model_id=variable["id"],
                                variable_name=variable["variable_name"],
                                plc_id=variable["plc_id"],
                                group_id=variable["group_id"],
@@ -257,7 +290,8 @@ def get_config():
                                server_record_cycle=variable["server_record_cycle"],
                                note=variable["note"],
                                ten_id=variable["ten_id"],
-                               item_id=variable["item_id"]
+                               item_id=variable["item_id"],
+                               write_value=variable["write_value"]
                                )
             session.add(v)
         session.commit()
@@ -328,7 +362,7 @@ def upload(group_model):
                     get_time + variable.server_record_cycle > Value.time).filter(Value.time >= get_time).first()
                 # 当上传时间小于采集时间时，会出现取值时间节点后无采集数据，得到None，使得后续语句报错。
                 try:
-                    value_dict = get_data_from_model(upload_value)
+                    value_dict = serialize(upload_value)
                     variable_list.append(value_dict)
                 except AttributeError:
                     pass
@@ -415,18 +449,18 @@ def check_group_upload_time():
     for g in groups:
         print 'a'
         upload(g)
-    # curr_proc = mp.current_process()
-    # curr_proc.daemon = False
-    # p = mp.Pool(mp.cpu_count())
-    # curr_proc.daemon = True
-    # for g in groups:
-    #     print 'a'
-    #     p.apply_async(upload, args=(g,))  # todo 多线程
-    # p.close()
-    # p.join()
-    #
-    # return 1
-    # poll.apply_async(upload, (g,))
+        # curr_proc = mp.current_process()
+        # curr_proc.daemon = False
+        # p = mp.Pool(mp.cpu_count())
+        # curr_proc.daemon = True
+        # for g in groups:
+        #     print 'a'
+        #     p.apply_async(upload, args=(g,))  # todo 多线程
+        # p.close()
+        # p.join()
+        # #
+        # return 1
+        # poll.apply_async(upload, (g,))
 
 
 @app.task
@@ -437,9 +471,16 @@ def check_variable_get_time():
     except:
         return 'skip'
 
-    # sig = group(get_value.s(v) for v in variables)
+    # task = signature('task.get_value', args=(v, ))
+    # sig = group(get_value.sub for v in variables)()
     # sig.delay()
-    # poll = multiprocessing.Pool(4)
+    # poll = billiard.context.BaseContext
+    # poll = poll.Pool(poll)
+    # # poll = mp.Pool(4)
+    # poll.map(get_value, [(v, )
+    #                      for v in variables])
+    # result = poll.map(get_value, [(v,)
+    #                               for v in variables])
     for v in variables:
         # print 'variable'
         print 'get value'
@@ -449,15 +490,19 @@ def check_variable_get_time():
 
 @app.task
 def get_value(variable_model):
-    variable_model.acquisition_time += variable_model.acquisition_cycle
+    current_time = int(time.time())
+    variable_model.acquisition_time = current_time + variable_model.acquisition_cycle
     session.merge(variable_model)
     session.commit()
     # 获得变量信息
     # variable_model = session.query(YjVariableInfo).first()
     ip = variable_model.plc.ip
-    rack = app.conf['rack']
-    slot = app.conf['slot']
-    tcp_port = app.conf['tcp_port']
+    rack = variable_model.plc.rack
+    # print type(rack)
+    slot = variable_model.plc.slot
+    # print type(slot)
+    tcp_port = variable_model.plc.tcp_port
+    # print type(tcp_port)
 
     variable_db = variable_model.db_num
     type_code, size = variable_size(variable_model)
@@ -469,9 +514,11 @@ def get_value(variable_model):
     # print value
 
     # 保存数据
-    value = Value(variable_id=variable_model.id, time=int(time.time()), value=value)
+    value = Value(variable_id=variable_model.id, time=current_time, value=value)
     session.add(value)
     session.commit()
+
+    return 1
 
 
 class PythonPLC(object):
@@ -492,10 +539,22 @@ class PythonPLC(object):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--reset', action='store_true')
+    parser.add_argument('--start', action='store_true')
+    args = parser.parse_args()
+    if args.reset:
+        database_reset()
+
+    if args.start:
+        before_running()
+        subprocess.call('celery -B -A app worker -l info', shell=True)
     # database_reset()
-    first_running()
+    # first_running()
     # print app.conf['BEAT_URL']
+    # mp.doc.main()
     # beats()
     # get_config()
     # get_value()
     # upload()
+

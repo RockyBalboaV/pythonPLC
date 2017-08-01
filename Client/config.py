@@ -1,6 +1,8 @@
 # coding=utf-8
 from datetime import timedelta
 
+from kombu import Queue
+
 
 class Config(object):
     # 设置终端信息
@@ -51,6 +53,38 @@ class DevConfig(Config):
     CELERY_TIMEZONE = 'Asia/Shanghai'
     # worker并发数
     CELERYD_CONCURRENCY = 2
+
+    CELERY_QUEUE = (
+        Queue('basic', routing_key='basic.#'),
+        Queue('check', routing_key='check.#')
+    )
+    CELERY_DEFAULT_EXCHANGE = 'basic'
+    CELERY_DEFAULT_EXCHANGE_TYPE = 'topic'
+    CELERY_DEFAULT_ROUTING_KEY = 'basic.default'
+
+    CELERY_ROUTES = {
+        'app.tasks.get_config': {
+            'queue': 'basic',
+            'routing_key': 'basic.get_config',
+        },
+        'app.tasks.beats': {
+            'queue': 'check',
+            'routing_key': 'check.beats',
+        },
+        'app.tasks.check_group_upload_time': {
+            'queue': 'check',
+            'routing_key': 'check.check_group_upload_time',
+        },
+        'app.tasks.check_variable_get_time': {
+            'queue': 'check',
+            'routing_key': 'check.check_variable_get_time',
+        },
+        'app.tasks.get_value': {
+            'queue': 'check',
+            'routing_key': 'check.get_value',
+        }
+
+    }
     # 定时任务
     CELERYBEAT_SCHEDULE = {
         'beats': {
