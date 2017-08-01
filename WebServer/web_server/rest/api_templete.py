@@ -35,11 +35,11 @@ class ApiResource(Resource):
         self.query = None
         pass
 
-    def __del__(self):
-        try:
-            self.interface_log(self.user, self.query, self.new_id)
-        except AttributeError:
-            pass
+    # def __del__(self):
+    #     try:
+    #         self.interface_log(self.user, self.query, self.new_id)
+    #     except AttributeError:
+    #         pass
 
     def verify(self):
         token = self.args['token']

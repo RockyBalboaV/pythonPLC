@@ -16,6 +16,8 @@ from web_server.rest.api_alarm_info import AlarmInfoResource
 from web_server.rest.auth import AuthApi
 from web_server.rest.api_user import UserResource
 from web_server.rest.api_interface_log import InterfaceLogResource
+from web_server.rest.api_param import ParameterResource
+from web_server.rest.api_value_id import VariableIDResource
 from web_server.rest.err import custom_errors
 
 api_blueprint = Blueprint('api',
@@ -36,3 +38,5 @@ api.add_resource(AlarmInfoResource, '/alarm_info', endpoint='varalarminfo')
 api.add_resource(AlarmLogResource, '/alarm_log', endpoint='varalarmlog')
 api.add_resource(UserResource, '/user', endpoint='user')
 api.add_resource(InterfaceLogResource, '/interface_log', endpoint='interfacelog')
+api.add_resource(ParameterResource, '/param', endpoint='parameter')
+api.add_resource(VariableIDResource, '/variable_id')

@@ -123,40 +123,54 @@ class ValueResource(ApiResource):
         if not value:
             return err_not_found()
 
-        info = []
-        for v in value:
-
-            data = dict()
-            data['id'] = v.id
-            data['variable_id'] = v.variable_id
-            data['value'] = v.value
-            data['time'] = v.time
-
-            variable = v.yjvariableinfo
-            if variable:
-                data['variable_name'] = variable.variable_name
-                plc = variable.yjplcinfo
-                group = variable.yjgroupinfo
-            else:
-                data['variable_name'] = None
-                plc = None
-                group = None
-
-            if plc:
-                data['plc_id'] = plc.id
-                data['plc_name'] = plc.plc_name
-            else:
-                data['plc_id'] = None
-                data['plc_name'] = None
-
-            if group:
-                data['group_id'] = group.id
-                data['group_name'] = group.group_name
-            else:
-                data['group_id'] = None
-                data['group_name'] = None
-
-            info.append(data)
+        info = [
+            dict(
+                id=v.id,
+                variable_id=v.variable_id,
+                value=v.value,
+                time=v.time,
+                variable_name=v.yjvariableinfo.variable_name if v.yjvariableinfo else None,
+                plc_id=v.yjvariableinfo.plc_id if v.yjvariableinfo else None,
+                plc_name=v.yjvariableinfo.yjplcinfo.plc_name if v.yjvariableinfo else None,
+                group_id=v.yjvariableinfo.yjgroupinfo.id if v.yjvariableinfo else None,
+                group_name=v.yjvariableinfo.yjgroupinfo.group_name if v.yjvariableinfo else None
+            )
+            for v in value
+        ]
+        # info = []
+        # for v in value:
+        #
+        #     data = dict()
+        #     data['id'] = v.id
+        #     data['variable_id'] = v.variable_id
+        #     data['value'] = v.value
+        #     data['time'] = v.time
+        #
+        #     variable = v.yjvariableinfo
+        #     if variable:
+        #         data['variable_name'] = variable.variable_name
+        #         plc = variable.yjplcinfo
+        #         group = variable.yjgroupinfo
+        #     else:
+        #         data['variable_name'] = None
+        #         plc = None
+        #         group = None
+        #
+        #     if plc:
+        #         data['plc_id'] = plc.id
+        #         data['plc_name'] = plc.plc_name
+        #     else:
+        #         data['plc_id'] = None
+        #         data['plc_name'] = None
+        #
+        #     if group:
+        #         data['group_id'] = group.id
+        #         data['group_name'] = group.group_name
+        #     else:
+        #         data['group_id'] = None
+        #         data['group_name'] = None
+        #
+        #     info.append(data)
 
         response = jsonify({"ok": 1, "data": info})
 

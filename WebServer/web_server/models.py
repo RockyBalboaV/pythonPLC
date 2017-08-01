@@ -164,6 +164,7 @@ class YjVariableInfo(db.Model):
 
     values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic')
     alarms = db.relationship('VarAlarmInfo', backref='yjvariableinfo', lazy='dynamic')
+    params = db.relationship('Parameter', backref='yjvariableinfo', lazy='dynamic')
 
     def __init__(self, variable_name=None, plc_id=None, group_id=None, db_num=None, address=None,
                  data_type=None, rw_type=None, upload=None,
@@ -175,10 +176,10 @@ class YjVariableInfo(db.Model):
         self.db_num = db_num
         self.address = address
         self.data_type = data_type
-        self.rw_type = check_int(rw_type)
-        self.upload = check_int(upload)
-        self.acquisition_cycle = check_int(acquisition_cycle)
-        self.server_record_cycle = check_int(server_record_cycle)
+        self.rw_type = rw_type
+        self.upload = upload
+        self.acquisition_cycle = acquisition_cycle
+        self.server_record_cycle = server_record_cycle
         self.note = note
         self.ten_id = ten_id
         self.item_id = item_id
@@ -343,3 +344,12 @@ class InterfaceLog(db.Model):
     old_data = db.Column(db.Text)
     new_data_id = db.Column(db.Integer)
     endpoint = db.Column(db.String(32))
+
+
+class Parameter(db.Model):
+    __tablename__ = 'parameter'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    variable_id = db.Column(db.Integer, db.ForeignKey('yjvariableinfo.id'))
+    param_name = db.Column(db.String(32))
+    unit = db.Column(db.String(16))
+

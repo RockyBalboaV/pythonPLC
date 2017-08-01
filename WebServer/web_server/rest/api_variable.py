@@ -146,7 +146,7 @@ class VariableResource(ApiResource):
             if args['rw_type']:
                 variable.rw_type = args['rw_type']
 
-            if args['upload']:
+            if 'upload' in args.keys():
                 variable.upload = args['upload']
 
             if args['acquisition_cycle']:
