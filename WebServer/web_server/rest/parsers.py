@@ -298,4 +298,15 @@ interface_parser.add_argument('per_page', type=int)
 interface_parser.add_argument('limit', type=int)
 interface_parser.add_argument('token', type=str)
 
+# 参数设置
+param_parser = reqparse.RequestParser()
+param_parser.add_argument('id', type=int)
+param_parser.add_argument('variable_id', type=int)
+param_parser.add_argument('param_name', type=str)
+param_parser.add_argument('unit', type=str)
+
+interface_parser.add_argument('page', type=int)
+interface_parser.add_argument('per_page', type=int)
+interface_parser.add_argument('limit', type=int)
+
 

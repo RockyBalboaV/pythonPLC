@@ -4,10 +4,10 @@ from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, c
 from sqlalchemy.orm import sessionmaker, relationship, backref, class_mapper
 from sqlalchemy.ext.declarative import declarative_base
 
-from consts import DB_URI
+from app import app
 
 # 创建连接
-eng = create_engine(DB_URI)
+eng = create_engine(app.conf['DB_URI'])
 # 创建基类
 Base = declarative_base()
 

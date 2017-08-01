@@ -14,29 +14,6 @@ class Config(object):
     # 启动延时
     START_TIMEDELTA = 5
 
-
-class DevConfig(Config):
-    # 设置服务器连接地址地址
-
-    BEAT_URL = 'http://104.160.41.99:11000/client/beats'
-    CONFIG_URL = 'http://104.160.41.99:11000/client/config'
-    UPLOAD_URL = 'http://104.160.41.99:11000/client/upload'
-
-    # BEAT_URL = 'http://127.0.0.1:11000/client/beats'
-    # CONFIG_URL = 'http://127.0.0.1:11000/client/config'
-    # UPLOAD_URL = 'http://127.0.0.1:11000/client/upload'
-
-    # 设置PLC的连接地址
-
-    # PLC的ip地址
-    ip = '192.168.18.17'
-    # 机架号
-    rack = 0
-    # 插槽号
-    slot = 2
-    # TCP端口号
-    tcp_port = 102
-
     # 指定消息代理
     BROKER_URL = 'pyamqp://pyplc:123456@localhost:5672/pyplc'
     # 指定结果存储数据库
@@ -102,3 +79,32 @@ class DevConfig(Config):
         }
 
     }
+
+class DevConfig(Config):
+    HOSTNAME = '127.0.0.1'
+    DATABASE = 'pyplc_client'
+    USERNAME = 'client'
+    PASSWORD = 'pyplc_client'
+    DB_URI = 'mysql://{}:{}@{}/{}'.format(USERNAME, PASSWORD, HOSTNAME, DATABASE)
+
+    # 设置服务器连接地址地址
+
+    BEAT_URL = 'http://104.160.41.99:11000/client/beats'
+    CONFIG_URL = 'http://104.160.41.99:11000/client/config'
+    UPLOAD_URL = 'http://104.160.41.99:11000/client/upload'
+
+    # BEAT_URL = 'http://127.0.0.1:11000/client/beats'
+    # CONFIG_URL = 'http://127.0.0.1:11000/client/config'
+    # UPLOAD_URL = 'http://127.0.0.1:11000/client/upload'
+
+
+class ProdConfig(Config):
+    HOSTNAME = '127.0.0.1'
+    DATABASE = 'pyplc_client'
+    USERNAME = 'root'
+    PASSWORD = 'root'
+    DB_URI = 'mysql://{}:{}@{}/{}'.format(USERNAME, PASSWORD, HOSTNAME, DATABASE)
+
+    BEAT_URL = 'http://104.160.41.99:11000/client/beats'
+    CONFIG_URL = 'http://104.160.41.99:11000/client/config'
+    UPLOAD_URL = 'http://104.160.41.99:11000/client/upload'

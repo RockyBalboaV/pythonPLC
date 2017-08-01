@@ -19,7 +19,7 @@ import billiard
 from sqlalchemy.orm.exc import UnmappedInstanceError
 
 from models import *
-from config import DevConfig
+from config import DevConfig, ProdConfig
 
 # from config import *
 
@@ -544,7 +544,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--reset', action='store_true')
     parser.add_argument('--start', action='store_true')
+    parser.add_argument('--config')
     args = parser.parse_args()
+    if args.config == 'prod':
+        app.config_from_object(ProdConfig)
+    elif args.config == 'dev':
+        app.config_from_object(DevConfig)
+    else:
+        print('config error')
+
     if args.reset:
         database_reset()
 
