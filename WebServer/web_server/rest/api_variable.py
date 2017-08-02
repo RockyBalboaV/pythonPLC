@@ -73,39 +73,63 @@ class VariableResource(ApiResource):
         if not models:
             return err_not_found()
 
-        info = []
-        for m in models:
+        info = [
+            dict(
+                id=m.id,
+                variable_name=m.variable_name,
+                plc_id=m.plc_id,
+                group_id=m.group_id,
+                db_num=m.db_num,
+                address=m.address,
+                area=m.area,
+                write_value=m.write_value,
+                data_type=m.data_type,
+                rw_type=m.rw_type,
+                upload=m.upload,
+                acquisition_cycle=m.acquisition_cycle,
+                server_record_cycle=m.server_record_cycle,
+                note=m.note,
+                ten_id=m.ten_id,
+                item_id=m.item_id,
+                plc_name=m.yjplcinfo.plc_name if m.yjplcinfo else None,
+                group_name=m.yjgroupinfo.group_name if m.yjgroupinfo else None,
+            )
+            for m in models
+        ]
 
-            data = dict()
-            data['id'] = m.id
-            data['variable_name'] = m.variable_name
-            data['plc_id'] = m.plc_id
-            data['group_id'] = m.group_id
-            data['db_num'] = m.db_num
-            data['address'] = m.address
-            data['data_type'] = m.data_type
-            data['rw_type'] = m.rw_type
-            data['upload'] = m.upload
-            data['acquisition_cycle'] = m.acquisition_cycle
-            data['server_record_cycle'] = m.server_record_cycle
-            data['note'] = m.note
-            data['ten_id'] = m.ten_id
-            data['item_id'] = m.item_id
-            data['write_value'] = m.write_value
-
-            plc = m.yjplcinfo
-            if plc:
-                data['plc_name'] = plc.plc_name
-            else:
-                data['plc_name'] = None
-
-            group = m.yjgroupinfo
-            if group:
-                data['group_name'] = group.group_name
-            else:
-                data['group_name'] = None
-
-            info.append(data)
+        # info = []
+        # for m in models:
+        #
+        #     data = dict()
+        #     data['id'] = m.id
+        #     data['variable_name'] = m.variable_name
+        #     data['plc_id'] = m.plc_id
+        #     data['group_id'] = m.group_id
+        #     data['db_num'] = m.db_num
+        #     data['address'] = m.address
+        #     data['data_type'] = m.data_type
+        #     data['rw_type'] = m.rw_type
+        #     data['upload'] = m.upload
+        #     data['acquisition_cycle'] = m.acquisition_cycle
+        #     data['server_record_cycle'] = m.server_record_cycle
+        #     data['note'] = m.note
+        #     data['ten_id'] = m.ten_id
+        #     data['item_id'] = m.item_id
+        #     data['write_value'] = m.write_value
+        #
+        #     plc = m.yjplcinfo
+        #     if plc:
+        #         data['plc_name'] = plc.plc_name
+        #     else:
+        #         data['plc_name'] = None
+        #
+        #     group = m.yjgroupinfo
+        #     if group:
+        #         data['group_name'] = group.group_name
+        #     else:
+        #         data['group_name'] = None
+        #
+        #     info.append(data)
 
         response = jsonify({'ok': 1, "data": info})
         response.status_code = 200
@@ -166,6 +190,9 @@ class VariableResource(ApiResource):
 
             if args['write_value']:
                 variable.write_value = args['write_value']
+
+            if 'area' in args.keys():
+                variable.area = args['area']
 
             db.session.add(variable)
             db.session.commit()

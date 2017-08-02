@@ -158,6 +158,7 @@ class YjVariableInfo(db.Model):
     ten_id = db.Column(db.String(200))
     item_id = db.Column(db.String(20))
     write_value = db.Column(db.String(20))
+    area = db.Column(db.Integer)
 
     plc_id = db.Column(db.Integer, db.ForeignKey('yjplcinfo.id'))
     group_id = db.Column(db.Integer, db.ForeignKey('yjgroupinfo.id'))
