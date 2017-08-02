@@ -1,13 +1,18 @@
 # coding=utf-8
 import os, datetime
+import ConfigParser
+
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, create_engine, MetaData
 from sqlalchemy.orm import sessionmaker, relationship, backref, class_mapper
 from sqlalchemy.ext.declarative import declarative_base
 
-from app import app
+cf = ConfigParser.ConfigParser()
+cf.readfp(open('config.ini'))
+
+db_uri = cf.get(os.environ.get('ENV'), 'db_uri')
 
 # 创建连接
-eng = create_engine(app.conf['DB_URI'])
+eng = create_engine(db_uri)
 # 创建基类
 Base = declarative_base()
 

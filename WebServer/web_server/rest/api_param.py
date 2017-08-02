@@ -7,7 +7,7 @@ import json
 from flask import jsonify, url_for
 from flask_restful import abort
 
-from web_server.models import db, Parameter
+from web_server.models import db, Parameter, Value
 from web_server.rest.parsers import param_parser
 from api_templete import ApiResource
 from err import err_not_found, err_not_contain
@@ -58,7 +58,6 @@ class ParameterResource(ApiResource):
         return self.query
 
     def information(self, models):
-
         info = [
             dict(
                 id=m.id,
@@ -68,6 +67,14 @@ class ParameterResource(ApiResource):
             )
             for m in models
         ]
+
+        for m in info:
+            try:
+                value = db.session.query(Value.value).filter(
+                    Value.variable_id == m['variable_id']).order_by(Value.time.desc()).first()[0]
+            except TypeError:
+                value = None
+            m['value'] = value
 
         response = jsonify({"ok": 1, "data": info})
 
@@ -104,4 +111,3 @@ class ParameterResource(ApiResource):
             db.session.add(model)
             db.session.commit()
             return rp_create()
-

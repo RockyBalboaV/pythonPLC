@@ -1,5 +1,6 @@
 # coding=utf-8
 
+import os
 import hmac
 import requests
 from requests.exceptions import ConnectionError
@@ -9,103 +10,37 @@ import zlib
 import struct
 import time
 import multiprocessing as mp
-import argparse
-import subprocess
+import ConfigParser
+import datetime
 
-import snap7
 from celery import Celery, group, signature
 from celery.signals import worker_process_init
 import billiard
 from sqlalchemy.orm.exc import UnmappedInstanceError
 
-from models import *
-from config import DevConfig, ProdConfig
-
-# from config import *
+from models import (eng, Base, session, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, TransferLog, \
+                    Value, serialize)
+from celeryconfig import Config
+from data_collection import variable_size, PythonPLC
 
 app = Celery()
-# app.config_from_object('celeryconfig')
-app.config_from_object(DevConfig)
+app.config_from_object(Config)
 
-global con
-con = False
-
-
-def encryption(data):
-    """
-    :param data: dict
-    :return: dict
-    """
-    h = hmac.new(b'poree')
-    data = unicode(data)
-    h.update(data)
-    data = zlib.compress(data)
-    data = base64.b64encode(data)
-    digest = h.hexdigest()
-    data = {"data": data, "digest": digest}
-    return data
+cf = ConfigParser.ConfigParser()
+cf.readfp(open('config.ini'))
 
 
-def decryption(rj):
-    """
-    :param rj: json
-    :return: dict
-    """
-    data = rj["data"]
-    di = rj["digest"]
-    data = base64.b64decode(data)
-    data = zlib.decompress(data)
-    h = hmac.new(b'poree')
-    h.update(data)
-    test = h.hexdigest()
-    if di == test:
-        data = json.loads(data.replace("'", '"'))
-    else:
-        data = {"status": "Error"}
-    return data
+def get_station_info():
+    id_num = cf.get('client', 'id_num')
+    version = cf.get('client', 'version')
+    return dict(id_num=id_num, version=version)
 
 
-def get_data_from_query(models):
-    # 输入session.query()查询到的模型实例列表,读取每个实例每个值,放入列表返回
-    data_list = []
-    for model in models:
-        model_column = {}
-        for c in model.__table__.columns:
-            model_column[c.name] = getattr(model, c.name, None)
-        data_list.append(model_column)
-    return data_list
-
-
-def get_data_from_model(model):
-    # 读取一个模型实例中的每一项与值，放入字典
-    model_column = {}
-    for c in model.__table__.columns:
-        model_column[c.name] = getattr(model, c.name, None)
-    return model_column
-
-
-def get_station_info(station_id_num):
-    try:
-        station = session.query(YjStationInfo).filter(YjStationInfo.id_num == station_id_num).first()
-        version = station.version
-    except AttributeError:
-        version = app.conf['VERSION']
-    return {"station_id_num": station_id_num, "version": version}
-
-
-def variable_size(variable):
-    if variable.data_type == 'FLOAT':
-        return 'f', 4
-    elif variable.data_type == 'INT':
-        return 'h', 2
-    elif variable.data_type == 'DINT':
-        return 'i', 4
-    elif variable.data_type == 'WORD':
-        return 'H', 2
-    elif variable.data_type == 'BYTE':
-        return 's', 1
-    elif variable.data_type == 'BOOL':
-        return '?', 1
+# 设置通用变量
+station_info = get_station_info()
+BEAT_URL = cf.get(os.environ.get('url'), 'beat_url')
+CONFIG_URL = cf.get(os.environ.get('url'), 'config_url')
+UPLOAD_URL = cf.get(os.environ.get('url'), 'upload_url')
 
 
 def database_reset():
@@ -118,12 +53,11 @@ def first_running():
     get_config()
 
 
-
 def before_running():
     print 'running setup'
     # 设定服务开始运行时间
     current_time = int(time.time())
-    start_time = current_time + app.conf['START_TIMEDELTA']
+    start_time = current_time + cf.get('client', 'START_TIMEDELTA')
 
     # 设定变量组初始上传时间
     groups = session.query(YjGroupInfo).all()
@@ -164,18 +98,14 @@ def fix_mutilprocessing(**kwargs):
 
 @app.task
 def beats():
-    # 获取本机的信息
-    station_info = get_station_info(app.conf['ID_NUM'])  # todo 只需一次
-
     current_time = int(time.time())
 
     data = station_info
     # data = encryption(data)
     # todo 报警变量加到data里
 
-
     try:
-        rv = requests.post(app.conf['BEAT_URL'], json=data)
+        rv = requests.post(BEAT_URL, json=data)
     except ConnectionError:
         status = 'error'
         note = '无法连接服务器，检查网络状态。'
@@ -199,11 +129,10 @@ def beats():
 @app.task
 def get_config():
     current_time = int(time.time())
-    # 获取本机的信息
-    station_info = get_station_info(app.conf['ID_NUM'])  # todo 只需一次
     # data = encryption(data)
+    data = station_info
     try:
-        response = requests.post(app.conf['CONFIG_URL'], json=station_info)
+        response = requests.post(CONFIG_URL, json=data)
     except ConnectionError:
         status = 'error'
         note = '无法连接服务器，检查网络状态。'
@@ -233,72 +162,75 @@ def get_config():
 
         version = data["YjStationInfo"]["version"]
 
-        station = YjStationInfo(model_id=data["YjStationInfo"]["id"],
-                                station_name=data["YjStationInfo"]["station_name"],
-                                mac=data["YjStationInfo"]["mac"],
-                                ip=data["YjStationInfo"]["ip"],
-                                note=data["YjStationInfo"]["note"],
-                                id_num=data["YjStationInfo"]["id_num"],
-                                plc_count=data["YjStationInfo"]["plc_count"],
-                                ten_id=data["YjStationInfo"]["ten_id"],
-                                item_id=data["YjStationInfo"]["item_id"],
-                                version=version
-                                )
+        station = YjStationInfo(
+            model_id=data["YjStationInfo"]["id"],
+            station_name=data["YjStationInfo"]["station_name"],
+            mac=data["YjStationInfo"]["mac"],
+            ip=data["YjStationInfo"]["ip"],
+            note=data["YjStationInfo"]["note"],
+            id_num=data["YjStationInfo"]["id_num"],
+            plc_count=data["YjStationInfo"]["plc_count"],
+            ten_id=data["YjStationInfo"]["ten_id"],
+            item_id=data["YjStationInfo"]["item_id"],
+            version=version
+        )
         session.add(station)
         session.commit()
 
         for plc in data["YjPLCInfo"]:
-            p = YjPLCInfo(model_id=plc["id"],
-                          plc_name=plc["plc_name"],
-                          station_id=plc["station_id"],
-                          note=plc["note"],
-                          ip=plc["ip"],
-                          mpi=plc["mpi"],
-                          type=plc["type"],
-                          plc_type=plc["plc_type"],
-                          ten_id=plc["ten_id"],
-                          item_id=plc["item_id"],
-                          rack=plc['rack'],
-                          slot=plc['slot'],
-                          tcp_port=plc['tcp_port']
-                          )
+            p = YjPLCInfo(
+                model_id=plc["id"],
+                plc_name=plc["plc_name"],
+                station_id=plc["station_id"],
+                note=plc["note"],
+                ip=plc["ip"],
+                mpi=plc["mpi"],
+                type=plc["type"],
+                plc_type=plc["plc_type"],
+                ten_id=plc["ten_id"],
+                item_id=plc["item_id"],
+                rack=plc['rack'],
+                slot=plc['slot'],
+                tcp_port=plc['tcp_port']
+            )
+
             session.add(p)
         session.commit()
 
         for group in data["YjGroupInfo"]:
-            g = YjGroupInfo(model_id=group["id"],
-                            group_name=group["group_name"],
-                            plc_id=group["plc_id"],
-                            note=group["note"],
-                            upload_cycle=group["upload_cycle"],
-                            ten_id=group["ten_id"],
-                            item_id=group["item_id"]
-                            )
+            g = YjGroupInfo(
+                model_id=group["id"],
+                group_name=group["group_name"],
+                plc_id=group["plc_id"],
+                note=group["note"],
+                upload_cycle=group["upload_cycle"],
+                ten_id=group["ten_id"],
+                item_id=group["item_id"]
+            )
             session.add(g)
         session.commit()
 
         for variable in data["YjVariableInfo"]:
-            v = YjVariableInfo(model_id=variable["id"],
-                               variable_name=variable["variable_name"],
-                               plc_id=variable["plc_id"],
-                               group_id=variable["group_id"],
-                               db_num=variable['db_num'],
-                               address=variable["address"],
-                               data_type=variable["data_type"],
-                               rw_type=variable["rw_type"],
-                               upload=variable["upload"],
-                               acquisition_cycle=variable["acquisition_cycle"],
-                               server_record_cycle=variable["server_record_cycle"],
-                               note=variable["note"],
-                               ten_id=variable["ten_id"],
-                               item_id=variable["item_id"],
-                               write_value=variable["write_value"]
-                               )
+            v = YjVariableInfo(
+                model_id=variable["id"],
+                variable_name=variable["variable_name"],
+                plc_id=variable["plc_id"],
+                group_id=variable["group_id"],
+                db_num=variable['db_num'],
+                address=variable["address"],
+                data_type=variable["data_type"],
+                rw_type=variable["rw_type"],
+                upload=variable["upload"],
+                acquisition_cycle=variable["acquisition_cycle"],
+                server_record_cycle=variable["server_record_cycle"],
+                note=variable["note"],
+                ten_id=variable["ten_id"],
+                item_id=variable["item_id"],
+                write_value=variable["write_value"]
+            )
             session.add(v)
         session.commit()
 
-        # update_log = ConfigUpdateLog(time=int(time.time()), version=version)
-        # session.add(update_log)
         status = 'OK'
         note = '成功将配置从version: {} 升级到 version: {}.'.format(station_info['version'], version)
     else:
@@ -313,13 +245,12 @@ def get_config():
 
 @app.task
 def upload(group_model):
-    # group_model = session.query(YjGroupInfo).first()
+    # 记录本次上传时间
+    upload_time = int(time.time())
+
     # 获取该组信息
     group_id = group_model.id
     group_name = group_model.group_name
-
-    # 记录本次上传时间
-    upload_time = int(time.time())
 
     group_log = session.query(TransferLog).filter(TransferLog.trans_type == 'upload').filter(
         TransferLog.note.like('% {} %'.format(group_id))).order_by(TransferLog.time.desc()).first()
@@ -382,7 +313,7 @@ def upload(group_model):
                             note='group_id: {} group_name:{} 将要上传.'.format(group_id, group_name)))
     session.commit()
 
-    station = get_station_info(app.conf['ID_NUM'])  # todo 只需一次
+    station = json.loads(station_info)
 
     # 包装数据
     data = {"station_id_num": station["station_id_num"], "version": station["version"], "group_id": group_model.id,
@@ -390,7 +321,7 @@ def upload(group_model):
     print data
     # data = encryption(data)
     try:
-        response = requests.post(app.conf['UPLOAD_URL'], json=data)
+        response = requests.post(UPLOAD_URL, json=data)
     except ConnectionError:
         status = 'error'
         note = '无法连接服务器，检查网络状态。'
@@ -422,14 +353,6 @@ def upload(group_model):
                       note=note)
     session.add(log)
     session.commit()
-
-
-# @app.task
-# def fake_data():
-#     # 产生一个假数据
-#     value = Value(variable_id=1, value=1, time=int(time.time()))
-#     session.add(value)
-#     session.commit()
 
 
 @app.task
@@ -495,15 +418,12 @@ def get_value(variable_model):
     variable_model.acquisition_time = current_time + variable_model.acquisition_cycle
     session.merge(variable_model)
     session.commit()
+
     # 获得变量信息
-    # variable_model = session.query(YjVariableInfo).first()
     ip = variable_model.plc.ip
     rack = variable_model.plc.rack
-    # print type(rack)
     slot = variable_model.plc.slot
-    # print type(slot)
     tcp_port = variable_model.plc.tcp_port
-    # print type(tcp_port)
 
     variable_db = variable_model.db_num
     type_code, size = variable_size(variable_model)
@@ -519,55 +439,3 @@ def get_value(variable_model):
     value = Value(variable_id=variable_model.id, time=current_time, value=value)
     session.add(value)
     session.commit()
-
-    return 1
-
-
-class PythonPLC(object):
-    def __init__(self, ip, rack, slot, tcp_port):
-        self.ip = ip
-        self.rack = rack
-        self.slot = slot
-        self.tcp_port = tcp_port
-
-    def __enter__(self):
-        self.client = snap7.client.Client()
-        self.client.connect(self.ip, self.rack, self.slot, self.tcp_port)
-        return self.client
-
-    def __exit__(self, *args):
-        self.client.disconnect()
-        self.client.destroy()
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--reset', action='store_true')
-    parser.add_argument('--start', action='store_true')
-    parser.add_argument('--config')
-    args = parser.parse_args()
-    if args.config == 'prod':
-        app.config_from_object(ProdConfig)
-    elif args.config == 'dev':
-        app.config_from_object(DevConfig)
-    else:
-        print('config error')
-
-    if args.reset:
-        database_reset()
-
-    if args.start:
-        first_running()
-        subprocess.call('celery -B -A app worker -l info', shell=True)
-        # database_reset()
-        # first_running()
-        # print app.conf['BEAT_URL']
-        # mp.doc.main()
-        # beats()
-        # get_config()
-        # get_value()
-        # upload()
-
-    # with PythonPLC('192.168.18.17', 0, 2, 102) as db:
-    #     v = db.db_read(2, 0, 2)
-    #     print struct.unpack('!', v)
