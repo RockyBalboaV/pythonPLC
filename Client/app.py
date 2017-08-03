@@ -50,6 +50,7 @@ def get_station_info():
 # 设置通用变量
 print('abcde')
 station_info = get_station_info()
+print(os.environ.get('url'))
 BEAT_URL = cf.get(os.environ.get('url'), 'beat_url')
 CONFIG_URL = cf.get(os.environ.get('url'), 'config_url')
 UPLOAD_URL = cf.get(os.environ.get('url'), 'upload_url')
@@ -93,7 +94,7 @@ def before_running():
             write_value = struct.pack('!{}'.format(type_code), v.write_value)
 
             with PythonPLC(ip, rack, slot, tcp_port) as db:
-                db.write_area(area=area, db_number=variable_db, start=address, data=write_value)
+                db.write_area(area=area, dbnumber=variable_db, start=address, data=write_value)
 
         if v.rw_type == 1 or v.rw_type == 3:
             v.acquisition_time = start_time + v.acquisition_cycle
@@ -245,7 +246,8 @@ def get_config():
                 note=variable["note"],
                 ten_id=variable["ten_id"],
                 item_id=variable["item_id"],
-                write_value=variable["write_value"]
+                write_value=variable["write_value"],
+                area=variable['area']
             )
             session.add(v)
         session.commit()
@@ -312,6 +314,7 @@ def upload(group_model):
                 upload_value = all_values.filter(
                     get_time + variable.server_record_cycle > Value.time).filter(Value.time >= get_time).first()
                 # 当上传时间小于采集时间时，会出现取值时间节点后无采集数据，得到None，使得后续语句报错。
+                print(upload_value)
                 try:
                     value_dict = serialize(upload_value)
                     variable_list.append(value_dict)
@@ -392,15 +395,18 @@ def check_group_upload_time():
         # groups = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).all()
         groups = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).filter(
             YjGroupInfo.uploading is not True).all()
+        print(groups)
     except:
         return 'skip'
-
 
     # poll = multiprocessing.Pool(4)
     for g in groups:
         print 'b'
         g.uploading = True
-    session.commit()
+    try:
+        session.commit()
+    except:
+        session.rollback()
 
     for g in groups:
         print 'a'
@@ -427,11 +433,13 @@ def check_variable_get_time():
     current_time = int(time.time())
 
     try:
-        variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time).all()
+        variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time)
     except:
+        session.rollback()
         return 'skip'
     # task = signature('task.get_value', args=(v, ))
-    # sig = group(get_value.sub for v in variables)()
+    # sig = group
+    # (get_value.sub for v in variables)()
     # sig.delay()
     # poll = billiard.context.BaseContext
     # poll = poll.Pool(poll)
@@ -440,13 +448,16 @@ def check_variable_get_time():
     #                      for v in variables])
     # result = poll.map(get_value, [(v,)
     #                               for v in variables])
-    for v in variables:
-        # print 'variable'
-        print 'get value'
-        get_value(v)
-        # poll.apply_async(get_value, (v,))
+    try:
+        for v in variables:
+            # print 'variable'
+            print 'get value'
+            get_value(v)
+            # poll.apply_async(get_value, (v,))
 
-        # session.commit()
+            # session.commit()
+    except:
+        session.rollback()
 
 
 @app.task
@@ -456,7 +467,9 @@ def get_value(variable_model):
     # 保证一段时间内不会产生两个task采集同一个变量
     variable_model.acquisition_time = current_time + variable_model.acquisition_cycle
     session.merge(variable_model)
+    # print(2)
     session.commit()
+    # print(3)
 
     # 获得变量信息
     # 变量所属plc的信息
@@ -465,20 +478,26 @@ def get_value(variable_model):
     slot = variable_model.plc.slot
     tcp_port = variable_model.plc.tcp_port
 
+    # print(5)
     # 获取采集变量时需要的信息
     area = variable_area(variable_model)
+    # print(6)
     variable_db = variable_model.db_num
+    # print(7)
     type_code, size = variable_size(variable_model)
+    # print(8)
     address = variable_model.address
 
+    # print('cccc')
     # 采集数据
-    print ip, rack, slot, tcp_port
+    # print ip, rack, slot, tcp_port, area, variable_db, address, size
     # TODO 建立连接的开销很大，在代码启动时创建连接并保持，定时查询连接状态就好，这样不用重复建立连接
     with PythonPLC(ip, rack, slot, tcp_port) as db:
-        result = db.read_area(area=area, db_number=variable_db, start=address, size=size)
+        result = db.read_area(area=area, dbnumber=variable_db, start=address, size=size)
     value = struct.unpack('!{}'.format(type_code), result)[0]
     # print value
 
+    # print('dddd')
     # 保存数据
     value = Value(variable_id=variable_model.id, time=current_time, value=value)
     session.add(value)

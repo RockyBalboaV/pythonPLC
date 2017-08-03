@@ -158,6 +158,7 @@ class YjVariableInfo(Base):
     ten_id = Column(String(200))
     item_id = Column(String(20))
     write_value = Column(String(20))
+    area = Column(Integer)
 
     acquisition_time = Column(Integer)
 
@@ -174,7 +175,7 @@ class YjVariableInfo(Base):
     def __init__(self, model_id, variable_name=None, plc_id=None, group_id=None, db_num=None, address=None,
                  data_type=None, rw_type=None, upload=None,
                  acquisition_cycle=None, server_record_cycle=None,
-                 note=None, ten_id=None, item_id=None, write_value=None):
+                 note=None, ten_id=None, item_id=None, write_value=None, area=None):
         self.id = model_id
         self.variable_name = variable_name
         self.plc_id = plc_id
@@ -190,6 +191,7 @@ class YjVariableInfo(Base):
         self.ten_id = ten_id
         self.item_id = item_id
         self.write_value = write_value
+        self.area = area
 
     def __repr__(self):
         return '<Variable : %r >' % self.variable_name
@@ -234,35 +236,6 @@ class ConfigUpdateLog(Base):
     time = Column(Integer)
     version = Column(Integer)
 
-
-# class GroupUploadTime(Base):
-#     __tablename__ = 'group_upload_times'
-#     id = Column(Integer, primary_key=True, autoincrement=True)
-#     time = Column(Integer)
-#
-#     group_id = Column("group_id", Integer, ForeignKey("yjgroupinfo.id"))
-#     group = relationship("YjGroupInfo", foreign_keys="GroupUploadTime.group_id",
-#                          backref=backref("upload_times", cascade="all, delete-orphan"),
-#                          primaryjoin="YjGroupInfo.id==GroupUploadTime.group_id")
-#
-#     def __init__(self, group_id, next_time):
-#         self.group_id = group_id
-#         self.next_time = next_time
-
-
-# class VariableGetTime(Base):
-#     __tablename__ = 'value_get_times'
-#     id = Column(Integer, primary_key=True, autoincrement=True)
-#     time = Column(Integer)
-#
-#     variable_id = Column("variable_id", Integer, ForeignKey("yjvariableinfo.id"))
-#     variable = relationship("YjVariableInfo", foreign_keys="VariableGetTime.variable_id",
-#                             backref=backref("get_times", cascade="all, delete-orphan"),
-#                             primaryjoin="YjVariableInfo.id==VariableGetTime.variable_id")
-#
-#     def __init__(self, variable_id, time):
-#         self.variable_id = variable_id
-#         self.time = time
 
 class VarAlarmLog(Base):
     __tablename__ = 'var_alarm_log'

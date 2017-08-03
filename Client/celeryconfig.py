@@ -66,10 +66,10 @@ class Config(object):
             'task': 'app.check_group_upload_time',
             'schedule': timedelta(seconds=1)
         },
-        # 'check_variable_get_time': {
-        #     'task': 'app.check_variable_get_time',
-        #     'schedule': timedelta(seconds=1)
-        # }
+        'check_variable_get_time': {
+            'task': 'app.check_variable_get_time',
+            'schedule': timedelta(seconds=1)
+        }
 
     }
 

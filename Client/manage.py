@@ -71,3 +71,10 @@ if args.start:
 # time2 = time.time()
 # print(time2 - time1)
 # print('a')
+import snap7, struct
+from data_collection import PythonPLC
+with PythonPLC('192.168.18.17', 0, 2, 102) as db:
+    print(db.ip)
+    result = db.read_area(area=snap7.snap7types.S7AreaDB, dbnumber=1, start=0, size=4)
+value = struct.unpack('!i', result)[0]
+print value

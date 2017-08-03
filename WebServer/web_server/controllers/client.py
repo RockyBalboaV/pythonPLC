@@ -66,10 +66,10 @@ def beats():
     station = YjStationInfo.query.filter_by(id_num=data["id_num"]).first_or_404()
     station.con_time = int(time.time())
 
-    if int(station.version) != int(data["version"]):
-        station.modification = 1
-    else:
-        station.modification = 0
+    # if int(station.version) != int(data["version"]):
+    #     station.modification = 1
+    # else:
+    #     station.modification = 0
 
     db.session.add(station)
 
