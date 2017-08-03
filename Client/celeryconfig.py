@@ -7,13 +7,6 @@ from kombu import Queue
 class Config(object):
     # 设置终端信息
 
-    # 终端标识号
-    ID_NUM = 'test'
-    # 初始版本号
-    VERSION = 0
-    # 启动延时
-    START_TIMEDELTA = 5
-
     # 指定消息代理
     BROKER_URL = 'pyamqp://pyplc:123456@localhost:5672/pyplc'
     # 指定结果存储数据库
@@ -73,12 +66,13 @@ class Config(object):
             'task': 'app.check_group_upload_time',
             'schedule': timedelta(seconds=1)
         },
-        'check_variable_get_time': {
-            'task': 'app.check_variable_get_time',
-            'schedule': timedelta(seconds=1)
-        }
+        # 'check_variable_get_time': {
+        #     'task': 'app.check_variable_get_time',
+        #     'schedule': timedelta(seconds=1)
+        # }
 
     }
+
 
 class DevConfig(Config):
     HOSTNAME = '127.0.0.1'

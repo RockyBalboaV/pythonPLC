@@ -13,15 +13,16 @@ import multiprocessing as mp
 import ConfigParser
 import datetime
 
-from celery import Celery, group, signature
+from celery import Celery
 from celery.signals import worker_process_init
 import billiard
 from sqlalchemy.orm.exc import UnmappedInstanceError
+from sqlalchemy.exc import ProgrammingError
 
 from models import (eng, Base, session, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, TransferLog, \
                     Value, serialize)
 from celeryconfig import Config
-from data_collection import variable_size, PythonPLC
+from data_collection import variable_size, variable_area, PythonPLC
 
 app = Celery()
 app.config_from_object(Config)
@@ -30,26 +31,33 @@ cf = ConfigParser.ConfigParser()
 cf.readfp(open('config.ini'))
 
 
+def database_reset():
+    Base.metadata.drop_all(bind=eng)
+    Base.metadata.create_all(bind=eng)
+
+
 def get_station_info():
     id_num = cf.get('client', 'id_num')
-    version = cf.get('client', 'version')
+    try:
+        station_model = session.query(YjStationInfo).filter_by(id_num=id_num).first()
+        version = station_model.version
+    except:
+        version = cf.get('client', 'version')
+
     return dict(id_num=id_num, version=version)
 
 
 # 设置通用变量
+print('abcde')
 station_info = get_station_info()
 BEAT_URL = cf.get(os.environ.get('url'), 'beat_url')
 CONFIG_URL = cf.get(os.environ.get('url'), 'config_url')
 UPLOAD_URL = cf.get(os.environ.get('url'), 'upload_url')
 
 
-def database_reset():
-    Base.metadata.drop_all(bind=eng)
-    Base.metadata.create_all(bind=eng)
-
-
 def first_running():
     Base.metadata.create_all(bind=eng)
+    print('bbbb')
     get_config()
 
 
@@ -57,13 +65,17 @@ def before_running():
     print 'running setup'
     # 设定服务开始运行时间
     current_time = int(time.time())
-    start_time = current_time + cf.get('client', 'START_TIMEDELTA')
+    start_time = current_time + int(cf.get('client', 'START_TIMEDELTA'))
+
+    # 获取站信息
+    global station_info
+    station_info = get_station_info()
 
     # 设定变量组初始上传时间
-    groups = session.query(YjGroupInfo).all()
+    groups = session.query(YjGroupInfo)
     for g in groups:
         g.upload_time = start_time + g.upload_cycle
-        g.uploading = False
+        # g.uploading = False
 
     # 设定变量,需要读取的值设定初始采集时间，需要写入的值立即写入PLC
     variables = session.query(YjVariableInfo).all()
@@ -76,11 +88,12 @@ def before_running():
             variable_db = v.db_num
             type_code, size = variable_size(v)
             address = v.address
+            area = v.area
 
             write_value = struct.pack('!{}'.format(type_code), v.write_value)
 
             with PythonPLC(ip, rack, slot, tcp_port) as db:
-                db.db_write(db_number=variable_db, start=address, data=write_value)
+                db.write_area(area=area, db_number=variable_db, start=address, data=write_value)
 
         if v.rw_type == 1 or v.rw_type == 3:
             v.acquisition_time = start_time + v.acquisition_cycle
@@ -100,9 +113,13 @@ def fix_mutilprocessing(**kwargs):
 def beats():
     current_time = int(time.time())
 
+    print(station_info)
+    a = station_info
+    print(station_info)
     data = station_info
     # data = encryption(data)
     # todo 报警变量加到data里
+    print(data)
 
     try:
         rv = requests.post(BEAT_URL, json=data)
@@ -111,11 +128,13 @@ def beats():
         note = '无法连接服务器，检查网络状态。'
     else:
         # data = decryption(rv)
-        print rv
         data = rv.json()
+        print(data)
 
         if data["modification"] == 1:
-            get_config.delay()
+            print('ccccc')
+            # get_config.delay()
+            get_config()
             print 'get_config'
             note = '完成一次心跳连接，时间:{},发现配置信息有更新.'.format(datetime.datetime.fromtimestamp(current_time))
         else:
@@ -148,7 +167,7 @@ def get_config():
         data = response.json()['data']
         print data
         try:
-            session.delete(session.query(YjStationInfo).first())
+            session.delete(session.query(YjStationInfo).filter_by(id_num=station_info['id_num']).first())
             # YjStationInfo.__table__.drop(eng, checkfirst=True)
             # YjPLCInfo.__table__.drop(eng, checkfirst=True)
             # YjGroupInfo.__table__.drop(eng, checkfirst=True)
@@ -246,7 +265,7 @@ def get_config():
 @app.task
 def upload(group_model):
     # 记录本次上传时间
-    upload_time = int(time.time())
+    current_time = int(time.time())
 
     # 获取该组信息
     group_id = group_model.id
@@ -260,7 +279,7 @@ def upload(group_model):
         last_time = group_log.time
     else:
         timedelta = group_model.upload_cycle
-        last_time = upload_time - timedelta
+        last_time = current_time - timedelta
 
     # # 获取该组包括的所有变量
     # # 记录中如果有原配置中有的组名，更改配置后会导致取到空值
@@ -282,14 +301,14 @@ def upload(group_model):
             get_time = last_time
             # all_values = variable.values.filter(get_time <= Value.time < upload_time)
             all_values = session.query(Value).filter_by(variable_id=variable.id).filter(
-                get_time <= Value.time).filter(Value.time < upload_time)
+                get_time <= Value.time).filter(Value.time < current_time)
 
             # # test
             # for a in all_values:
             #     print a.id
 
             # 循环从上次读取时间开始计算，每个一个记录周期提取一个数值
-            while get_time < upload_time:
+            while get_time < current_time:
                 upload_value = all_values.filter(
                     get_time + variable.server_record_cycle > Value.time).filter(Value.time >= get_time).first()
                 # 当上传时间小于采集时间时，会出现取值时间节点后无采集数据，得到None，使得后续语句报错。
@@ -302,21 +321,23 @@ def upload(group_model):
                 get_time += variable.server_record_cycle
 
     # 修改下次组传输时间
-    group_model.upload_time = upload_time + group_model.upload_cycle
+    group_model.upload_time = current_time + group_model.upload_cycle
     group_model.uploading = False
     session.merge(group_model)
 
+    log = TransferLog(
+        trans_type='group_upload',
+        time=current_time,
+        status='OK',
+        note='group_id: {} group_name:{} 将要上传.'.format(group_id, group_name)
+    )
     # 记录本次传输
-    session.add(TransferLog(trans_type='group_upload',
-                            time=upload_time,
-                            status='OK',
-                            note='group_id: {} group_name:{} 将要上传.'.format(group_id, group_name)))
-    session.commit()
+    session.add(log)
 
-    station = json.loads(station_info)
+    # session.commit()
 
     # 包装数据
-    data = {"station_id_num": station["station_id_num"], "version": station["version"], "group_id": group_model.id,
+    data = {"id_num": station_info["id_num"], "version": station_info["version"], "group_id": group_model.id,
             "value": variable_list}
     print data
     # data = encryption(data)
@@ -325,10 +346,15 @@ def upload(group_model):
     except ConnectionError:
         status = 'error'
         note = '无法连接服务器，检查网络状态。'
-        log = TransferLog(trans_type='upload_call_back', time=upload_time, status=status, note=note)
+        log = TransferLog(
+            trans_type='upload_call_back',
+            time=current_time,
+            status=status,
+            note=note
+        )
         session.add(log)
         session.commit()
-        return 0
+        return 1
 
     data = response.json()
     # data = decryption(data)
@@ -341,16 +367,19 @@ def upload(group_model):
     # 版本错误
     elif response.status_code == 403:
         note = 'group_id: {} group_name:{} 上传的数据不是在最新版本配置下采集的.'.format(group_id, group_name)
+        print('aaaaaa')
         get_config()
 
     # 未知错误
     else:
         note = 'group_id: {} group_name:{} 无法识别服务端反馈。'.format(group_id, group_name)
     print data
-    log = TransferLog(trans_type='upload_call_back',
-                      time=upload_time,
-                      status=data["status"],
-                      note=note)
+    log = TransferLog(
+        trans_type='upload_call_back',
+        time=current_time,
+        status=data["status"],
+        note=note
+    )
     session.add(log)
     session.commit()
 
@@ -360,19 +389,23 @@ def check_group_upload_time():
     current_time = int(time.time())
     print 'c'
     try:
+        # groups = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).all()
         groups = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).filter(
             YjGroupInfo.uploading is not True).all()
     except:
         return 'skip'
+
+
     # poll = multiprocessing.Pool(4)
-    # for g in groups:
-    #     print 'b'
-    #     g.uploading = True
-    # session.commit()
+    for g in groups:
+        print 'b'
+        g.uploading = True
+    session.commit()
 
     for g in groups:
         print 'a'
         upload(g)
+
         # curr_proc = mp.current_process()
         # curr_proc.daemon = False
         # p = mp.Pool(mp.cpu_count())
@@ -386,15 +419,17 @@ def check_group_upload_time():
         # return 1
         # poll.apply_async(upload, (g,))
 
+        # session.commit()
+
 
 @app.task
 def check_variable_get_time():
     current_time = int(time.time())
+
     try:
-        variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time)
+        variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time).all()
     except:
         return 'skip'
-
     # task = signature('task.get_value', args=(v, ))
     # sig = group(get_value.sub for v in variables)()
     # sig.delay()
@@ -411,31 +446,42 @@ def check_variable_get_time():
         get_value(v)
         # poll.apply_async(get_value, (v,))
 
+        # session.commit()
+
 
 @app.task
 def get_value(variable_model):
     current_time = int(time.time())
+
+    # 保证一段时间内不会产生两个task采集同一个变量
     variable_model.acquisition_time = current_time + variable_model.acquisition_cycle
     session.merge(variable_model)
     session.commit()
 
     # 获得变量信息
+    # 变量所属plc的信息
     ip = variable_model.plc.ip
     rack = variable_model.plc.rack
     slot = variable_model.plc.slot
     tcp_port = variable_model.plc.tcp_port
 
+    # 获取采集变量时需要的信息
+    area = variable_area(variable_model)
     variable_db = variable_model.db_num
     type_code, size = variable_size(variable_model)
     address = variable_model.address
+
     # 采集数据
     print ip, rack, slot, tcp_port
+    # TODO 建立连接的开销很大，在代码启动时创建连接并保持，定时查询连接状态就好，这样不用重复建立连接
     with PythonPLC(ip, rack, slot, tcp_port) as db:
-        result = db.db_read(db_number=variable_db, start=address, size=size)
+        result = db.read_area(area=area, db_number=variable_db, start=address, size=size)
     value = struct.unpack('!{}'.format(type_code), result)[0]
     # print value
 
     # 保存数据
     value = Value(variable_id=variable_model.id, time=current_time, value=value)
     session.add(value)
+
+    # 采集完后整体保存
     session.commit()

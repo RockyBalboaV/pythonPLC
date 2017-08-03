@@ -9,10 +9,10 @@ from sqlalchemy.ext.declarative import declarative_base
 cf = ConfigParser.ConfigParser()
 cf.readfp(open('config.ini'))
 
-db_uri = cf.get(os.environ.get('ENV'), 'db_uri')
+db_uri = cf.get(os.environ.get('env'), 'db_uri')
 
 # 创建连接
-eng = create_engine(db_uri)
+eng = create_engine(db_uri, pool_recycle=1)
 # 创建基类
 Base = declarative_base()
 
@@ -21,7 +21,6 @@ session = Session()
 
 
 def check_int(column):
-    print type(column)
     if column is not unicode("None"):
         return int(column)
     else:
