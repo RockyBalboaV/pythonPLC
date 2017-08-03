@@ -11,7 +11,6 @@ from flask_admin.base import MenuLink, BaseView, expose
 from ext import db
 from models import User as _User
 
-
 app = Flask(__name__, template_folder='templates', static_folder='static')
 here = os.path.abspath(os.path.dirname(__file__))
 app.config.from_pyfile(os.path.join(here, 'config_dev/config.py'))
@@ -20,6 +19,7 @@ db.init_app(app)
 
 login_manager = LoginManager()
 login_manager.init_app(app)
+
 
 class User(_User, UserMixin):
     pass
@@ -68,6 +68,7 @@ class MyAdminView(BaseView):
 
     def is_accessible(self):
         return current_user.is_authenticated
+
 
 admin.add_view(ModelView(User, db.session))
 

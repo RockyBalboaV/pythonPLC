@@ -10,9 +10,11 @@ from flask_principal import identity_loaded, identity_changed, UserNeed, RoleNee
 from web_server.ext import csrf, api
 from web_server.models import *
 
-basic_blueprint = Blueprint('basic',
-                            __name__,
-                            template_folder=path.join(path.pardir, 'templates', 'basic'))
+basic_blueprint = Blueprint(
+    'basic',
+    __name__,
+    template_folder=path.join(path.pardir, 'templates', 'basic')
+)
 
 
 @basic_blueprint.route('/', methods=['GET', 'POST'])

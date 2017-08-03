@@ -140,19 +140,20 @@ class PLCResource(ApiResource):
 
         else:
             self.query = []
-            plc = YjPLCInfo(plc_name=args['plc_name'],
-                            station_id=args['station_id'],
-                            note=args['note'],
-                            ip=args['ip'],
-                            mpi=args['mpi'],
-                            type=args['type'],
-                            plc_type=args['plc_type'],
-                            ten_id=args['ten_id'],
-                            item_id=args['item_id'],
-                            rack=args['rack'],
-                            slot=args['slot'],
-                            tcp_port=args['tcp_port']
-                            )
+            plc = YjPLCInfo(
+                plc_name=args['plc_name'],
+                station_id=args['station_id'],
+                note=args['note'],
+                ip=args['ip'],
+                mpi=args['mpi'],
+                type=args['type'],
+                plc_type=args['plc_type'],
+                ten_id=args['ten_id'],
+                item_id=args['item_id'],
+                rack=args['rack'],
+                slot=args['slot'],
+                tcp_port=args['tcp_port']
+            )
 
             db.session.add(plc)
             db.session.commit()

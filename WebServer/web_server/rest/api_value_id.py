@@ -13,6 +13,10 @@ class VariableIDResource(Resource):
         variable_id = [model[0] for model in models]
         return variable_id
 
+    def post(self):
+        model = db.session.query(YjVariableInfo).filter(YjVariableInfo.id == 9999).first()
+        print model, type(model)
+        return model
 #     def get(self):
 #         import time
 #

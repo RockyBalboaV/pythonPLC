@@ -205,6 +205,7 @@ class VariableResource(ApiResource):
                                       group_id=args['group_id'],
                                       db_num=args['db_num'],
                                       address=args['address'],
+                                      area=args['area'],
                                       data_type=args['data_type'],
                                       rw_type=args['rw_type'],
                                       upload=args['upload'],

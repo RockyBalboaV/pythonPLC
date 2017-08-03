@@ -20,10 +20,12 @@ from web_server.rest.api_param import ParameterResource
 from web_server.rest.api_value_id import VariableIDResource
 from web_server.rest.err import custom_errors
 
-api_blueprint = Blueprint('api',
-                          __name__,
-                          template_folder=path.join(path.pardir, 'templates', 'api'),
-                          url_prefix='/api')
+api_blueprint = Blueprint(
+    'api',
+    __name__,
+    template_folder=path.join(path.pardir, 'templates', 'api'),
+    url_prefix='/api'
+)
 
 api = Api(api_blueprint)
 api.add_resource(AuthApi, '/auth')

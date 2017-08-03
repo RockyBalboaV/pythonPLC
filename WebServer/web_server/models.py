@@ -47,7 +47,7 @@ class YjStationInfo(db.Model):
     plc_count = db.Column(db.Integer)
     ten_id = db.Column(db.String(255))
     item_id = db.Column(db.String(20))
-    con_date = db.Column(db.Integer)
+    con_time = db.Column(db.Integer)
     modification = db.Column(db.Integer)
     version = db.Column(db.Integer)
 
@@ -56,7 +56,7 @@ class YjStationInfo(db.Model):
     logs = db.relationship('TransferLog', backref='yjstationinfo', lazy='dynamic')
 
     def __init__(self, station_name=None, mac=None, ip=None, note=None, id_num=None,
-                 plc_count=None, ten_id=None, item_id=None, con_date=None, modification=0):
+                 plc_count=None, ten_id=None, item_id=None, con_time=int(time.time()), modification=0):
         self.station_name = station_name
         self.mac = mac
         self.ip = ip
@@ -65,13 +65,11 @@ class YjStationInfo(db.Model):
         self.plc_count = check_int(plc_count)
         self.ten_id = ten_id
         self.item_id = item_id
-        if con_date is None:
-            con_date = int(time.time())
-        self.con_date = con_date
+        self.con_time = con_time
         self.modification = modification
 
     def __repr__(self):
-        return '<Station : ID(%r) Name(%r) >' % self.id, self.name
+        return '<Station : ID(%r) Name(%r) >'.format(self.id, self.name)
 
 
 class YjPLCInfo(db.Model):
@@ -112,7 +110,7 @@ class YjPLCInfo(db.Model):
         self.tcp_port = tcp_port
 
     def __repr__(self):
-        return '<PLC : ID(%r) Name(%r) >' % (int(self.id), self.plc_name)
+        return '<PLC : ID(%r) Name(%r) >'.format(self.id, self.plc_name)
 
 
 class YjGroupInfo(db.Model):
@@ -140,7 +138,7 @@ class YjGroupInfo(db.Model):
         self.upload = upload
 
     def __repr__(self):
-        return '<Group :ID(%r) Name(%r) >' % (int(self.id), self.group_name)
+        return '<Group :ID(%r) Name(%r) >'.format(self.id, self.group_name)
 
 
 class YjVariableInfo(db.Model):
@@ -170,7 +168,7 @@ class YjVariableInfo(db.Model):
     def __init__(self, variable_name=None, plc_id=None, group_id=None, db_num=None, address=None,
                  data_type=None, rw_type=None, upload=None,
                  acquisition_cycle=None, server_record_cycle=None,
-                 note=None, ten_id=None, item_id=None, write_value=None):
+                 note=None, ten_id=None, item_id=None, write_value=None, area=None):
         self.variable_name = variable_name
         self.plc_id = plc_id
         self.group_id = group_id
@@ -185,9 +183,10 @@ class YjVariableInfo(db.Model):
         self.ten_id = ten_id
         self.item_id = item_id
         self.write_value = write_value
+        self.area = area
 
     def __repr__(self):
-        return '<Variable :ID(%r) Name(%r) >' % (int(self.id), self.tag_name)
+        return '<Variable :ID(%r) Name(%r) >'.format(self.id, self.tag_name)
 
 
 class Value(db.Model):
@@ -203,7 +202,7 @@ class Value(db.Model):
         self.time = time
 
     def __repr__(self):
-        return '<Value {} {} {} {}'.format(int(self.id), self.variable_id, self.value, self.time)
+        return '<Value {} {} {} {}'.format(self.id, self.variable_id, self.value, self.time)
 
 
 class User(UserMixin, db.Model):

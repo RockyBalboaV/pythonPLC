@@ -6,6 +6,9 @@ from celery.schedules import crontab
 
 
 class Config(object):
+    # 终端连接超时
+    STATION_TIMEOUT = 60
+
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # csrf secret key

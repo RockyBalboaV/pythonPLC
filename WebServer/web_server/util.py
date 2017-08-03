@@ -52,7 +52,7 @@ def get_data_from_query(models):
     for model in models:
         model_column = {}
         for c in model.__table__.columns:
-            model_column[c.name] = str(getattr(model, c.name, None))
+            model_column[c.name] = getattr(model, c.name, None)
         data_list.append(model_column)
     return data_list
 
@@ -61,7 +61,7 @@ def get_data_from_model(model):
     # 读取一个模型实例中的每一项与值，放入字典
     model_column = {}
     for c in model.__table__.columns:
-        model_column[c.name] = str(getattr(model, c.name, None))
+        model_column[c.name] = getattr(model, c.name, None)
     return model_column
 
 
