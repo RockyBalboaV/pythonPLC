@@ -200,22 +200,23 @@ class VariableResource(ApiResource):
             return rp_modify()
 
         else:
-            variable = YjVariableInfo(variable_name=args['variable_name'],
-                                      plc_id=args['plc_id'],
-                                      group_id=args['group_id'],
-                                      db_num=args['db_num'],
-                                      address=args['address'],
-                                      area=args['area'],
-                                      data_type=args['data_type'],
-                                      rw_type=args['rw_type'],
-                                      upload=args['upload'],
-                                      acquisition_cycle=args['acquisition_cycle'],
-                                      server_record_cycle=args['server_record_cycle'],
-                                      note=args['note'],
-                                      ten_id=args['ten_id'],
-                                      item_id=args['item_id'],
-                                      write_value=args['write_value']
-                                      )
+            variable = YjVariableInfo(
+                variable_name=args['variable_name'],
+                plc_id=args['plc_id'],
+                group_id=args['group_id'],
+                db_num=args['db_num'],
+                address=args['address'],
+                area=args['area'],
+                data_type=args['data_type'],
+                rw_type=args['rw_type'],
+                upload=args['upload'],
+                acquisition_cycle=args['acquisition_cycle'],
+                server_record_cycle=args['server_record_cycle'],
+                note=args['note'],
+                ten_id=args['ten_id'],
+                item_id=args['item_id'],
+                write_value=args['write_value']
+            )
 
             db.session.add(variable)
             db.session.commit()
