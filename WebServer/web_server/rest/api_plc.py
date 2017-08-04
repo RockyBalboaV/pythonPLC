@@ -21,6 +21,7 @@ class PLCResource(ApiResource):
         station_id = self.args['station_id']
         station_name = self.args['station_name']
 
+        limit = self.args['limit']
         page = self.args['page']
         per_page = self.args['per_page'] if self.args['per_page'] else 10
 
@@ -37,6 +38,9 @@ class PLCResource(ApiResource):
 
         if station_name:
             query = query.join(YjStationInfo, YjStationInfo.station_name == station_name)
+
+        if limit:
+            query = query.limit(limit)
 
         if page:
             query = query.paginate(page, per_page, False).items
@@ -75,6 +79,7 @@ class PLCResource(ApiResource):
                 data['station_name'] = station.station_name
             else:
                 data['station_id_num'] = None
+                data['station_name'] = None
 
             info.append(data)
 

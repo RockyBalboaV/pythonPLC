@@ -21,6 +21,7 @@ class GroupResource(ApiResource):
         plc_id = self.args['plc_id']
         plc_name = self.args['plc_name']
 
+        limit = self.args['limit']
         page = self.args['page']
         per_page = self.args['per_page'] if self.args['per_page'] else 10
 
@@ -37,6 +38,9 @@ class GroupResource(ApiResource):
 
         if plc_name:
             query = query.join(YjPLCInfo, YjPLCInfo.plc_name == plc_name)
+
+        if limit:
+            query = query.limit(limit)
 
         if page:
             query = query.paginate(page, per_page, False).items

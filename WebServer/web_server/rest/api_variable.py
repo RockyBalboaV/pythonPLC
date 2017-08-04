@@ -57,7 +57,7 @@ class VariableResource(ApiResource):
             query = query.join(YjGroupInfo, YjGroupInfo.group_name == group_name)
 
         if plc_id:
-            query = query.join(YjGroupInfo, YjPLCInfo).filter(YjPLCInfo.id == plc_id)
+            query = query.join(YjGroupInfo).filter(YjGroupInfo.plc_id == plc_id)
 
         if plc_name:
             query = query.join(YjGroupInfo, YjPLCInfo).filter(YjPLCInfo.plc_name == plc_name)
@@ -124,13 +124,15 @@ class VariableResource(ApiResource):
             group = m.yjgroupinfo
             if group:
                 data['group_name'] = group.group_name
+                data['plc_id'] = group.plc_id
                 plc = group.yjplcinfo
             else:
                 data['group_name'] = None
+                data['plc_id'] = None
+                plc = None
 
             if plc:
                 data['plc_name'] = plc.plc_name
-                data['plc_id'] = plc.id
             else:
                 data['plc_name'] = None
 

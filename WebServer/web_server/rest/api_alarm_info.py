@@ -37,7 +37,7 @@ class AlarmInfoResource(ApiResource):
             query = query.filter(VarAlarmInfo.alarm_type.in_(alarm_type))
 
         if plc_id:
-            query = query.join(YjVariableInfo).filter(YjVariableInfo.plc_id.in_(plc_id))
+            query = query.join(YjVariableInfo, YjGroupInfo).filter(YjGroupInfo.plc_id.in_(plc_id))
 
         if variable_id:
             query = query.filter(VarAlarmInfo.variable_id.in_(variable_id))
@@ -62,7 +62,7 @@ class AlarmInfoResource(ApiResource):
         info = [
             dict(
                 id=m.id,
-                plc_id=m.yjvariableinfo.plc_id if m.yjvariableinfo else None,
+                plc_id=m.yjvariableinfo.yjgroupinfo.plc_id if m.yjvariableinfo and m.yjvariableinfo.yjgroupinfo else None,
                 variable_id=m.variable_id,
                 variable_name=m.yjvariableinfo.variable_name if m.yjvariableinfo else None,
                 alarm_type=m.alarm_type,

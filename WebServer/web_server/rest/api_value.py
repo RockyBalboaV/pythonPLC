@@ -161,17 +161,17 @@ class ValueResource(ApiResource):
             if group:
                 data['group_id'] = group.id
                 data['group_name'] = group.group_name
+                data['plc_id'] = plc.id
                 plc = group.yjgroupinfo
             else:
                 data['group_id'] = None
                 data['group_name'] = None
+                data['plc_id'] = None
                 plc = None
 
             if plc:
-                data['plc_id'] = plc.id
                 data['plc_name'] = plc.plc_name
             else:
-                data['plc_id'] = None
                 data['plc_name'] = None
 
             info.append(data)
@@ -206,10 +206,11 @@ class ValueResource(ApiResource):
             return rp_modify()
 
         else:
-            value = Value(variable_id=args['variable_id'],
-                          value=args['value'],
-                          time=args['time']
-                          )
+            value = Value(
+                variable_id=args['variable_id'],
+                value=args['value'],
+                time=args['time']
+            )
 
             db.session.add(value)
             db.session.commit()

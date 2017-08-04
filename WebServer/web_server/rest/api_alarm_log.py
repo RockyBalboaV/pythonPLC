@@ -43,7 +43,7 @@ class AlarmLogResource(ApiResource):
             query = query.join(VarAlarmInfo, VarAlarmInfo.alarm_type.in_(alarm_type))
 
         if plc_id:
-            query = query.join(VarAlarmInfo, YjVariableInfo).filter(YjVariableInfo.plc_id.in_(plc_id))
+            query = query.join(VarAlarmInfo, YjVariableInfo, YjGroupInfo).filter(YjGroupInfo.plc_id.in_(plc_id))
 
         if variable_id:
             query = query.join(VarAlarmInfo, YjVariableInfo).filter(YjVariableInfo.id.in_(variable_id))
@@ -73,8 +73,8 @@ class AlarmLogResource(ApiResource):
                 model
                 for p in plc_id
                 for model in
-                VarAlarmLog.query.join(VarAlarmInfo, YjVariableInfo, YjGroupInfo, YjPLCInfo).filter(
-                    YjPLCInfo.id == p).limit(limit)
+                VarAlarmLog.query.join(VarAlarmInfo, YjVariableInfo, YjGroupInfo).filter(
+                    YjGroupInfo.plc_id == p).limit(limit)
             ]
         else:
             query = query.all()
@@ -122,8 +122,8 @@ class AlarmLogResource(ApiResource):
 
             group = m.var_alarm_info.yjvariableinfo.yjgroupinfo if var else None
 
-            plc = m.var_alarm_info.yjvariableinfo.yjgroupinfo.yjplcinfo if group else None
-            data['plc_id'] = m.var_alarm_info.yjvariableinfo.yjgroupinfo.yjplcinfo.id if plc else None
+            # plc = m.var_alarm_info.yjvariableinfo.yjgroupinfo.yjplcinfo if group else None
+            data['plc_id'] = m.var_alarm_info.yjvariableinfo.yjgroupinfo.plc_id if group else None
 
             info.append(data)
 
