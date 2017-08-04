@@ -27,13 +27,17 @@ def serialize(model):
     return dict((c, getattr(model, c)) for c in columns)
 
 
-roles = db.Table('role_users',
-                 db.Column('user_id', db.Integer, db.ForeignKey('user.id')),
-                 db.Column('role_id', db.Integer, db.ForeignKey('role.id')))
+roles = db.Table(
+    'role_users',
+    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
+    db.Column('role_id', db.Integer, db.ForeignKey('role.id'), primary_key=True)
+)
 
-var_queries = db.Table('variables_queries',
-                       db.Column('query_id', db.Integer, db.ForeignKey('query_group.id')),
-                       db.Column('variable_id', db.Integer, db.ForeignKey('yjvariableinfo.id')))
+var_queries = db.Table(
+    'variables_queries',
+    db.Column('query_id', db.Integer, db.ForeignKey('query_group.id'), primary_key=True),
+    db.Column('variable_id', db.Integer, db.ForeignKey('yjvariableinfo.id'), primary_key=True)
+)
 
 
 class YjStationInfo(db.Model):
@@ -51,9 +55,9 @@ class YjStationInfo(db.Model):
     modification = db.Column(db.Integer)
     version = db.Column(db.Integer)
 
-    plcs = db.relationship('YjPLCInfo', backref='yjstationinfo', lazy='dynamic')
+    plcs = db.relationship('YjPLCInfo', backref='yjstationinfo', lazy='dynamic', passive_deletes=True)
 
-    logs = db.relationship('TransferLog', backref='yjstationinfo', lazy='dynamic')
+    logs = db.relationship('TransferLog', backref='yjstationinfo', lazy='dynamic', passive_deletes=True)
 
     def __init__(self, station_name=None, mac=None, ip=None, note=None, id_num=None,
                  plc_count=None, ten_id=None, item_id=None, con_time=int(time.time()), modification=0):
@@ -90,7 +94,7 @@ class YjPLCInfo(db.Model):
 
     station_id = db.Column(db.Integer, db.ForeignKey('yjstationinfo.id'))
 
-    groups = db.relationship('YjGroupInfo', backref='yjplcinfo', lazy='dynamic')
+    groups = db.relationship('YjGroupInfo', backref='yjplcinfo', lazy='dynamic', passive_deletes=True)
 
     def __init__(self, plc_name=None, station_id=None, note=None, ip=None,
                  mpi=None, type=None, plc_type=None,
@@ -124,7 +128,7 @@ class YjGroupInfo(db.Model):
 
     plc_id = db.Column(db.Integer, db.ForeignKey('yjplcinfo.id'))
 
-    variables = db.relationship('YjVariableInfo', backref='yjgroupinfo', lazy='dynamic')
+    variables = db.relationship('YjVariableInfo', backref='yjgroupinfo', lazy='dynamic', passive_deletes=True)
 
     def __init__(self, group_name=None, plc_id=None, note=None,
                  upload_cycle=None, upload=True, ten_id=None, item_id=None):
@@ -159,9 +163,9 @@ class YjVariableInfo(db.Model):
 
     group_id = db.Column(db.Integer, db.ForeignKey('yjgroupinfo.id'))
 
-    values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic')
-    alarms = db.relationship('VarAlarmInfo', backref='yjvariableinfo', lazy='dynamic')
-    params = db.relationship('Parameter', backref='yjvariableinfo', lazy='dynamic')
+    values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic', passive_deletes=True)
+    alarms = db.relationship('VarAlarmInfo', backref='yjvariableinfo', lazy='dynamic', passive_deletes=True)
+    params = db.relationship('Parameter', backref='yjvariableinfo', lazy='dynamic', passive_deletes=True)
 
     def __init__(self, variable_name=None, group_id=None, db_num=None, address=None,
                  data_type=None, rw_type=None, upload=None,
@@ -214,7 +218,8 @@ class User(UserMixin, db.Model):
     roles = db.relationship(
         'Role',
         secondary=roles,
-        backref=db.backref('user', lazy='dynamic')
+        backref=db.backref('user', lazy='dynamic'),
+        passive_deletes=True
     )
 
     def __init__(self, username, password, email=None):
@@ -308,7 +313,8 @@ class QueryGroup(db.Model):
     vars = db.relationship(
         'YjVariableInfo',
         secondary=var_queries,
-        backref=db.backref('querys', lazy='dynamic')
+        backref=db.backref('querys', lazy='dynamic'),
+        passive_deletes=True
     )
 
 
@@ -327,7 +333,7 @@ class VarAlarmInfo(db.Model):
     alarm_type = db.Column(db.Integer)
     note = db.Column(db.String(128))
 
-    logs = db.relationship('VarAlarmLog', backref='var_alarm_info', lazy='dynamic')
+    logs = db.relationship('VarAlarmLog', backref='var_alarm_info', lazy='dynamic', passive_deletes=True)
 
 
 class InterfaceLog(db.Model):
@@ -349,4 +355,3 @@ class Parameter(db.Model):
     variable_id = db.Column(db.Integer, db.ForeignKey('yjvariableinfo.id'))
     param_name = db.Column(db.String(32))
     unit = db.Column(db.String(16))
-
