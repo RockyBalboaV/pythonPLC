@@ -59,12 +59,12 @@ class Config(object):
     CELERYBEAT_SCHEDULE = {
         'beats': {
             'task': 'app.beats',
-            'schedule': timedelta(seconds=5),
+            'schedule': timedelta(seconds=10),
         },
 
         'check_group_upload_time': {
             'task': 'app.check_group_upload_time',
-            'schedule': timedelta(seconds=1)
+            'schedule': timedelta(seconds=3)
         },
         'check_variable_get_time': {
             'task': 'app.check_variable_get_time',

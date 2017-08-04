@@ -105,7 +105,7 @@ def set_config():
             "YjStationInfo": serialize(station),
             "YjPLCInfo": [serialize(plc) for plc in station.plcs],
             "YjGroupInfo": [serialize(group) for plc in station.plcs for group in plc.groups],
-            "YjVariableInfo": [serialize(variable) for plc in station.plcs for variable in plc.variables]
+            "YjVariableInfo": [serialize(variable) for plc in station.plcs for group in plc.groups for variable in group.variables]
         }
         # time2 = time.time()
         # print(time2 - time1)

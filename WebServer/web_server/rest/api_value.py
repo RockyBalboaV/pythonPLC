@@ -27,10 +27,9 @@ class ValueResource(ApiResource):
         self.args = value_parser.parse_args()
         super(ValueResource, self).__init__()
 
-    def search(self, value_id=None):
+    def search(self):
 
-        if not value_id:
-            value_id = self.args['id']
+        value_id = self.args['id']
 
         variable_id = self.args['variable_id']
         variable_name = self.args['variable_name']
@@ -65,10 +64,10 @@ class ValueResource(ApiResource):
             query = query.join(YjVariableInfo).filter(YjVariableInfo.variable_name == variable_name)
 
         if plc_id:
-            query = query.join(YjVariableInfo, YjPLCInfo).filter(YjPLCInfo.id == plc_id)
+            query = query.join(YjVariableInfo, YjGroupInfo, YjPLCInfo).filter(YjPLCInfo.id == plc_id)
 
         if plc_name:
-            query = query.join(YjVariableInfo, YjPLCInfo).filter(YjPLCInfo.plc_name == plc_name)
+            query = query.join(YjVariableInfo, YjGroupInfo, YjPLCInfo).filter(YjPLCInfo.plc_name == plc_name)
 
         if group_id:
             query = query.join(YjVariableInfo, YjGroupInfo).filter(YjGroupInfo.id == group_id)
@@ -81,7 +80,7 @@ class ValueResource(ApiResource):
                 var_queries.columns.variable_id == Value.variable_id)
 
         if query_name:
-            query = query.join(QueryGroup, QueryGroup.name == query_name).\
+            query = query.join(QueryGroup, QueryGroup.name == query_name). \
                 join(var_queries, var_queries.columns.query_id == QueryGroup.id).filter(
                 var_queries.columns.variable_id == Value.variable_id)
 
@@ -123,64 +122,71 @@ class ValueResource(ApiResource):
         if not value:
             return err_not_found()
 
-        info = [
-            dict(
-                id=v.id,
-                variable_id=v.variable_id,
-                value=v.value,
-                time=v.time,
-                variable_name=v.yjvariableinfo.variable_name if v.yjvariableinfo else None,
-                plc_id=v.yjvariableinfo.plc_id if v.yjvariableinfo else None,
-                plc_name=v.yjvariableinfo.yjplcinfo.plc_name if v.yjvariableinfo else None,
-                group_id=v.yjvariableinfo.yjgroupinfo.id if v.yjvariableinfo else None,
-                group_name=v.yjvariableinfo.yjgroupinfo.group_name if v.yjvariableinfo else None
-            )
-            for v in value
-        ]
-        # info = []
-        # for v in value:
-        #
-        #     data = dict()
-        #     data['id'] = v.id
-        #     data['variable_id'] = v.variable_id
-        #     data['value'] = v.value
-        #     data['time'] = v.time
-        #
-        #     variable = v.yjvariableinfo
-        #     if variable:
-        #         data['variable_name'] = variable.variable_name
-        #         plc = variable.yjplcinfo
-        #         group = variable.yjgroupinfo
-        #     else:
-        #         data['variable_name'] = None
-        #         plc = None
-        #         group = None
-        #
-        #     if plc:
-        #         data['plc_id'] = plc.id
-        #         data['plc_name'] = plc.plc_name
-        #     else:
-        #         data['plc_id'] = None
-        #         data['plc_name'] = None
-        #
-        #     if group:
-        #         data['group_id'] = group.id
-        #         data['group_name'] = group.group_name
-        #     else:
-        #         data['group_id'] = None
-        #         data['group_name'] = None
-        #
-        #     info.append(data)
+        # info = [
+        #     dict(
+        #         id=v.id,
+        #         variable_id=v.variable_id,
+        #         value=v.value,
+        #         time=v.time,
+        #         variable_name=v.yjvariableinfo.variable_name
+        #         if v.yjvariableinfo else None,
+        #         plc_id=v.yjvariableinfo.yjgroupinfo.yjplcinfo.id
+        #         if (v.yjvariableinfo and v.yjvariableinfo.yjgroupinfo and v.yjvariableinfo.yjgroupinfo.yjplcinfo)
+        #         else None,
+        #         plc_name=v.yjvariableinfo.yjplcinfo.plc_name
+        #         if (v.yjvariableinfo and v.yjvariableinfo.yjgroupinfo and v.yjvariableinfo.yjgroupinfo.yjplcinfo)
+        #         else None,
+        #         group_id=v.yjvariableinfo.yjgroupinfo.id
+        #         if v.yjvariableinfo and v.yjvariableinfo.yjgroupinfo else None,
+        #         group_name=v.yjvariableinfo.yjgroupinfo.group_name
+        #         if v.yjvariableinfo and v.yjvariableinfo.yjgroupinfo else None
+        #     )
+        #     for v in value
+        # ]
+
+        info = []
+        for v in value:
+
+            data = dict()
+            data['id'] = v.id
+            data['variable_id'] = v.variable_id
+            data['value'] = v.value
+            data['time'] = v.time
+
+            variable = v.yjvariableinfo
+            if variable:
+                data['variable_name'] = variable.variable_name
+                plc = variable.yjplcinfo
+                group = variable.yjgroupinfo
+            else:
+                data['variable_name'] = None
+                plc = None
+                group = None
+
+            if plc:
+                data['plc_id'] = plc.id
+                data['plc_name'] = plc.plc_name
+            else:
+                data['plc_id'] = None
+                data['plc_name'] = None
+
+            if group:
+                data['group_id'] = group.id
+                data['group_name'] = group.group_name
+            else:
+                data['group_id'] = None
+                data['group_name'] = None
+
+            info.append(data)
 
         response = jsonify({"ok": 1, "data": info})
 
         return response
 
-    def put(self, value_id=None):
+    def put(self):
         args = value_put_parser.parse_args()
 
-        if not value_id:
-            value_id = args['id']
+        value_id = args['id']
 
         if value_id:
 

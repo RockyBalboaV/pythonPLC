@@ -19,6 +19,7 @@ class InterfaceLogResource(ApiResource):
         super(InterfaceLogResource, self).__init__()
         self.query = InterfaceLog.query
 
+        # time1 = time.time()
         self.model_id = self.args['id']
 
         self.username = self.args['username']
@@ -33,6 +34,9 @@ class InterfaceLogResource(ApiResource):
         self.limit = self.args['limit']
         self.page = self.args['page']
         self.per_page = self.args['per_page'] if self.args['per_page'] else 10
+
+        # time2 = time.time()
+        # print(time2 - time1)
 
     def search(self):
 

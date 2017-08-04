@@ -16,6 +16,8 @@ def variable_size(variable_model):
         return 's', 1
     elif variable_model.data_type == 'BOOL':
         return '?', 1
+    else:
+        return 'h', 2
 
 
 def variable_area(variable_model):
@@ -27,18 +29,19 @@ def variable_area(variable_model):
         return S7AreaPA
     elif variable_model.area == 4:
         return S7AreaMK
+    else:
+        return S7AreaDB
 
 
 class PythonPLC(object):
-    def __init__(self, ip, rack, slot, tcp_port):
+    def __init__(self, ip, rack, slot):
         self.ip = ip
         self.rack = rack
         self.slot = slot
-        self.tcp_port = tcp_port
 
     def __enter__(self):
         self.client = snap7.client.Client()
-        self.client.connect(self.ip, self.rack, self.slot, self.tcp_port)
+        self.client.connect(self.ip, self.rack, self.slot)
         return self.client
 
     def __exit__(self, *args):

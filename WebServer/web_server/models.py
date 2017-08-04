@@ -90,7 +90,6 @@ class YjPLCInfo(db.Model):
 
     station_id = db.Column(db.Integer, db.ForeignKey('yjstationinfo.id'))
 
-    variables = db.relationship('YjVariableInfo', backref='yjplcinfo', lazy='dynamic')
     groups = db.relationship('YjGroupInfo', backref='yjplcinfo', lazy='dynamic')
 
     def __init__(self, plc_name=None, station_id=None, note=None, ip=None,
@@ -155,22 +154,20 @@ class YjVariableInfo(db.Model):
     note = db.Column(db.String(50))
     ten_id = db.Column(db.String(200))
     item_id = db.Column(db.String(20))
-    write_value = db.Column(db.String(20))
+    write_value = db.Column(db.Integer)
     area = db.Column(db.Integer)
 
-    plc_id = db.Column(db.Integer, db.ForeignKey('yjplcinfo.id'))
     group_id = db.Column(db.Integer, db.ForeignKey('yjgroupinfo.id'))
 
     values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic')
     alarms = db.relationship('VarAlarmInfo', backref='yjvariableinfo', lazy='dynamic')
     params = db.relationship('Parameter', backref='yjvariableinfo', lazy='dynamic')
 
-    def __init__(self, variable_name=None, plc_id=None, group_id=None, db_num=None, address=None,
+    def __init__(self, variable_name=None, group_id=None, db_num=None, address=None,
                  data_type=None, rw_type=None, upload=None,
                  acquisition_cycle=None, server_record_cycle=None,
                  note=None, ten_id=None, item_id=None, write_value=None, area=None):
         self.variable_name = variable_name
-        self.plc_id = plc_id
         self.group_id = group_id
         self.db_num = db_num
         self.address = address

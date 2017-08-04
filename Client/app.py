@@ -16,10 +16,11 @@ import datetime
 from celery import Celery
 from celery.signals import worker_process_init
 import billiard
-from sqlalchemy.orm.exc import UnmappedInstanceError
+from sqlalchemy.orm.exc import UnmappedInstanceError, UnmappedClassError
 from sqlalchemy.exc import ProgrammingError
+from snap7.snap7exceptions import Snap7Exception
 
-from models import (eng, Base, session, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, TransferLog, \
+from models import (eng, Base, Session, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, TransferLog, \
                     Value, serialize)
 from celeryconfig import Config
 from data_collection import variable_size, variable_area, PythonPLC
@@ -37,6 +38,7 @@ def database_reset():
 
 
 def get_station_info():
+    session = Session()
     id_num = cf.get('client', 'id_num')
     try:
         station_model = session.query(YjStationInfo).filter_by(id_num=id_num).first()
@@ -48,9 +50,9 @@ def get_station_info():
 
 
 # 设置通用变量
-print('abcde')
+# print('abcde')
 station_info = get_station_info()
-print(os.environ.get('url'))
+# print(os.environ.get('url'))
 BEAT_URL = cf.get(os.environ.get('url'), 'beat_url')
 CONFIG_URL = cf.get(os.environ.get('url'), 'config_url')
 UPLOAD_URL = cf.get(os.environ.get('url'), 'upload_url')
@@ -58,12 +60,13 @@ UPLOAD_URL = cf.get(os.environ.get('url'), 'upload_url')
 
 def first_running():
     Base.metadata.create_all(bind=eng)
-    print('bbbb')
+    # print('bbbb')
     get_config()
 
 
 def before_running():
-    print 'running setup'
+    session = Session()
+    # print 'running setup'
     # 设定服务开始运行时间
     current_time = int(time.time())
     start_time = current_time + int(cf.get('client', 'START_TIMEDELTA'))
@@ -82,10 +85,9 @@ def before_running():
     variables = session.query(YjVariableInfo).all()
     for v in variables:
         if v.rw_type == 2 or v.rw_type == 3 and v.write_value:
-            ip = v.plc.ip
-            rack = v.plc.rack
-            slot = v.plc.slot
-            tcp_port = v.plc.tcp_port
+            ip = v.group.plc.ip
+            rack = v.group.plc.rack
+            slot = v.group.plc.slot
             variable_db = v.db_num
             type_code, size = variable_size(v)
             address = v.address
@@ -93,7 +95,7 @@ def before_running():
 
             write_value = struct.pack('!{}'.format(type_code), v.write_value)
 
-            with PythonPLC(ip, rack, slot, tcp_port) as db:
+            with PythonPLC(ip, rack, slot) as db:
                 db.write_area(area=area, dbnumber=variable_db, start=address, data=write_value)
 
         if v.rw_type == 1 or v.rw_type == 3:
@@ -112,15 +114,16 @@ def fix_mutilprocessing(**kwargs):
 
 @app.task
 def beats():
+    session = Session()
     current_time = int(time.time())
 
-    print(station_info)
-    a = station_info
-    print(station_info)
+    # print(station_info)
+    # a = station_info
+    # print(station_info)
     data = station_info
     # data = encryption(data)
     # todo 报警变量加到data里
-    print(data)
+    # print(data)
 
     try:
         rv = requests.post(BEAT_URL, json=data)
@@ -130,13 +133,13 @@ def beats():
     else:
         # data = decryption(rv)
         data = rv.json()
-        print(data)
+        # print(data)
 
         if data["modification"] == 1:
-            print('ccccc')
+            # print('ccccc')
             # get_config.delay()
             get_config()
-            print 'get_config'
+            # print 'get_config'
             note = '完成一次心跳连接，时间:{},发现配置信息有更新.'.format(datetime.datetime.fromtimestamp(current_time))
         else:
             note = '完成一次心跳连接，时间:{}.'.format(datetime.datetime.fromtimestamp(current_time))
@@ -148,6 +151,7 @@ def beats():
 
 @app.task
 def get_config():
+    session = Session()
     current_time = int(time.time())
     # data = encryption(data)
     data = station_info
@@ -234,7 +238,6 @@ def get_config():
             v = YjVariableInfo(
                 model_id=variable["id"],
                 variable_name=variable["variable_name"],
-                plc_id=variable["plc_id"],
                 group_id=variable["group_id"],
                 db_num=variable['db_num'],
                 address=variable["address"],
@@ -265,7 +268,7 @@ def get_config():
 
 
 @app.task
-def upload(group_model):
+def upload(group_model, session):
     # 记录本次上传时间
     current_time = int(time.time())
 
@@ -273,34 +276,16 @@ def upload(group_model):
     group_id = group_model.id
     group_name = group_model.group_name
 
-    group_log = session.query(TransferLog).filter(TransferLog.trans_type == 'upload').filter(
-        TransferLog.note.like('% {} %'.format(group_id))).order_by(TransferLog.time.desc()).first()
-
     # 获取上次传输时间,没有上次时间就往前推一个上传周期
-    if group_log:
-        last_time = group_log.time
-    else:
-        timedelta = group_model.upload_cycle
-        last_time = current_time - timedelta
-
-    # # 获取该组包括的所有变量
-    # # 记录中如果有原配置中有的组名，更改配置后会导致取到空值
-    # try:
-    #     variables = session.query(YjGroupInfo).filter(YjGroupInfo.groupname == group_name).first().variables
-    # except AttributeError as e:
-    #     session.delete(session.query(GroupUploadTime).filter(GroupUploadTime.group_name == group_name).first())
-    #     session.commit()
-    #     return 0
-
-    variables = group_model.variables
+    get_time = current_time - group_model.upload_cycle
 
     # 准备本次上传的数据
+    variables = group_model.variables
     variable_list = []
     for variable in variables:
         # 判断该变量是否需要上传
         if variable.upload:
             # 读取需要上传的值,所有时间大于上次上传的值
-            get_time = last_time
             # all_values = variable.values.filter(get_time <= Value.time < upload_time)
             all_values = session.query(Value).filter_by(variable_id=variable.id).filter(
                 get_time <= Value.time).filter(Value.time < current_time)
@@ -314,19 +299,14 @@ def upload(group_model):
                 upload_value = all_values.filter(
                     get_time + variable.server_record_cycle > Value.time).filter(Value.time >= get_time).first()
                 # 当上传时间小于采集时间时，会出现取值时间节点后无采集数据，得到None，使得后续语句报错。
-                print(upload_value)
+                # print(upload_value)
                 try:
                     value_dict = serialize(upload_value)
                     variable_list.append(value_dict)
-                except AttributeError:
+                except UnmappedClassError:
                     pass
 
                 get_time += variable.server_record_cycle
-
-    # 修改下次组传输时间
-    group_model.upload_time = current_time + group_model.upload_cycle
-    group_model.uploading = False
-    session.merge(group_model)
 
     log = TransferLog(
         trans_type='group_upload',
@@ -356,7 +336,7 @@ def upload(group_model):
             note=note
         )
         session.add(log)
-        session.commit()
+        # session.commit()
         return 1
 
     data = response.json()
@@ -370,13 +350,13 @@ def upload(group_model):
     # 版本错误
     elif response.status_code == 403:
         note = 'group_id: {} group_name:{} 上传的数据不是在最新版本配置下采集的.'.format(group_id, group_name)
-        print('aaaaaa')
-        get_config()
+        # print('aaaaaa')
+        # get_config()
 
     # 未知错误
     else:
         note = 'group_id: {} group_name:{} 无法识别服务端反馈。'.format(group_id, group_name)
-    print data
+    # print data
     log = TransferLog(
         trans_type='upload_call_back',
         time=current_time,
@@ -384,59 +364,66 @@ def upload(group_model):
         note=note
     )
     session.add(log)
-    session.commit()
+    # session.commit()
 
 
 @app.task
 def check_group_upload_time():
+    session = Session()
     current_time = int(time.time())
-    print 'c'
-    try:
+    print 'check_group'
+    # try:
         # groups = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).all()
-        groups = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).filter(
+    group_models = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).filter(
             YjGroupInfo.uploading is not True).all()
-        print(groups)
-    except:
-        return 'skip'
+        # print(groups)
+    # except:
+    #     return 'skip'
 
     # poll = multiprocessing.Pool(4)
-    for g in groups:
-        print 'b'
-        g.uploading = True
-    try:
-        session.commit()
-    except:
-        session.rollback()
 
-    for g in groups:
-        print 'a'
-        upload(g)
+    # 修改下次组传输时间
+    for group_model in group_models:
+        # print 'b'
+        group_model.upload_time = current_time + group_model.upload_cycle
+        session.merge(group_model)
+    # try:
+    session.commit()
+    # except:
+    #     session.rollback()
 
-        # curr_proc = mp.current_process()
-        # curr_proc.daemon = False
-        # p = mp.Pool(mp.cpu_count())
-        # curr_proc.daemon = True
-        # for g in groups:
-        #     print 'a'
-        #     p.apply_async(upload, args=(g,))  # todo 多线程
-        # p.close()
-        # p.join()
-        # #
-        # return 1
-        # poll.apply_async(upload, (g,))
+    for group_model in group_models:
+        # print 'a'
+        upload(group_model, session)
 
-        # session.commit()
+    session.commit()
+    # curr_proc = mp.current_process()
+    # curr_proc.daemon = False
+    # p = mp.Pool(mp.cpu_count())
+    # curr_proc.daemon = True
+    # for g in groups:
+    #     print 'a'
+    #     p.apply_async(upload, args=(g,))  # todo 多线程
+    # p.close()
+    # p.join()
+    # #
+    # return 1
+    # poll.apply_async(upload, (g,))
+
+    # session.commit()
 
 
 @app.task
 def check_variable_get_time():
+    session = Session()
     current_time = int(time.time())
+    print('check_variable')
+    # try:
+    variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time).all()
+    # except:
+    #     session.rollback()
+    #     return 'skip'
 
-    try:
-        variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time)
-    except:
-        session.rollback()
-        return 'skip'
     # task = signature('task.get_value', args=(v, ))
     # sig = group
     # (get_value.sub for v in variables)()
@@ -448,35 +435,39 @@ def check_variable_get_time():
     #                      for v in variables])
     # result = poll.map(get_value, [(v,)
     #                               for v in variables])
-    try:
-        for v in variables:
-            # print 'variable'
-            print 'get value'
-            get_value(v)
-            # poll.apply_async(get_value, (v,))
+    # try:
+    print('v_t')
+    for v in variables:
+        # 保证一段时间内不会产生两个task采集同一个变量
+        v.acquisition_time = current_time + v.acquisition_cycle
+        session.merge(v)
+    session.commit()
+    print('v_g')
 
-            # session.commit()
-    except:
-        session.rollback()
+    for var in variables:
+        # print 'variable'
+        print 'get value'
+        get_value(var, session)
+        # poll.apply_async(get_value, (v,))
+
+    session.commit()
+    # except:
+    #     session.rollback()
 
 
 @app.task
-def get_value(variable_model):
+def get_value(variable_model, session):
     current_time = int(time.time())
 
-    # 保证一段时间内不会产生两个task采集同一个变量
-    variable_model.acquisition_time = current_time + variable_model.acquisition_cycle
-    session.merge(variable_model)
-    # print(2)
-    session.commit()
+    print(2)
+    # session.commit()
     # print(3)
 
     # 获得变量信息
     # 变量所属plc的信息
-    ip = variable_model.plc.ip
-    rack = variable_model.plc.rack
-    slot = variable_model.plc.slot
-    tcp_port = variable_model.plc.tcp_port
+    ip = variable_model.group.plc.ip
+    rack = variable_model.group.plc.rack
+    slot = variable_model.group.plc.slot
 
     # print(5)
     # 获取采集变量时需要的信息
@@ -490,17 +481,21 @@ def get_value(variable_model):
 
     # print('cccc')
     # 采集数据
-    # print ip, rack, slot, tcp_port, area, variable_db, address, size
+    print ip, rack, slot, area, variable_db, address, size
     # TODO 建立连接的开销很大，在代码启动时创建连接并保持，定时查询连接状态就好，这样不用重复建立连接
-    with PythonPLC(ip, rack, slot, tcp_port) as db:
-        result = db.read_area(area=area, dbnumber=variable_db, start=address, size=size)
-    value = struct.unpack('!{}'.format(type_code), result)[0]
-    # print value
+    try:
+        with PythonPLC(ip, rack, slot) as db:
+            result = db.read_area(area=area, dbnumber=variable_db, start=address, size=size)
+    except Snap7Exception as e:
+        print(e)
+    else:
+        value = struct.unpack('!{}'.format(type_code), result)[0]
+        print value
 
-    # print('dddd')
-    # 保存数据
-    value = Value(variable_id=variable_model.id, time=current_time, value=value)
-    session.add(value)
+        # print('dddd')
+        # 保存数据
+        value = Value(variable_id=variable_model.id, time=current_time, value=value)
+        session.add(value)
 
-    # 采集完后整体保存
-    session.commit()
+        # 采集完后整体保存
+        # session.commit()

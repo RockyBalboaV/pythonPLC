@@ -61,11 +61,10 @@ class StationResource(ApiResource):
 
         return response
 
-    def put(self, station_id=None):
+    def put(self):
         args = station_put_parser.parse_args()
 
-        if not station_id:
-            station_id = args['id']
+        station_id = args['id']
 
         if station_id:
             station = YjStationInfo.query.get(station_id)
@@ -105,10 +104,17 @@ class StationResource(ApiResource):
             return rp_modify()
 
         else:
-            station = YjStationInfo(station_name=args['station_name'], mac=args['mac'], ip=args['ip'],
-                                    note=args['note'],
-                                    id_num=args['id_num'], plc_count=args['plc_count'], ten_id=args['ten_id'],
-                                    item_id=args['item_id'], modification=args['modification'])
+            station = YjStationInfo(
+                station_name=args['station_name'],
+                mac=args['mac'],
+                ip=args['ip'],
+                note=args['note'],
+                id_num=args['id_num'],
+                plc_count=args['plc_count'],
+                ten_id=args['ten_id'],
+                item_id=args['item_id'],
+                modification=args['modification']
+            )
             db.session.add(station)
             db.session.commit()
             return rp_create()

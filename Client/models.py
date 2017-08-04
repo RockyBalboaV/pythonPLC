@@ -12,7 +12,7 @@ cf.readfp(open('config.ini'))
 db_uri = cf.get(os.environ.get('env'), 'db_uri')
 
 # 创建连接
-eng = create_engine(db_uri, pool_recycle=1)
+eng = create_engine(db_uri)
 # 创建基类
 Base = declarative_base()
 
@@ -47,7 +47,6 @@ class YjStationInfo(Base):
     ten_id = Column(String(255))
     item_id = Column(String(20))
     con_date = Column(Integer)
-    # modification = Column(Integer)
     version = Column(Integer)
 
     def __init__(self, model_id, station_name=None, mac=None, ip=None, note=None, id_num=None,
@@ -157,28 +156,22 @@ class YjVariableInfo(Base):
     note = Column(String(50))
     ten_id = Column(String(200))
     item_id = Column(String(20))
-    write_value = Column(String(20))
+    write_value = Column(Integer)
     area = Column(Integer)
 
     acquisition_time = Column(Integer)
-
-    plc_id = Column("plc_id", Integer, ForeignKey("yjplcinfo.id"))
-    plc = relationship("YjPLCInfo", foreign_keys="YjVariableInfo.plc_id",
-                       backref=backref("variables", cascade="all, delete-orphan"),
-                       primaryjoin="YjPLCInfo.id==YjVariableInfo.plc_id")
 
     group_id = Column("group_id", Integer, ForeignKey("yjgroupinfo.id"))
     group = relationship("YjGroupInfo", foreign_keys="YjVariableInfo.group_id",
                          backref=backref("variables", cascade="all, delete-orphan"),
                          primaryjoin="YjGroupInfo.id==YjVariableInfo.group_id")
 
-    def __init__(self, model_id, variable_name=None, plc_id=None, group_id=None, db_num=None, address=None,
+    def __init__(self, model_id, variable_name=None, group_id=None, db_num=None, address=None,
                  data_type=None, rw_type=None, upload=None,
                  acquisition_cycle=None, server_record_cycle=None,
                  note=None, ten_id=None, item_id=None, write_value=None, area=None):
         self.id = model_id
         self.variable_name = variable_name
-        self.plc_id = plc_id
         self.group_id = group_id
         self.db_num = db_num
         self.address = address
@@ -230,11 +223,11 @@ class TransferLog(Base):
         self.note = note
 
 
-class ConfigUpdateLog(Base):
-    __tablename__ = 'config_update_log'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    time = Column(Integer)
-    version = Column(Integer)
+# class ConfigUpdateLog(Base):
+#     __tablename__ = 'config_update_log'
+#     id = Column(Integer, primary_key=True, autoincrement=True)
+#     time = Column(Integer)
+#     version = Column(Integer)
 
 
 class VarAlarmLog(Base):

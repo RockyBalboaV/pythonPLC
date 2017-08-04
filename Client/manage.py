@@ -20,7 +20,8 @@ if not os.environ.get('env'):
     elif args.config == 'prod':
         os.environ['env'] = 'prod'
     else:
-        raise EnvironmentError('option --config no value, choose from "dev" or "prod"')
+        os.environ['env'] = 'dev'
+        # raise EnvironmentError('option --config no value, choose from "dev" or "prod"')
 
 if not os.environ.get('url'):
     if args.url == 'server':
@@ -45,6 +46,11 @@ if args.start:
     # get_config()
     # get_value()
     # upload()
+from app import beats, get_config, check_variable_get_time, check_group_upload_time
+# beats()
+# get_config()
+check_variable_get_time()
+check_group_upload_time()
 
 # from snap7 import snap7types
 # from data_collection import PythonPLC
@@ -71,10 +77,26 @@ if args.start:
 # time2 = time.time()
 # print(time2 - time1)
 # print('a')
-import snap7, struct
-from data_collection import PythonPLC
-with PythonPLC('192.168.18.17', 0, 2, 102) as db:
-    print(db.ip)
-    result = db.read_area(area=snap7.snap7types.S7AreaDB, dbnumber=1, start=0, size=4)
-value = struct.unpack('!i', result)[0]
-print value
+
+# import snap7, struct
+# from data_collection import PythonPLC
+# with PythonPLC('192.168.18.18', 0, 1) as db:
+#     print(db)
+#     result = db.read_area(area=snap7.snap7types.S7AreaDB, dbnumber=1, start=0, size=2)
+# value = struct.unpack('!h', result)[0]
+# print value
+# print(db)
+
+
+# try:
+#     print('a')
+#     assert ('a' == 'b')
+# except:
+#     print('b')
+# else:
+#     print('c')
+
+# from models import Value, session
+# v = Value(1, 2, 122)
+# session.add(v)
+# session.commit()

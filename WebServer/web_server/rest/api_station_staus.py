@@ -115,11 +115,12 @@ class StatusResource(ApiResource):
             return rp_modify()
 
         else:
-            model = TransferLog(station_id=args['station_id'],
-                                level=args['level'],
-                                time=args['time'],
-                                note=args['note'],
-                                )
+            model = TransferLog(
+                station_id=args['station_id'],
+                level=args['level'],
+                time=args['time'],
+                note=args['note'],
+            )
             db.session.add(model)
             db.session.commit()
             return rp_create()

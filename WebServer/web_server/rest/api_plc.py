@@ -83,11 +83,10 @@ class PLCResource(ApiResource):
 
         return response
 
-    def put(self, plc_id=None):
+    def put(self):
         args = plc_put_parser.parse_args()
 
-        if not plc_id:
-            plc_id = args['id']
+        plc_id = args['id']
 
         if plc_id:
 

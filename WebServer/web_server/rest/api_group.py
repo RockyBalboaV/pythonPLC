@@ -75,11 +75,10 @@ class GroupResource(ApiResource):
 
         return response
 
-    def put(self, group_id=None):
+    def put(self):
         args = group_put_parser.parse_args()
 
-        if not group_id:
-            group_id = args['id']
+        group_id = args['id']
 
         if group_id:
 
@@ -114,14 +113,15 @@ class GroupResource(ApiResource):
             return rp_modify()
 
         else:
-            group = YjGroupInfo(group_name=args['group_name'],
-                                plc_id=args['plc_id'],
-                                note=args['note'],
-                                upload_cycle=args['upload_cycle'],
-                                ten_id=args['ten_id'],
-                                item_id=args['item_id'],
-                                upload=args['upload']
-                                )
+            group = YjGroupInfo(
+                group_name=args['group_name'],
+                plc_id=args['plc_id'],
+                note=args['note'],
+                upload_cycle=args['upload_cycle'],
+                ten_id=args['ten_id'],
+                item_id=args['item_id'],
+                upload=args['upload']
+            )
 
             db.session.add(group)
             db.session.commit()
