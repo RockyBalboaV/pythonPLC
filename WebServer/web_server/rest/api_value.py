@@ -153,12 +153,19 @@ class ValueResource(ApiResource):
             variable = v.yjvariableinfo
             if variable:
                 data['variable_name'] = variable.variable_name
-                plc = variable.yjplcinfo
                 group = variable.yjgroupinfo
             else:
                 data['variable_name'] = None
-                plc = None
                 group = None
+
+            if group:
+                data['group_id'] = group.id
+                data['group_name'] = group.group_name
+                plc = group.yjgroupinfo
+            else:
+                data['group_id'] = None
+                data['group_name'] = None
+                plc = None
 
             if plc:
                 data['plc_id'] = plc.id
@@ -166,13 +173,6 @@ class ValueResource(ApiResource):
             else:
                 data['plc_id'] = None
                 data['plc_name'] = None
-
-            if group:
-                data['group_id'] = group.id
-                data['group_name'] = group.group_name
-            else:
-                data['group_id'] = None
-                data['group_name'] = None
 
             info.append(data)
 
