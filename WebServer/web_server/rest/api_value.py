@@ -100,15 +100,12 @@ class ValueResource(ApiResource):
             query = query.paginate(page, per_page, False).items
         elif limit:
             # time1 = time.time()
-            if variable_id:
-                variable_id_list = variable_id
-            else:
-                variable_id_list = set((v.variable_id for v in query))
-            query = [model
-                     for variable_id in variable_id_list
-                     for model in
-                     query.filter(Value.variable_id == variable_id).order_by(Value.time.desc()).limit(limit).all()
-                     ]
+            query = [
+                model
+                for v in variable_id
+                for model in
+                query.filter(Value.variable_id == v).order_by(Value.time.desc()).limit(limit).all()
+            ]
             # time2 = time.time()
             # print time2 - time1
         else:

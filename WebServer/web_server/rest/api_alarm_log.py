@@ -69,11 +69,13 @@ class AlarmLogResource(ApiResource):
         if page:
             query = query.paginate(page, per_page, False).items
         elif limit:
-            query = [model
-                     for p in plc_id
-                     for model in
-                     VarAlarmLog.query.join(VarAlarmInfo).join(YjPLCInfo).filter(YjPLCInfo.id == p).limit(limit)
-                     ]
+            query = [
+                model
+                for p in plc_id
+                for model in
+                VarAlarmLog.query.join(VarAlarmInfo, YjVariableInfo, YjGroupInfo, YjPLCInfo).filter(
+                    YjPLCInfo.id == p).limit(limit)
+            ]
         else:
             query = query.all()
 
@@ -85,31 +87,54 @@ class AlarmLogResource(ApiResource):
         if not models:
             return err_not_found()
 
-        info = [
-            dict(
-                id=m.id,
-                alarm_id=m.alarm_id,
-                variable_id=m.var_alarm_info.yjvariableinfo.id if m.var_alarm_info.yjvariableinfo else None,
-                variable_name=m.var_alarm_info.yjvariableinfo.variable_name if m.var_alarm_info.yjvariableinfo else None,
-                plc_id=m.var_alarm_info.yjvariableinfo.plc_id if m.var_alarm_info.yjvariableinfo else None,
-                alarm_type=m.var_alarm_info.alarm_type,
-                note=m.var_alarm_info.note,
-                time=m.time,
-                confirm=m.confirm
+        # info = [
+        #     dict(
+        #         id=m.id,
+        #         alarm_id=m.alarm_id,
+        #         variable_id=m.var_alarm_info.yjvariableinfo.id if m.var_alarm_info.yjvariableinfo else None,
+        #         variable_name=m.var_alarm_info.yjvariableinfo.variable_name if m.var_alarm_info.yjvariableinfo else None,
+        #         plc_id=m.var_alarm_info.yjvariableinfo.plc_id if m.var_alarm_info.yjvariableinfo else None,
+        #         alarm_type=m.var_alarm_info.alarm_type,
+        #         note=m.var_alarm_info.note,
+        #         time=m.time,
+        #         confirm=m.confirm
+        #
+        #     )
+        #     for m in models
+        # ]
 
-            )
-            for m in models
-        ]
+        info = list()
+
+        for m in models:
+            data = dict()
+            data['id'] = m.id
+            data['alarm_id'] = m.alarm_id
+            data['time'] = m.time
+            data['confirm'] = m.confirm
+
+            alarm_info = m.alarm_id
+            data['note'] = m.var_alarm_info.note if alarm_info else None
+            data['alarm_type'] = m.var_alarm_info.alarm_type if alarm_info else None
+
+            var = m.var_alarm_info.variable_id if alarm_info else None
+            data['variable_id'] = m.var_alarm_info.yjvariableinfo.id if var else None
+            data['variable_name'] = m.var_alarm_info.yjvariableinfo.variable_name if var else None
+
+            group = m.var_alarm_info.yjvariableinfo.yjgroupinfo if var else None
+
+            plc = m.var_alarm_info.yjvariableinfo.yjgroupinfo.yjplcinfo if group else None
+            data['plc_id'] = m.var_alarm_info.yjvariableinfo.yjgroupinfo.yjplcinfo.id if plc else None
+
+            info.append(data)
 
         response = jsonify({"ok": 1, "data": info})
 
         return response
 
-    def put(self, model_id=None):
+    def put(self):
         args = alarm_parser.parse_args()
 
-        if not model_id:
-            model_id = args['id']
+        model_id = args['id']
 
         if model_id:
             model = VarAlarmLog.query.get(model_id)
