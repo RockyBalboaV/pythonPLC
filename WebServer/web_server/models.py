@@ -35,8 +35,8 @@ roles = db.Table(
 
 var_queries = db.Table(
     'variables_queries',
-    db.Column('query_id', db.Integer, db.ForeignKey('query_group.id'), primary_key=True),
-    db.Column('variable_id', db.Integer, db.ForeignKey('yjvariableinfo.id'), primary_key=True)
+    db.Column('query_id', db.Integer, db.ForeignKey('query_group.id', onupdate="CASCADE", ondelete="CASCADE"), primary_key=True),
+    db.Column('variable_id', db.Integer, db.ForeignKey('yjvariableinfo.id', onupdate="CASCADE", ondelete="CASCADE"), primary_key=True, )
 )
 
 
@@ -55,10 +55,10 @@ class YjStationInfo(db.Model):
     modification = db.Column(db.Integer)
     version = db.Column(db.Integer)
 
-    plcs = db.relationship('YjPLCInfo', backref='yjstationinfo', lazy='dynamic', passive_deletes=True,
+    plcs = db.relationship('YjPLCInfo', backref='yjstationinfo', lazy='dynamic',
                            cascade="delete, delete-orphan")
 
-    logs = db.relationship('TransferLog', backref='yjstationinfo', lazy='dynamic', passive_deletes=True)
+    logs = db.relationship('TransferLog', backref='yjstationinfo', lazy='dynamic')
 
     def __init__(self, station_name=None, mac=None, ip=None, note=None, id_num=None,
                  plc_count=None, ten_id=None, item_id=None, con_time=int(time.time()), modification=0):
@@ -95,7 +95,7 @@ class YjPLCInfo(db.Model):
 
     station_id = db.Column(db.Integer, db.ForeignKey('yjstationinfo.id'))
 
-    groups = db.relationship('YjGroupInfo', backref='yjplcinfo', lazy='dynamic', passive_deletes=True,
+    groups = db.relationship('YjGroupInfo', backref='yjplcinfo', lazy='dynamic',
                              cascade="delete, delete-orphan")
 
     def __init__(self, plc_name=None, station_id=None, note=None, ip=None,
@@ -130,7 +130,7 @@ class YjGroupInfo(db.Model):
 
     plc_id = db.Column(db.Integer, db.ForeignKey('yjplcinfo.id'))
 
-    variables = db.relationship('YjVariableInfo', backref='yjgroupinfo', lazy='dynamic', passive_deletes=True,
+    variables = db.relationship('YjVariableInfo', backref='yjgroupinfo', lazy='dynamic',
                                 cascade="delete, delete-orphan")
 
     def __init__(self, group_name=None, plc_id=None, note=None,
@@ -166,9 +166,9 @@ class YjVariableInfo(db.Model):
 
     group_id = db.Column(db.Integer, db.ForeignKey('yjgroupinfo.id'))
 
-    values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic', passive_deletes=True, cascade="delete, delete-orphan")
+    values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic', cascade="delete, delete-orphan")
     alarms = db.relationship('VarAlarmInfo', backref='yjvariableinfo', lazy='dynamic', passive_deletes=True)
-    params = db.relationship('Parameter', backref='yjvariableinfo', lazy='dynamic', passive_deletes=True, cascade="delete, delete-orphan")
+    params = db.relationship('Parameter', backref='yjvariableinfo', lazy='dynamic', cascade="delete, delete-orphan")
 
     def __init__(self, variable_name=None, group_id=None, db_num=None, address=None,
                  data_type=None, rw_type=None, upload=None,
@@ -317,8 +317,8 @@ class QueryGroup(db.Model):
         'YjVariableInfo',
         secondary=var_queries,
         backref=db.backref('querys', lazy='dynamic'),
-        passive_deletes=True,
-        cascade="delete, delete-orphan"
+        cascade="delete, delete-orphan",
+        single_parent=True,
     )
 
 
