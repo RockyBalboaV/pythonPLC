@@ -161,7 +161,7 @@ class ValueResource(ApiResource):
             if group:
                 data['group_id'] = group.id
                 data['group_name'] = group.group_name
-                data['plc_id'] = plc.id
+                data['plc_id'] = group.plc_id
                 plc = group.yjgroupinfo
             else:
                 data['group_id'] = None
