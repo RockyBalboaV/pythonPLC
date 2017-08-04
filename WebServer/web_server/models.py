@@ -167,8 +167,10 @@ class YjVariableInfo(db.Model):
     group_id = db.Column(db.Integer, db.ForeignKey('yjgroupinfo.id'))
 
     values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic', cascade="delete, delete-orphan")
-    alarms = db.relationship('VarAlarmInfo', backref='yjvariableinfo', lazy='dynamic', passive_deletes=True)
+    alarms = db.relationship('VarAlarmInfo', backref='yjvariableinfo', lazy='dynamic', cascade="delete, delete-orphan")
     params = db.relationship('Parameter', backref='yjvariableinfo', lazy='dynamic', cascade="delete, delete-orphan")
+
+
 
     def __init__(self, variable_name=None, group_id=None, db_num=None, address=None,
                  data_type=None, rw_type=None, upload=None,
@@ -337,7 +339,7 @@ class VarAlarmInfo(db.Model):
     alarm_type = db.Column(db.Integer)
     note = db.Column(db.String(128))
 
-    logs = db.relationship('VarAlarmLog', backref='var_alarm_info', lazy='dynamic', passive_deletes=True)
+    logs = db.relationship('VarAlarmLog', backref='var_alarm_info', lazy='dynamic', cascade="delete, delete-orphan")
 
 
 class InterfaceLog(db.Model):
