@@ -104,7 +104,7 @@ class ValueResource(ApiResource):
                 model
                 for v in variable_id
                 for model in
-                query.filter(Value.variable_id == v).order_by(Value.time.desc()).limit(limit).all()
+                query.filter(Value.variable_id == v).limit(limit).all()
             ]
             # time2 = time.time()
             # print time2 - time1

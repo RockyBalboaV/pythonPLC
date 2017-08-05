@@ -4,6 +4,7 @@ import os
 import hmac
 import requests
 from requests.exceptions import ConnectionError
+from requests.packages.urllib3.connection import NewConnectionError
 import json
 import base64
 import zlib
@@ -15,6 +16,7 @@ import datetime
 
 from celery import Celery
 from celery.signals import worker_process_init
+from celery.exceptions import MaxRetriesExceededError
 import billiard
 from sqlalchemy.orm.exc import UnmappedInstanceError, UnmappedClassError
 from sqlalchemy.exc import ProgrammingError
@@ -56,6 +58,9 @@ station_info = get_station_info()
 BEAT_URL = cf.get(os.environ.get('url'), 'beat_url')
 CONFIG_URL = cf.get(os.environ.get('url'), 'config_url')
 UPLOAD_URL = cf.get(os.environ.get('url'), 'upload_url')
+CONNECT_TIMEOUT = float(cf.get('client', 'connect_timeout'))
+REQUEST_TIMEOUT = float(cf.get('client', 'request_timeout'))
+MAX_RETRIES = int(cf.get('client', 'max_retries'))
 
 
 def first_running():
@@ -112,24 +117,32 @@ def fix_mutilprocessing(**kwargs):
         mp.current_process()._authkey = mp.current_process().authkey
 
 
-@app.task
-def beats():
+@app.task(bind=True, rate_limit='5/s', max_retries=MAX_RETRIES)
+def beats(self):
     session = Session()
     current_time = int(time.time())
 
-    # print(station_info)
-    # a = station_info
-    # print(station_info)
     data = station_info
     # data = encryption(data)
     # todo 报警变量加到data里
-    # print(data)
 
     try:
-        rv = requests.post(BEAT_URL, json=data)
-    except ConnectionError:
+        rv = requests.post(BEAT_URL, json=data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
+    except (ConnectionError, NewConnectionError, MaxRetriesExceededError) as e:
         status = 'error'
         note = '无法连接服务器，检查网络状态。'
+        log = TransferLog(
+            trans_type='beats',
+            time=current_time,
+            status=status,
+            note=note
+        )
+        session.add(log)
+        session.commit()
+        try:
+            raise self.retry(exc=e)
+        except ConnectionError:
+            pass
     else:
         # data = decryption(rv)
         data = rv.json()
@@ -144,25 +157,34 @@ def beats():
         else:
             note = '完成一次心跳连接，时间:{}.'.format(datetime.datetime.fromtimestamp(current_time))
         status = 'OK'
-    log = TransferLog(trans_type='beats', time=current_time, status=status, note=note)
+    log = TransferLog(
+        trans_type='beats',
+        time=current_time,
+        status=status,
+        note=note
+    )
     session.add(log)
     session.commit()
 
 
-@app.task
-def get_config():
+@app.task(bind=True, max_retries=MAX_RETRIES)
+def get_config(self):
     session = Session()
     current_time = int(time.time())
     # data = encryption(data)
     data = station_info
     try:
-        response = requests.post(CONFIG_URL, json=data)
-    except ConnectionError:
+        response = requests.post(CONFIG_URL, json=data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
+    except ConnectionError as e:
         status = 'error'
         note = '无法连接服务器，检查网络状态。'
         log = TransferLog(trans_type='config', time=current_time, status=status, note=note)
         session.add(log)
         session.commit()
+        try:
+            raise self.retry(exc=e)
+        except ConnectionError:
+            pass
         return 1
 
     if response.status_code == 404:
@@ -267,24 +289,24 @@ def get_config():
     before_running()
 
 
-@app.task
-def upload(group_model, session):
-    # 记录本次上传时间
-    current_time = int(time.time())
-
+def upload_data(group_model, current_time, session):
     # 获取该组信息
     group_id = group_model.id
     group_name = group_model.group_name
 
-    # 获取上次传输时间,没有上次时间就往前推一个上传周期
-    get_time = current_time - group_model.upload_cycle
-
     # 准备本次上传的数据
     variables = group_model.variables
     variable_list = []
+    print(variables)
+
     for variable in variables:
+
         # 判断该变量是否需要上传
         if variable.upload:
+
+            # 获取上次传输时间,没有上次时间就往前推一个上传周期
+            get_time = current_time - group_model.upload_cycle
+
             # 读取需要上传的值,所有时间大于上次上传的值
             # all_values = variable.values.filter(get_time <= Value.time < upload_time)
             all_values = session.query(Value).filter_by(variable_id=variable.id).filter(
@@ -317,16 +339,23 @@ def upload(group_model, session):
     # 记录本次传输
     session.add(log)
 
-    # session.commit()
+    return variable_list
 
+
+@app.task(bind=True, max_retries=MAX_RETRIES, default_retry_delay=30)
+def upload(self, variable_list, group_model, current_time, session):
     # 包装数据
-    data = {"id_num": station_info["id_num"], "version": station_info["version"], "group_id": group_model.id,
-            "value": variable_list}
+    data = {
+        "id_num": station_info["id_num"],
+        "version": station_info["version"],
+        "group_id": group_model.id,
+        "value": variable_list
+    }
     print data
     # data = encryption(data)
     try:
-        response = requests.post(UPLOAD_URL, json=data)
-    except ConnectionError:
+        response = requests.post(UPLOAD_URL, json=data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
+    except ConnectionError as e:
         status = 'error'
         note = '无法连接服务器，检查网络状态。'
         log = TransferLog(
@@ -337,6 +366,10 @@ def upload(group_model, session):
         )
         session.add(log)
         # session.commit()
+        try:
+            raise self.retry(exc=e)
+        except ConnectionError:
+            pass
         return 1
 
     data = response.json()
@@ -345,18 +378,15 @@ def upload(group_model, session):
     # 日志记录
     # 正常传输
     if response.status_code == 200:
-        note = 'group_id: {} group_name:{} 成功上传.'.format(group_id, group_name)
+        note = 'group_id: {} group_name:{} 成功上传.'.format(group_model.id, group_model.group_name)
 
     # 版本错误
     elif response.status_code == 403:
-        note = 'group_id: {} group_name:{} 上传的数据不是在最新版本配置下采集的.'.format(group_id, group_name)
-        # print('aaaaaa')
-        # get_config()
+        note = 'group_id: {} group_name:{} 上传的数据不是在最新版本配置下采集的.'.format(group_model.id, group_model.group_name)
 
     # 未知错误
     else:
-        note = 'group_id: {} group_name:{} 无法识别服务端反馈。'.format(group_id, group_name)
-    # print data
+        note = 'group_id: {} group_name:{} 无法识别服务端反馈。'.format(group_model.id, group_model.group_name)
     log = TransferLog(
         trans_type='upload_call_back',
         time=current_time,
@@ -367,16 +397,16 @@ def upload(group_model, session):
     # session.commit()
 
 
-@app.task
+@app.task(rate_limit='1/s')
 def check_group_upload_time():
     session = Session()
     current_time = int(time.time())
     print 'check_group'
     # try:
-        # groups = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).all()
+    # groups = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).all()
     group_models = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).filter(
-            YjGroupInfo.uploading is not True).all()
-        # print(groups)
+        YjGroupInfo.uploading is not True).all()
+    # print(groups)
     # except:
     #     return 'skip'
 
@@ -394,7 +424,8 @@ def check_group_upload_time():
 
     for group_model in group_models:
         # print 'a'
-        upload(group_model, session)
+        value_list = upload_data(group_model, current_time, session)
+        upload(value_list, group_model, current_time, session)
 
     session.commit()
     # curr_proc = mp.current_process()
@@ -413,7 +444,7 @@ def check_group_upload_time():
     # session.commit()
 
 
-@app.task
+@app.task(rate_limit='1/s')
 def check_variable_get_time():
     session = Session()
     current_time = int(time.time())
@@ -436,18 +467,19 @@ def check_variable_get_time():
     # result = poll.map(get_value, [(v,)
     #                               for v in variables])
     # try:
-    print('v_t')
+    # print('v_t')
     for v in variables:
         # 保证一段时间内不会产生两个task采集同一个变量
         v.acquisition_time = current_time + v.acquisition_cycle
         session.merge(v)
     session.commit()
-    print('v_g')
+    # print('v_g')
 
     for var in variables:
         # print 'variable'
-        print 'get value'
+        # print 'get value'
         get_value(var, session)
+        # get_value.apply_async((var, session))
         # poll.apply_async(get_value, (v,))
 
     session.commit()
@@ -459,7 +491,7 @@ def check_variable_get_time():
 def get_value(variable_model, session):
     current_time = int(time.time())
 
-    print(2)
+    # print(2)
     # session.commit()
     # print(3)
 
@@ -481,7 +513,8 @@ def get_value(variable_model, session):
 
     # print('cccc')
     # 采集数据
-    print ip, rack, slot, area, variable_db, address, size
+    # print ip, rack, slot, area, variable_db, address, size
+    # print type(ip), type(rack), type(slot)
     # TODO 建立连接的开销很大，在代码启动时创建连接并保持，定时查询连接状态就好，这样不用重复建立连接
     try:
         with PythonPLC(ip, rack, slot) as db:
@@ -490,7 +523,7 @@ def get_value(variable_model, session):
         print(e)
     else:
         value = struct.unpack('!{}'.format(type_code), result)[0]
-        print value
+        # print value
 
         # print('dddd')
         # 保存数据
