@@ -81,10 +81,10 @@ if args.start:
 
 # import snap7, struct
 # from data_collection import PythonPLC
-# with PythonPLC('192.168.18.18', 0, 1) as db:
+# with PythonPLC('192.168.18.17', 0, 2) as db:
 #     print(db)
-#     result = db.read_area(area=snap7.snap7types.S7AreaDB, dbnumber=1, start=0, size=2)
-# value = struct.unpack('!h', result)[0]
+#     result = db.read_area(area=snap7.snap7types.S7AreaDB, dbnumber=1, start=0, size=4)
+# value = struct.unpack('!f', result)[0]
 # print value
 # print(db)
 
@@ -98,6 +98,8 @@ if args.start:
 #     print('c')
 
 # from models import Value, session
-# v = Value(1, 2, 122)
+# v = Value(22, 2, 122)
+# v.value = 3
+# print(v.value)
 # session.add(v)
 # session.commit()

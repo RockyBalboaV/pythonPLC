@@ -17,9 +17,9 @@ import datetime
 from celery import Celery
 from celery.signals import worker_process_init
 from celery.exceptions import MaxRetriesExceededError
+from celery.utils.log import get_task_logger
 import billiard
 from sqlalchemy.orm.exc import UnmappedInstanceError, UnmappedClassError
-from sqlalchemy.exc import ProgrammingError
 from snap7.snap7exceptions import Snap7Exception
 
 from models import (eng, Base, Session, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, TransferLog, \
@@ -119,6 +119,7 @@ def fix_mutilprocessing(**kwargs):
 
 @app.task(bind=True, rate_limit='5/s', max_retries=MAX_RETRIES)
 def beats(self):
+    print('beats')
     session = Session()
     current_time = int(time.time())
 
@@ -292,7 +293,9 @@ def get_config(self):
 def upload_data(group_model, current_time, session):
     # 获取该组信息
     group_id = group_model.id
-    group_name = group_model.group_name
+    group_name = group_model.group_name.encode('utf-8')
+
+    print(type(group_name))
 
     # 准备本次上传的数据
     variables = group_model.variables
@@ -344,11 +347,14 @@ def upload_data(group_model, current_time, session):
 
 @app.task(bind=True, max_retries=MAX_RETRIES, default_retry_delay=30)
 def upload(self, variable_list, group_model, current_time, session):
+
+    group_id = group_model.id
+    group_name = group_model.group_name.encode('utf-8')
     # 包装数据
     data = {
         "id_num": station_info["id_num"],
         "version": station_info["version"],
-        "group_id": group_model.id,
+        "group_id": group_id,
         "value": variable_list
     }
     print data
@@ -378,15 +384,15 @@ def upload(self, variable_list, group_model, current_time, session):
     # 日志记录
     # 正常传输
     if response.status_code == 200:
-        note = 'group_id: {} group_name:{} 成功上传.'.format(group_model.id, group_model.group_name)
+        note = 'group_id: {} group_name:{} 成功上传.'.format(group_id, group_name)
 
     # 版本错误
     elif response.status_code == 403:
-        note = 'group_id: {} group_name:{} 上传的数据不是在最新版本配置下采集的.'.format(group_model.id, group_model.group_name)
+        note = 'group_id: {} group_name:{} 上传的数据不是在最新版本配置下采集的.'.format(group_id, group_name)
 
     # 未知错误
     else:
-        note = 'group_id: {} group_name:{} 无法识别服务端反馈。'.format(group_model.id, group_model.group_name)
+        note = 'group_id: {} group_name:{} 无法识别服务端反馈。'.format(group_id, group_name)
     log = TransferLog(
         trans_type='upload_call_back',
         time=current_time,
@@ -397,7 +403,7 @@ def upload(self, variable_list, group_model, current_time, session):
     # session.commit()
 
 
-@app.task(rate_limit='1/s')
+@app.task(rate_limit='1/s', time_limit=1)
 def check_group_upload_time():
     session = Session()
     current_time = int(time.time())
@@ -414,16 +420,16 @@ def check_group_upload_time():
 
     # 修改下次组传输时间
     for group_model in group_models:
-        # print 'b'
+        print 'b'
         group_model.upload_time = current_time + group_model.upload_cycle
-        session.merge(group_model)
+        # session.merge(group_model)
     # try:
-    session.commit()
+    # session.commit()
     # except:
     #     session.rollback()
 
     for group_model in group_models:
-        # print 'a'
+        print 'a'
         value_list = upload_data(group_model, current_time, session)
         upload(value_list, group_model, current_time, session)
 
@@ -444,13 +450,17 @@ def check_group_upload_time():
     # session.commit()
 
 
-@app.task(rate_limit='1/s')
+@app.task(rate_limit='1/s', time_limit=1)
 def check_variable_get_time():
     session = Session()
     current_time = int(time.time())
     print('check_variable')
     # try:
     variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time).all()
+    # variables = session.execute(variables)
+    # print(variables)
+    # if variables.return_rows:
+    #     print json.dumps([dict(r) for r in variables])
     # except:
     #     session.rollback()
     #     return 'skip'
@@ -471,8 +481,8 @@ def check_variable_get_time():
     for v in variables:
         # 保证一段时间内不会产生两个task采集同一个变量
         v.acquisition_time = current_time + v.acquisition_cycle
-        session.merge(v)
-    session.commit()
+        # session.merge(v)
+    # session.commit()
     # print('v_g')
 
     for var in variables:

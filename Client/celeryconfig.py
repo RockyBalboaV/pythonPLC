@@ -22,7 +22,7 @@ class Config(object):
     # 设置时区
     CELERY_TIMEZONE = 'Asia/Shanghai'
     # worker并发数
-    CELERYD_CONCURRENCY = 2
+    CELERYD_CONCURRENCY = 1
 
     CELERY_QUEUE = (
         Queue('basic', routing_key='basic.#'),

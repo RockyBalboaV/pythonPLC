@@ -12,7 +12,7 @@ cf.readfp(open('config.ini'))
 db_uri = cf.get(os.environ.get('env'), 'db_uri')
 
 # 创建连接
-eng = create_engine(db_uri)
+eng = create_engine(db_uri + '?charset=utf8')
 # 创建基类
 Base = declarative_base()
 
@@ -245,4 +245,4 @@ class VarAlarmInfo(Base):
     alarm_type = Column(Integer)
     note = Column(String(128))
 
-    logs = relationship('VarAlarmLog', backref='var_alarm_info', lazy='dynamic')
+    logs = relationship('VarAlarmLog', backref='var_alarm_info', lazy='dynamic', cascade='all')
