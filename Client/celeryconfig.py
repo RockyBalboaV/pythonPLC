@@ -9,6 +9,7 @@ class Config(object):
 
     # 指定消息代理
     BROKER_URL = 'pyamqp://pyplc:123456@localhost:5672/pyplc'
+    # BROKER_URL = 'pyamqp://yakumo17s:touhou@localhost:5672/web_develop'
     # 指定结果存储数据库
     CELERY_RESULT_BACKEND = 'redis://localhost'
     # 序列化方案

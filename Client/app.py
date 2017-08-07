@@ -16,7 +16,7 @@ import datetime
 
 from celery import Celery
 from celery.signals import worker_process_init
-from celery.exceptions import MaxRetriesExceededError
+from celery.exceptions import MaxRetriesExceededError, SoftTimeLimitExceeded
 from celery.utils.log import get_task_logger
 import billiard
 from sqlalchemy.orm.exc import UnmappedInstanceError, UnmappedClassError
@@ -295,12 +295,12 @@ def upload_data(group_model, current_time, session):
     group_id = group_model.id
     group_name = group_model.group_name.encode('utf-8')
 
-    print(type(group_name))
+    # print(type(group_name))
 
     # 准备本次上传的数据
     variables = group_model.variables
     variable_list = []
-    print(variables)
+    # print(variables)
 
     for variable in variables:
 
@@ -403,104 +403,113 @@ def upload(self, variable_list, group_model, current_time, session):
     # session.commit()
 
 
-@app.task(rate_limit='1/s', time_limit=1)
-def check_group_upload_time():
-    session = Session()
-    current_time = int(time.time())
-    print 'check_group'
-    # try:
-    # groups = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).all()
-    group_models = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).filter(
-        YjGroupInfo.uploading is not True).all()
-    # print(groups)
-    # except:
-    #     return 'skip'
+@app.task(bind=True, rate_limit='1/s', time_limit=2, max_retries=MAX_RETRIES, default_retry_delay=3)
+def check_group_upload_time(self):
+    try:
 
-    # poll = multiprocessing.Pool(4)
+        session = Session()
+        current_time = int(time.time())
+        print 'check_group'
+        # try:
+        # groups = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).all()
+        group_models = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).filter(
+            YjGroupInfo.uploading is not True).all()
+        # print(groups)
+        # except:
+        #     return 'skip'
 
-    # 修改下次组传输时间
-    for group_model in group_models:
-        print 'b'
-        group_model.upload_time = current_time + group_model.upload_cycle
-        # session.merge(group_model)
-    # try:
+        # poll = multiprocessing.Pool(4)
+
+        # 修改下次组传输时间
+        # for group_model in group_models:
+        #     print 'b'
+        #     group_model.upload_time = current_time + group_model.upload_cycle
+            # session.merge(group_model)
+        # try:
+        # session.commit()
+        # except:
+        #     session.rollback()
+
+        for group_model in group_models:
+            print 'a'
+            group_model.upload_time = current_time + group_model.upload_cycle
+            value_list = upload_data(group_model, current_time, session)
+            upload(value_list, group_model, current_time, session)
+
+        session.commit()
+        # curr_proc = mp.current_process()
+        # curr_proc.daemon = False
+        # p = mp.Pool(mp.cpu_count())
+        # curr_proc.daemon = True
+        # for g in groups:
+        #     print 'a'
+        #     p.apply_async(upload, args=(g,))  # todo 多线程
+        # p.close()
+        # p.join()
+        # #
+        # return 1
+        # poll.apply_async(upload, (g,))
+    except SoftTimeLimitExceeded as exc:
+        session.rollback()
+        self.retry(exc=exc)
     # session.commit()
-    # except:
-    #     session.rollback()
-
-    for group_model in group_models:
-        print 'a'
-        value_list = upload_data(group_model, current_time, session)
-        upload(value_list, group_model, current_time, session)
-
-    session.commit()
-    # curr_proc = mp.current_process()
-    # curr_proc.daemon = False
-    # p = mp.Pool(mp.cpu_count())
-    # curr_proc.daemon = True
-    # for g in groups:
-    #     print 'a'
-    #     p.apply_async(upload, args=(g,))  # todo 多线程
-    # p.close()
-    # p.join()
-    # #
-    # return 1
-    # poll.apply_async(upload, (g,))
-
-    # session.commit()
 
 
-@app.task(rate_limit='1/s', time_limit=1)
-def check_variable_get_time():
-    session = Session()
-    current_time = int(time.time())
-    print('check_variable')
-    # try:
-    variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time).all()
-    # variables = session.execute(variables)
-    # print(variables)
-    # if variables.return_rows:
-    #     print json.dumps([dict(r) for r in variables])
-    # except:
-    #     session.rollback()
-    #     return 'skip'
+@app.task(bind=True, rate_limit='1/s', soft_time_limit=2, max_retries=MAX_RETRIES, default_retry_delay=3)
+def check_variable_get_time(self):
+    try:
+        session = Session()
+        current_time = int(time.time())
+        print('check_variable')
+        # try:
+        variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time).all()
+        # variables = session.execute(variables)
+        # print(variables)
+        # if variables.return_rows:
+        #     print json.dumps([dict(r) for r in variables])
+        # except:
+        #     session.rollback()
+        #     return 'skip'
 
-    # task = signature('task.get_value', args=(v, ))
-    # sig = group
-    # (get_value.sub for v in variables)()
-    # sig.delay()
-    # poll = billiard.context.BaseContext
-    # poll = poll.Pool(poll)
-    # # poll = mp.Pool(4)
-    # poll.map(get_value, [(v, )
-    #                      for v in variables])
-    # result = poll.map(get_value, [(v,)
-    #                               for v in variables])
-    # try:
-    # print('v_t')
-    for v in variables:
-        # 保证一段时间内不会产生两个task采集同一个变量
-        v.acquisition_time = current_time + v.acquisition_cycle
-        # session.merge(v)
-    # session.commit()
-    # print('v_g')
+        # task = signature('task.get_value', args=(v, ))
+        # sig = group
+        # (get_value.sub for v in variables)()
+        # sig.delay()
+        # poll = billiard.context.BaseContext
+        # poll = poll.Pool(poll)
+        # # poll = mp.Pool(4)
+        # poll.map(get_value, [(v, )
+        #                      for v in variables])
+        # result = poll.map(get_value, [(v,)
+        #                               for v in variables])
+        # try:
+        # print('v_t')
+        # for v in variables:
+            # 保证一段时间内不会产生两个task采集同一个变量
+            # v.acquisition_time = current_time + v.acquisition_cycle
+            # session.merge(v)
+        # session.commit()
+        # print('v_g')
 
-    for var in variables:
-        # print 'variable'
-        # print 'get value'
-        get_value(var, session)
-        # get_value.apply_async((var, session))
-        # poll.apply_async(get_value, (v,))
+        for var in variables:
+            # print 'variable'
+            # print 'get value'
+            get_value(var, session)
+            # get_value.apply_async((var, session))
+            # poll.apply_async(get_value, (v,))
 
-    session.commit()
-    # except:
-    #     session.rollback()
+        session.commit()
+        # except:
+        #     session.rollback()
+    except SoftTimeLimitExceeded as exc:
+        session.rollback()
+        self.retry(exc=exc)
 
 
 @app.task
 def get_value(variable_model, session):
     current_time = int(time.time())
-
+    variable_model.acquisition_time = current_time + variable_model.acquisition_cycle
     # print(2)
     # session.commit()
     # print(3)
