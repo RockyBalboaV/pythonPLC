@@ -2,7 +2,6 @@
 import os
 import argparse
 import subprocess
-import ConfigParser
 import time
 
 parser = argparse.ArgumentParser()

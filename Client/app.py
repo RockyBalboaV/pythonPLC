@@ -1,17 +1,16 @@
 # coding=utf-8
 
 import os
-import hmac
 import requests
 from requests.exceptions import ConnectionError
-from requests.packages.urllib3.connection import NewConnectionError
 import json
-import base64
-import zlib
 import struct
 import time
 import multiprocessing as mp
-import ConfigParser
+try:
+    import configparser as ConfigParser
+except:
+    import ConfigParser
 import datetime
 
 from celery import Celery
@@ -31,7 +30,7 @@ app = Celery()
 app.config_from_object(Config)
 
 cf = ConfigParser.ConfigParser()
-cf.readfp(open('config.ini'))
+cf.read_file(open('config.ini'))
 
 
 def database_reset():
@@ -84,7 +83,6 @@ def before_running():
     groups = session.query(YjGroupInfo)
     for g in groups:
         g.upload_time = start_time + g.upload_cycle
-        # g.uploading = False
 
     # 设定变量,需要读取的值设定初始采集时间，需要写入的值立即写入PLC
     variables = session.query(YjVariableInfo).all()
@@ -129,7 +127,7 @@ def beats(self):
 
     try:
         rv = requests.post(BEAT_URL, json=data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
-    except (ConnectionError, NewConnectionError, MaxRetriesExceededError) as e:
+    except (ConnectionError, MaxRetriesExceededError) as e:
         status = 'error'
         note = '无法连接服务器，检查网络状态。'
         log = TransferLog(
@@ -193,7 +191,7 @@ def get_config(self):
         note = '获取配置信息失败'
     elif response.status_code == 200:
         data = response.json()['data']
-        print data
+        print(data)
         try:
             session.delete(session.query(YjStationInfo).filter_by(id_num=station_info['id_num']).first())
             # YjStationInfo.__table__.drop(eng, checkfirst=True)
@@ -293,7 +291,7 @@ def get_config(self):
 def upload_data(group_model, current_time, session):
     # 获取该组信息
     group_id = group_model.id
-    group_name = group_model.group_name.encode('utf-8')
+    group_name = group_model.group_name
 
     # print(type(group_name))
 
@@ -357,7 +355,7 @@ def upload(self, variable_list, group_model, current_time, session):
         "group_id": group_id,
         "value": variable_list
     }
-    print data
+    print(data)
     # data = encryption(data)
     try:
         response = requests.post(UPLOAD_URL, json=data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
@@ -409,7 +407,7 @@ def check_group_upload_time(self):
 
         session = Session()
         current_time = int(time.time())
-        print 'check_group'
+        print('check_group')
         # try:
         # groups = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).all()
         group_models = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).filter(
@@ -431,7 +429,7 @@ def check_group_upload_time(self):
         #     session.rollback()
 
         for group_model in group_models:
-            print 'a'
+            print('a')
             group_model.upload_time = current_time + group_model.upload_cycle
             value_list = upload_data(group_model, current_time, session)
             upload(value_list, group_model, current_time, session)

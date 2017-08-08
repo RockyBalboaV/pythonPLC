@@ -24,6 +24,10 @@ class Config(object):
     CELERY_TIMEZONE = 'Asia/Shanghai'
     # worker并发数
     CELERYD_CONCURRENCY = 1
+    # 忽略任务执行状态
+    CELERY_IGNORE_RESULT = True
+    # Worker任务数
+    CELERY_MAX_TASKS_PER_CHILD = 40
 
     CELERY_QUEUE = (
         Queue('basic', routing_key='basic.#'),

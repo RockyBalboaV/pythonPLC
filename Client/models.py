@@ -1,6 +1,9 @@
 # coding=utf-8
 import os, datetime
-import ConfigParser
+try:
+    import configparser as ConfigParser
+except:
+    import ConfigParser
 
 from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, create_engine, MetaData
 from sqlalchemy.orm import sessionmaker, relationship, backref, class_mapper
@@ -18,13 +21,6 @@ Base = declarative_base()
 
 Session = sessionmaker(bind=eng)
 session = Session()
-
-
-def check_int(column):
-    if column is not unicode("None"):
-        return int(column)
-    else:
-        return 0
 
 
 def serialize(model):
@@ -61,8 +57,7 @@ class YjStationInfo(Base):
         self.ten_id = ten_id
         self.item_id = item_id
         self.con_date = con_date
-        # self.modification = check_int(modification)
-        self.version = check_int(version)
+        self.version = version
 
     def __repr__(self):
         return '<Station : %r >' % self.station_name
