@@ -5,12 +5,13 @@ try:
 except:
     import ConfigParser
 
-from sqlalchemy import Column, String, Integer, DateTime, Boolean, ForeignKey, create_engine, MetaData
+from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, create_engine, MetaData
 from sqlalchemy.orm import sessionmaker, relationship, backref, class_mapper
 from sqlalchemy.ext.declarative import declarative_base
 
+here = os.path.abspath(os.path.dirname(__name__))
 cf = ConfigParser.ConfigParser()
-cf.readfp(open('config.ini'))
+cf.read_file(open(os.path.join(here, 'config.ini')))
 
 db_uri = cf.get(os.environ.get('env'), 'db_uri')
 

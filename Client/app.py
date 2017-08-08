@@ -7,6 +7,7 @@ import json
 import struct
 import time
 import multiprocessing as mp
+
 try:
     import configparser as ConfigParser
 except:
@@ -29,8 +30,9 @@ from data_collection import variable_size, variable_area, PythonPLC
 app = Celery()
 app.config_from_object(Config)
 
+here = os.path.abspath(os.path.dirname(__name__))
 cf = ConfigParser.ConfigParser()
-cf.read_file(open('config.ini'))
+cf.read_file(open(os.path.join(here, 'config.ini')))
 
 
 def database_reset():
@@ -345,7 +347,6 @@ def upload_data(group_model, current_time, session):
 
 @app.task(bind=True, max_retries=MAX_RETRIES, default_retry_delay=30)
 def upload(self, variable_list, group_model, current_time, session):
-
     group_id = group_model.id
     group_name = group_model.group_name.encode('utf-8')
     # 包装数据
@@ -422,7 +423,7 @@ def check_group_upload_time(self):
         # for group_model in group_models:
         #     print 'b'
         #     group_model.upload_time = current_time + group_model.upload_cycle
-            # session.merge(group_model)
+        # session.merge(group_model)
         # try:
         # session.commit()
         # except:
@@ -450,7 +451,7 @@ def check_group_upload_time(self):
     except SoftTimeLimitExceeded as exc:
         session.rollback()
         self.retry(exc=exc)
-    # session.commit()
+        # session.commit()
 
 
 @app.task(bind=True, rate_limit='1/s', soft_time_limit=2, max_retries=MAX_RETRIES, default_retry_delay=3)
@@ -483,9 +484,9 @@ def check_variable_get_time(self):
         # try:
         # print('v_t')
         # for v in variables:
-            # 保证一段时间内不会产生两个task采集同一个变量
-            # v.acquisition_time = current_time + v.acquisition_cycle
-            # session.merge(v)
+        # 保证一段时间内不会产生两个task采集同一个变量
+        # v.acquisition_time = current_time + v.acquisition_cycle
+        # session.merge(v)
         # session.commit()
         # print('v_g')
 
