@@ -189,9 +189,10 @@ def beats(self):
     session.add(log)
     session.commit()
 
+    global plc_client
+
     if not plc_client:
         plcs = session.query(YjPLCInfo)
-        global plc_client
         plc_client = plc_connection(plcs)
 
 
