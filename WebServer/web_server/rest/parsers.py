@@ -140,7 +140,7 @@ variable_put_parser.add_argument('note', type=str)
 variable_put_parser.add_argument('ten_id', type=str)
 variable_put_parser.add_argument('item_id', type=str)
 variable_put_parser.add_argument('write_value', type=int)
-variable_put_parser.add_argument('area', type=int)
+variable_put_parser.add_argument('area', type=float)
 
 # value查询参数
 value_parser = reqparse.RequestParser()

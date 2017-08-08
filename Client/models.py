@@ -5,13 +5,13 @@ try:
 except:
     import ConfigParser
 
-from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, create_engine, MetaData
+from sqlalchemy import Column, String, Integer, Float, Boolean, ForeignKey, create_engine, MetaData
 from sqlalchemy.orm import sessionmaker, relationship, backref, class_mapper
 from sqlalchemy.ext.declarative import declarative_base
 
 here = os.path.abspath(os.path.dirname(__name__))
 cf = ConfigParser.ConfigParser()
-cf.read_file(open(os.path.join(here, 'config.ini')))
+cf.read_file(open(os.path.join(here, 'config.ini'), encoding='utf-8'))
 
 db_uri = cf.get(os.environ.get('env'), 'db_uri')
 
@@ -143,7 +143,7 @@ class YjVariableInfo(Base):
     id = Column(Integer, primary_key=True, nullable=False)
     variable_name = Column(String(20))
     db_num = Column(Integer)
-    address = Column(Integer)
+    address = Column(Float)
     data_type = Column(String(10))
     rw_type = Column(Integer)
     upload = Column(Integer)
@@ -153,9 +153,10 @@ class YjVariableInfo(Base):
     ten_id = Column(String(200))
     item_id = Column(String(20))
     write_value = Column(Integer)
-    area = Column(Integer)
+    area = Column(Float)
 
     acquisition_time = Column(Integer)
+    ip = Column(String(20))
 
     group_id = Column("group_id", Integer, ForeignKey("yjgroupinfo.id"))
     group = relationship("YjGroupInfo", foreign_keys="YjVariableInfo.group_id",

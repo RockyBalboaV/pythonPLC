@@ -35,8 +35,10 @@ roles = db.Table(
 
 var_queries = db.Table(
     'variables_queries',
-    db.Column('query_id', db.Integer, db.ForeignKey('query_group.id', onupdate="CASCADE", ondelete="CASCADE"), primary_key=True),
-    db.Column('variable_id', db.Integer, db.ForeignKey('yjvariableinfo.id', onupdate="CASCADE", ondelete="CASCADE"), primary_key=True, )
+    db.Column('query_id', db.Integer, db.ForeignKey('query_group.id', onupdate="CASCADE", ondelete="CASCADE"),
+              primary_key=True),
+    db.Column('variable_id', db.Integer, db.ForeignKey('yjvariableinfo.id', onupdate="CASCADE", ondelete="CASCADE"),
+              primary_key=True, )
 )
 
 
@@ -152,7 +154,7 @@ class YjVariableInfo(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     variable_name = db.Column(db.String(20))
     db_num = db.Column(db.Integer)
-    address = db.Column(db.Integer)
+    address = db.Column(db.Float)
     data_type = db.Column(db.String(10))
     rw_type = db.Column(db.Integer)
     upload = db.Column(db.Integer)
@@ -169,8 +171,6 @@ class YjVariableInfo(db.Model):
     values = db.relationship('Value', backref='yjvariableinfo', lazy='dynamic', cascade="delete, delete-orphan")
     alarms = db.relationship('VarAlarmInfo', backref='yjvariableinfo', lazy='dynamic', cascade="delete, delete-orphan")
     params = db.relationship('Parameter', backref='yjvariableinfo', lazy='dynamic', cascade="delete, delete-orphan")
-
-
 
     def __init__(self, variable_name=None, group_id=None, db_num=None, address=None,
                  data_type=None, rw_type=None, upload=None,

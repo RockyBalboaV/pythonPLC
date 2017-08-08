@@ -78,15 +78,34 @@ if args.start:
 # print(time2 - time1)
 # print('a')
 
-# import snap7, struct
-# from data_collection import PythonPLC
+import snap7, struct
+from data_collection import PythonPLC
+from snap7.util import get_bool, get_int
 # with PythonPLC('192.168.18.17', 0, 2) as db:
 #     print(db)
-#     result = db.read_area(area=snap7.snap7types.S7AreaDB, dbnumber=1, start=0, size=4)
-# value = struct.unpack('!f', result)[0]
-# print value
-# print(db)
+#     result = db.read_area(area=snap7.snap7types.S7AreaDB, dbnumber=3, start=18, size=1)
+# time1 = time.time()
+# value = struct.unpack('!?', result)[0]
+# time2 = time.time()
+# print(time1 - time2)
+# print(value)
 
+# print(result)
+# time1 = time.time()
+# print(get_bool(result, 0, 1))
+# print(get_int(result, 0))
+# time2 = time.time()
+# print(time2-time1)
+# print(bin(result[7]))
+
+# temp = 7
+# buffer1 = []
+# for x in result:
+#     buffer1.extend(bin(x).replace('0b', '').rjust(8, '0'))
+# print(buffer1)
+# print(buffer1[abs(temp - 7)])
+# print(value)
+# print(db)
 
 # try:
 #     print('a')
@@ -96,9 +115,54 @@ if args.start:
 # else:
 #     print('c')
 
-# from models import Value, session
+from models import Value, session, YjPLCInfo, YjVariableInfo
+from data_collection import variable_area, variable_size
+# client = snap7.client.Client()
+# client.connect('192.168.18.17', 0, 2)
+# time1 = time.time()
+# result = client.list_blocks()
+# print(result)
+# print(len(result))
+# time2 = time.time()
+# print(time2 - time1)
 # v = Value(22, 2, 122)
 # v.value = 3
 # print(v.value)
 # session.add(v)
 # session.commit()
+#
+# time1 = time.time()
+# plc_client = list()
+# for plc in session.query(YjPLCInfo):
+#     client = snap7.client.Client()
+#     print(plc.ip, plc.slot, plc.rack)
+#     client.connect(plc.ip, plc.rack, plc.slot)
+#     if client.get_connected():
+#         plc_client.append((client, plc.ip, plc.rack, plc.slot))
+#
+# time2 = time.time()
+# print(time2 - time1)
+#
+# for variable in session.query(YjVariableInfo):
+#     time1 = time.time()
+#     ip = variable.group.plc.ip
+#     time2 = time.time()
+#     print(time2 - time1, '获取ip')
+#     for plc in plc_client:
+#         if plc[1] == ip:
+#
+#             time1 = time.time()
+#
+#             if not plc[0].get_connected():
+#                 plc[0].connect(plc.ip, plc.rack, plc.slot)
+#             time2 = time.time()
+#             print(time2 - time1, '测试连接')
+#
+#             area = variable_area(variable)
+#             variable_db = variable.db_num
+#             size = variable_size(variable)
+#             address = variable.address
+#
+#             result = plc[0].read_area(area=area, dbnumber=variable_db, start=address, size=size)
+#             value = get_value(variable, result)
+#             print(value)

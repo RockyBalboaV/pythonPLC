@@ -7,6 +7,7 @@ import json
 import struct
 import time
 import multiprocessing as mp
+import math
 
 try:
     import configparser as ConfigParser
@@ -21,18 +22,19 @@ from celery.utils.log import get_task_logger
 import billiard
 from sqlalchemy.orm.exc import UnmappedInstanceError, UnmappedClassError
 from snap7.snap7exceptions import Snap7Exception
+import snap7
 
 from models import (eng, Base, Session, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, TransferLog, \
                     Value, serialize)
 from celeryconfig import Config
-from data_collection import variable_size, variable_area, PythonPLC
+from data_collection import variable_size, variable_area, read_value, write_value, PythonPLC
 
 app = Celery()
 app.config_from_object(Config)
 
 here = os.path.abspath(os.path.dirname(__name__))
 cf = ConfigParser.ConfigParser()
-cf.read_file(open(os.path.join(here, 'config.ini')))
+cf.read_file(open(os.path.join(here, 'config.ini'), encoding='utf-8'))
 
 
 def database_reset():
@@ -62,12 +64,23 @@ UPLOAD_URL = cf.get(os.environ.get('url'), 'upload_url')
 CONNECT_TIMEOUT = float(cf.get('client', 'connect_timeout'))
 REQUEST_TIMEOUT = float(cf.get('client', 'request_timeout'))
 MAX_RETRIES = int(cf.get('client', 'max_retries'))
+plc_client = list()
 
 
 def first_running():
     Base.metadata.create_all(bind=eng)
     # print('bbbb')
     get_config()
+
+
+def plc_connection(plcs):
+    plc_client = list()
+    for plc in plcs:
+        client = snap7.client.Client()
+        client.connect(plc.ip, plc.rack, plc.slot)
+        if client.get_connected():
+            plc_client.append((client, plc.ip, plc.rack, plc.slot))
+    return plc_client
 
 
 def before_running():
@@ -81,30 +94,37 @@ def before_running():
     global station_info
     station_info = get_station_info()
 
-    # 设定变量组初始上传时间
-    groups = session.query(YjGroupInfo)
-    for g in groups:
-        g.upload_time = start_time + g.upload_cycle
+    plcs = session.query(YjPLCInfo)
+    global plc_client
+    plc_client = plc_connection(plcs)
 
-    # 设定变量,需要读取的值设定初始采集时间，需要写入的值立即写入PLC
-    variables = session.query(YjVariableInfo).all()
-    for v in variables:
-        if v.rw_type == 2 or v.rw_type == 3 and v.write_value:
-            ip = v.group.plc.ip
-            rack = v.group.plc.rack
-            slot = v.group.plc.slot
-            variable_db = v.db_num
-            type_code, size = variable_size(v)
-            address = v.address
-            area = v.area
+    for plc in plcs:
+        ip = plc.ip
+        rack = plc.rack
+        slot = plc.slot
 
-            write_value = struct.pack('!{}'.format(type_code), v.write_value)
+        with PythonPLC(ip, rack, slot) as db:
 
-            with PythonPLC(ip, rack, slot) as db:
-                db.write_area(area=area, dbnumber=variable_db, start=address, data=write_value)
+            groups = plc.groups
 
-        if v.rw_type == 1 or v.rw_type == 3:
-            v.acquisition_time = start_time + v.acquisition_cycle
+            # 设定变量组初始上传时间
+            for g in groups:
+                g.upload_time = start_time + g.upload_cycle
+
+                variables = g.variables
+
+                for v in variables:
+                    if v.rw_type == 2 or v.rw_type == 3 and v.write_value is not None:
+                        variable_db = v.db_num
+                        area = v.area
+                        address = v.address
+                        byte_value = write_value(v, v.write_value)
+
+                        db.write_area(area=area, dbnumber=variable_db, start=address, data=byte_value)
+
+                    if v.rw_type == 1 or v.rw_type == 3:
+                        v.acquisition_time = start_time + v.acquisition_cycle
+                        v.ip = plc.ip
 
     session.commit()
 
@@ -122,7 +142,8 @@ def beats(self):
     print('beats')
     session = Session()
     current_time = int(time.time())
-
+    global station_info
+    station_info = get_station_info()
     data = station_info
     # data = encryption(data)
     # todo 报警变量加到data里
@@ -158,6 +179,7 @@ def beats(self):
         else:
             note = '完成一次心跳连接，时间:{}.'.format(datetime.datetime.fromtimestamp(current_time))
         status = 'OK'
+
     log = TransferLog(
         trans_type='beats',
         time=current_time,
@@ -166,6 +188,11 @@ def beats(self):
     )
     session.add(log)
     session.commit()
+
+    if not plc_client:
+        plcs = session.query(YjPLCInfo)
+        global plc_client
+        plc_client = plc_connection(plcs)
 
 
 @app.task(bind=True, max_retries=MAX_RETRIES)
@@ -462,6 +489,13 @@ def check_variable_get_time(self):
         print('check_variable')
         # try:
         variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time).all()
+
+        # if variables and not plc_client:
+        #     plcs = session.query(YjPLCInfo).all()
+        #     for plc in plcs:
+        #         plc_connection(plc)
+
+
         # variables = session.execute(variables)
         # print(variables)
         # if variables.return_rows:
@@ -509,44 +543,27 @@ def check_variable_get_time(self):
 def get_value(variable_model, session):
     current_time = int(time.time())
     variable_model.acquisition_time = current_time + variable_model.acquisition_cycle
-    # print(2)
-    # session.commit()
-    # print(3)
-
     # 获得变量信息
     # 变量所属plc的信息
-    ip = variable_model.group.plc.ip
-    rack = variable_model.group.plc.rack
-    slot = variable_model.group.plc.slot
+    ip = variable_model.ip
+    for plc in plc_client:
+        if plc[1] == ip:
 
-    # print(5)
-    # 获取采集变量时需要的信息
-    area = variable_area(variable_model)
-    # print(6)
-    variable_db = variable_model.db_num
-    # print(7)
-    type_code, size = variable_size(variable_model)
-    # print(8)
-    address = variable_model.address
+            if not plc[0].get_connected():
+                plc[0].connect(plc.ip, plc.rack, plc.slot)
 
-    # print('cccc')
-    # 采集数据
-    # print ip, rack, slot, area, variable_db, address, size
-    # print type(ip), type(rack), type(slot)
-    # TODO 建立连接的开销很大，在代码启动时创建连接并保持，定时查询连接状态就好，这样不用重复建立连接
-    try:
-        with PythonPLC(ip, rack, slot) as db:
-            result = db.read_area(area=area, dbnumber=variable_db, start=address, size=size)
-    except Snap7Exception as e:
-        print(e)
-    else:
-        value = struct.unpack('!{}'.format(type_code), result)[0]
-        # print value
+            area = variable_area(variable_model)
+            variable_db = variable_model.db_num
+            size = variable_size(variable_model)
+            address = int(math.modf(variable_model.address)[1])
+            bool_index = int(math.modf(variable_model.address)[0] * 10)
 
-        # print('dddd')
-        # 保存数据
-        value = Value(variable_id=variable_model.id, time=current_time, value=value)
-        session.add(value)
+            result = plc[0].read_area(area=area, dbnumber=variable_db, start=address, size=size)
+            value = read_value(variable_model, result, bool_index)
+            # print(value)
 
-        # 采集完后整体保存
-        # session.commit()
+            value = Value(variable_id=variable_model.id, time=current_time, value=value)
+            session.add(value)
+
+        break
+    return
