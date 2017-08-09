@@ -8,6 +8,8 @@ import struct
 import time
 import multiprocessing as mp
 import math
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 
 try:
     import configparser as ConfigParser
@@ -23,6 +25,7 @@ import billiard
 from sqlalchemy.orm.exc import UnmappedInstanceError, UnmappedClassError
 from snap7.snap7exceptions import Snap7Exception
 import snap7
+import gevent
 
 from models import (eng, Base, Session, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, TransferLog, \
                     Value, serialize)
@@ -67,6 +70,9 @@ MAX_RETRIES = int(cf.get('client', 'max_retries'))
 plc_client = list()
 
 
+# pool = mp.Pool(3)
+
+
 def first_running():
     Base.metadata.create_all(bind=eng)
     # print('bbbb')
@@ -81,6 +87,20 @@ def plc_connection(plcs):
         if client.get_connected():
             plc_client.append((client, plc.ip, plc.rack, plc.slot))
     return plc_client
+
+
+def variable_connection(variables):
+    variable_client = list()
+    for v in variables:
+        client = snap7.client.Client()
+        ip = v.group.plc.ip
+        rack = v.group.plc.rack
+        slot = v.group.plc.slot
+        client.connect(ip, rack, slot)
+        id = v.id
+        if client.get_connected():
+            variable_client.append((client, ip, rack, slot, id))
+    return variable_client
 
 
 def before_running():
@@ -117,8 +137,9 @@ def before_running():
                     if v.rw_type == 2 or v.rw_type == 3 and v.write_value is not None:
                         variable_db = v.db_num
                         area = v.area
-                        address = v.address
-                        byte_value = write_value(v, v.write_value)
+                        address = int(math.modf(v.address)[1])
+                        bool_index = round(math.modf(v.address)[0] * 10)
+                        byte_value = write_value(v, v.write_value, bool_index)
 
                         db.write_area(area=area, dbnumber=variable_db, start=address, data=byte_value)
 
@@ -250,7 +271,7 @@ def get_config(self):
             version=version
         )
         session.add(station)
-        session.commit()
+        # session.commit()
 
         for plc in data["YjPLCInfo"]:
             p = YjPLCInfo(
@@ -270,7 +291,7 @@ def get_config(self):
             )
 
             session.add(p)
-        session.commit()
+        # session.commit()
 
         for group in data["YjGroupInfo"]:
             g = YjGroupInfo(
@@ -283,7 +304,7 @@ def get_config(self):
                 item_id=group["item_id"]
             )
             session.add(g)
-        session.commit()
+        # session.commit()
 
         for variable in data["YjVariableInfo"]:
             v = YjVariableInfo(
@@ -304,7 +325,7 @@ def get_config(self):
                 area=variable['area']
             )
             session.add(v)
-        session.commit()
+        # session.commit()
 
         status = 'OK'
         note = '成功将配置从version: {} 升级到 version: {}.'.format(station_info['version'], version)
@@ -430,7 +451,7 @@ def upload(self, variable_list, group_model, current_time, session):
     # session.commit()
 
 
-@app.task(bind=True, rate_limit='1/s', time_limit=2, max_retries=MAX_RETRIES, default_retry_delay=3)
+@app.task(bind=True, rate_limit='1/s', max_retries=MAX_RETRIES, default_retry_delay=3)
 def check_group_upload_time(self):
     try:
 
@@ -478,11 +499,11 @@ def check_group_upload_time(self):
         # poll.apply_async(upload, (g,))
     except SoftTimeLimitExceeded as exc:
         session.rollback()
-        self.retry(exc=exc)
+        self.retry(exc=exc, max_retries=MAX_RETRIES, countdown=5)
         # session.commit()
 
 
-@app.task(bind=True, rate_limit='1/s', soft_time_limit=2, max_retries=MAX_RETRIES, default_retry_delay=3)
+@app.task(bind=True, rate_limit='1/s', max_retries=MAX_RETRIES, default_retry_delay=3)
 def check_variable_get_time(self):
     try:
         session = Session()
@@ -524,24 +545,64 @@ def check_variable_get_time(self):
         # session.merge(v)
         # session.commit()
         # print('v_g')
+        # from multiprocessing import Pool as ThreadPool
+        # if not variables:
+        #     return
+        # p_list = []
+        # pool = ThreadPool(5)
+        # pool.map(get_value, variables)
+        # pool.close()
+        # pool.join()
 
-        for var in variables:
-            # print 'variable'
-            # print 'get value'
-            get_value(var, session)
-            # get_value.apply_async((var, session))
-            # poll.apply_async(get_value, (v,))
+        # pool = mp.Pool(4)
+        # gevent_list = list()
+
+
+
+        # for var in variables:
+        # print 'variable'
+        # print 'get value'
+        # p = mp.Process(target=get_value_var, args=(var,))
+        # p.start()
+        # p_list.append(p)
+        # get_value(var, session)
+
+        loop = asyncio.get_event_loop()
+        executor = ThreadPoolExecutor(5)
+        loop.set_default_executor(executor)
+        tasks = [asyncio.Task(get_value(var, session)) for var in variables]
+        try:
+            loop.run_until_complete(asyncio.wait(tasks))
+        except ValueError:
+            pass
+        executor.shutdown(wait=True)
+
+        # loop.close()
+        # pool.apply_async(func=get_value, args=(var,))
+        # gevent_list.append(gevent.spawn(get_value_var(var)))
+        # gevent.joinall(gevent_list)
+        # pool.close()
+        # pool.join()
+        # for res in p_list:
+        #     res.join()
+        # get_value.apply_async((var, session))
+        # poll.apply_async(get_value, (v,))
 
         session.commit()
         # except:
         #     session.rollback()
     except SoftTimeLimitExceeded as exc:
         session.rollback()
-        self.retry(exc=exc)
+        self.retry(exc=exc, max_retries=MAX_RETRIES, countdown=5)
+    finally:
+        session.close()
 
 
-@app.task
-def get_value(variable_model, session):
+# @asyncio.coroutine
+# @app.task
+async def get_value(variable_model, session):
+    print('get_value')
+    # session = Session()
     current_time = int(time.time())
     variable_model.acquisition_time = current_time + variable_model.acquisition_cycle
     # 获得变量信息
@@ -557,14 +618,17 @@ def get_value(variable_model, session):
             variable_db = variable_model.db_num
             size = variable_size(variable_model)
             address = int(math.modf(variable_model.address)[1])
-            bool_index = int(math.modf(variable_model.address)[0] * 10)
+            bool_index = round(math.modf(variable_model.address)[0] * 10)
 
-            result = plc[0].read_area(area=area, dbnumber=variable_db, start=address, size=size)
+            # result = await plc[0].read_area(area=area, dbnumber=variable_db, start=address, size=size)
+            result = plc[0].db_read(db_number=variable_db, start=address, size=size)
+            # await asyncio.sleep(0.5)
+            # value =  await asyncio.Task(read_value(variable_model, plc[0].read_area(area=area, dbnumber=variable_db, start=address, size=size) , bool_index))
             value = read_value(variable_model, result, bool_index)
-            # print(value)
+            print(value)
 
             value = Value(variable_id=variable_model.id, time=current_time, value=value)
             session.add(value)
-
-        break
+            # session.commit()
+            break
     return

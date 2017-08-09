@@ -36,6 +36,7 @@ if args.reset:
 
 if args.start:
     first_running()
+    os.environ['pythonoptimize'] = '1'
     subprocess.call('celery -B -A app worker -l info', shell=True)
     # database_reset()
     # first_running()
@@ -117,8 +118,38 @@ from snap7.util import get_bool, get_int
 
 from models import Value, session, YjPLCInfo, YjVariableInfo
 from data_collection import variable_area, variable_size
-# client = snap7.client.Client()
-# client.connect('192.168.18.17', 0, 2)
+# import multiprocessing as mp
+# def get(client):
+#     result = client.db_read(3,0,18)
+#     print(result)
+#
+# b = list()
+# c = 1
+# for a in range(7):
+#     time1 = time.time()
+#     client = snap7.client.Client()
+#     time2 = time.time()
+#     print(time2 - time1)
+#     # client = snap7.client.Client()
+#     time1 = time.time()
+#     client.connect('192.168.18.17', 0, 2)
+#     time2 = time.time()
+#     print(time2 - time1)
+#     b.append(client)
+#     print(c)
+#     c += 1
+# d = list()
+# while True:
+#     for client in b:
+#         p = mp.Process(target=get, args=(client, ))
+#         p.start()
+#         d.append(p)
+#     for process in d:
+#         process.join()
+#
+# print(snap7.util.get_bool(result, 0, 2))
+# client.disconnect()
+
 # time1 = time.time()
 # result = client.list_blocks()
 # print(result)

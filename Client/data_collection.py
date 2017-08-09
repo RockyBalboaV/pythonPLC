@@ -59,7 +59,7 @@ def read_value(variable_model, result, bool_index=None):
         assert ValueError, 'data_type is not useful'
 
 
-def write_value(variable_model, data):
+def write_value(variable_model, data, bool_index=None):
     if variable_model.data_type == 'FLOAT':
         return struct.pack('!f', data)
     elif variable_model.data_type == 'INT':

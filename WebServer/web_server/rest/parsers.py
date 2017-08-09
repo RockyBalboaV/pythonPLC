@@ -130,7 +130,7 @@ variable_put_parser.add_argument('token', type=str)
 
 variable_put_parser.add_argument('variable_name', type=str)
 variable_put_parser.add_argument('db_num', type=int)
-variable_put_parser.add_argument('address', type=int)
+variable_put_parser.add_argument('address', type=float)
 variable_put_parser.add_argument('data_type', type=str)
 variable_put_parser.add_argument('rw_type', type=int)
 variable_put_parser.add_argument('upload', type=int)
