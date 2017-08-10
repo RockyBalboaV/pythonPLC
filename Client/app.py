@@ -505,89 +505,89 @@ def check_group_upload_time(self):
 
 @app.task(bind=True, rate_limit='1/s', max_retries=MAX_RETRIES, default_retry_delay=3)
 def check_variable_get_time(self):
+    session = Session()
+    current_time = int(time.time())
+    print('check_variable')
+    # try:
+    variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time).all()
+
+    # if variables and not plc_client:
+    #     plcs = session.query(YjPLCInfo).all()
+    #     for plc in plcs:
+    #         plc_connection(plc)
+
+
+    # variables = session.execute(variables)
+    # print(variables)
+    # if variables.return_rows:
+    #     print json.dumps([dict(r) for r in variables])
+    # except:
+    #     session.rollback()
+    #     return 'skip'
+
+    # task = signature('task.get_value', args=(v, ))
+    # sig = group
+    # (get_value.sub for v in variables)()
+    # sig.delay()
+    # poll = billiard.context.BaseContext
+    # poll = poll.Pool(poll)
+    # # poll = mp.Pool(4)
+    # poll.map(get_value, [(v, )
+    #                      for v in variables])
+    # result = poll.map(get_value, [(v,)
+    #                               for v in variables])
+    # try:
+    # print('v_t')
+    # for v in variables:
+    # 保证一段时间内不会产生两个task采集同一个变量
+    # v.acquisition_time = current_time + v.acquisition_cycle
+    # session.merge(v)
+    # session.commit()
+    # print('v_g')
+    # from multiprocessing import Pool as ThreadPool
+    # if not variables:
+    #     return
+    # p_list = []
+    # pool = ThreadPool(5)
+    # pool.map(get_value, variables)
+    # pool.close()
+    # pool.join()
+
+    # pool = mp.Pool(4)
+    # gevent_list = list()
+
+
+
+    # for var in variables:
+    # print 'variable'
+    # print 'get value'
+    # p = mp.Process(target=get_value_var, args=(var,))
+    # p.start()
+    # p_list.append(p)
+    # get_value(var, session)
+    if not variables:
+        return
+    loop = asyncio.get_event_loop()
+    executor = ThreadPoolExecutor(5)
+    loop.set_default_executor(executor)
+    tasks = [asyncio.Task(get_value(var, session, loop)) for var in variables]
     try:
-        session = Session()
-        current_time = int(time.time())
-        print('check_variable')
-        # try:
-        variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time).all()
+        loop.run_until_complete(asyncio.wait(tasks))
+    except ValueError:
+        pass
+    executor.shutdown(wait=True)
 
-        # if variables and not plc_client:
-        #     plcs = session.query(YjPLCInfo).all()
-        #     for plc in plcs:
-        #         plc_connection(plc)
-
-
-        # variables = session.execute(variables)
-        # print(variables)
-        # if variables.return_rows:
-        #     print json.dumps([dict(r) for r in variables])
-        # except:
-        #     session.rollback()
-        #     return 'skip'
-
-        # task = signature('task.get_value', args=(v, ))
-        # sig = group
-        # (get_value.sub for v in variables)()
-        # sig.delay()
-        # poll = billiard.context.BaseContext
-        # poll = poll.Pool(poll)
-        # # poll = mp.Pool(4)
-        # poll.map(get_value, [(v, )
-        #                      for v in variables])
-        # result = poll.map(get_value, [(v,)
-        #                               for v in variables])
-        # try:
-        # print('v_t')
-        # for v in variables:
-        # 保证一段时间内不会产生两个task采集同一个变量
-        # v.acquisition_time = current_time + v.acquisition_cycle
-        # session.merge(v)
-        # session.commit()
-        # print('v_g')
-        # from multiprocessing import Pool as ThreadPool
-        # if not variables:
-        #     return
-        # p_list = []
-        # pool = ThreadPool(5)
-        # pool.map(get_value, variables)
-        # pool.close()
-        # pool.join()
-
-        # pool = mp.Pool(4)
-        # gevent_list = list()
-
-
-
-        # for var in variables:
-        # print 'variable'
-        # print 'get value'
-        # p = mp.Process(target=get_value_var, args=(var,))
-        # p.start()
-        # p_list.append(p)
-        # get_value(var, session)
-
-        loop = asyncio.get_event_loop()
-        executor = ThreadPoolExecutor(5)
-        loop.set_default_executor(executor)
-        tasks = [asyncio.Task(get_value(var, session)) for var in variables]
-        try:
-            loop.run_until_complete(asyncio.wait(tasks))
-        except ValueError:
-            pass
-        executor.shutdown(wait=True)
-
-        # loop.close()
-        # pool.apply_async(func=get_value, args=(var,))
-        # gevent_list.append(gevent.spawn(get_value_var(var)))
-        # gevent.joinall(gevent_list)
-        # pool.close()
-        # pool.join()
-        # for res in p_list:
-        #     res.join()
-        # get_value.apply_async((var, session))
-        # poll.apply_async(get_value, (v,))
-
+    # loop.close()
+    # pool.apply_async(func=get_value, args=(var,))
+    # gevent_list.append(gevent.spawn(get_value_var(var)))
+    # gevent.joinall(gevent_list)
+    # pool.close()
+    # pool.join()
+    # for res in p_list:
+    #     res.join()
+    # get_value.apply_async((var, session))
+    # poll.apply_async(get_value, (v,))
+    try:
         session.commit()
         # except:
         #     session.rollback()
@@ -600,7 +600,7 @@ def check_variable_get_time(self):
 
 # @asyncio.coroutine
 # @app.task
-async def get_value(variable_model, session):
+async def get_value(variable_model, session, loop):
     print('get_value')
     # session = Session()
     current_time = int(time.time())
@@ -621,9 +621,9 @@ async def get_value(variable_model, session):
             bool_index = round(math.modf(variable_model.address)[0] * 10)
 
             # result = await plc[0].read_area(area=area, dbnumber=variable_db, start=address, size=size)
-            result = plc[0].db_read(db_number=variable_db, start=address, size=size)
+            # result = plc[0].db_read(db_number=variable_db, start=address, size=size)
             # await asyncio.sleep(0.5)
-            # value =  await asyncio.Task(read_value(variable_model, plc[0].read_area(area=area, dbnumber=variable_db, start=address, size=size) , bool_index))
+            result =  await loop.run_in_executor(None, plc[0].read_area(area=area, dbnumber=variable_db, start=address, size=size))
             value = read_value(variable_model, result, bool_index)
             print(value)
 
@@ -632,3 +632,15 @@ async def get_value(variable_model, session):
             # session.commit()
             break
     return
+
+def get():
+    r = ''
+    while True:
+        n = yield r
+        if not n:
+            return
+        result = plc[0].read_area(area=area, dbnumber=variable_db, start=address, size=size)
+        value = read_value(variable_model, result, bool_index)
+        print(value)
+        value = Value(variable_id=variable_model.id, time=current_time, value=value)
+        session.add(value)
