@@ -5,10 +5,12 @@ import requests
 from requests.exceptions import ConnectionError
 import json
 import struct
+import random
 import time
 import multiprocessing as mp
 import math
 import asyncio
+import threading
 from concurrent.futures import ThreadPoolExecutor
 
 try:
@@ -510,7 +512,7 @@ def check_variable_get_time(self):
     print('check_variable')
     # try:
     variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time).all()
-
+    # print(variables)
     # if variables and not plc_client:
     #     plcs = session.query(YjPLCInfo).all()
     #     for plc in plcs:
@@ -559,18 +561,34 @@ def check_variable_get_time(self):
 
 
     # for var in variables:
+    #     print('var')
+    #     get_value(var, session)
     # print 'variable'
     # print 'get value'
     # p = mp.Process(target=get_value_var, args=(var,))
     # p.start()
     # p_list.append(p)
-    # get_value(var, session)
+    # t_list = list()
+    # for var in variables:
+    #     t = threading.Thread(target=get_value, args=(var,))
+
+    #     t.start()
+        # t.join()
+        # t_list.append(t)
+
+    # for t in t_list:
+    #     t.join()
+
     if not variables:
         return
     loop = asyncio.get_event_loop()
     executor = ThreadPoolExecutor(5)
     loop.set_default_executor(executor)
-    tasks = [asyncio.Task(get_value(var, session, loop)) for var in variables]
+
+    # g = get()
+    # g.send(None)
+
+    tasks = [asyncio.Task(get_value(var, session)) for var in variables]
     try:
         loop.run_until_complete(asyncio.wait(tasks))
     except ValueError:
@@ -600,8 +618,10 @@ def check_variable_get_time(self):
 
 # @asyncio.coroutine
 # @app.task
-async def get_value(variable_model, session, loop):
+async def get_value(variable_model, session):
     print('get_value')
+    loop = asyncio.get_event_loop()
+
     # session = Session()
     current_time = int(time.time())
     variable_model.acquisition_time = current_time + variable_model.acquisition_cycle
@@ -620,15 +640,49 @@ async def get_value(variable_model, session, loop):
             address = int(math.modf(variable_model.address)[1])
             bool_index = round(math.modf(variable_model.address)[0] * 10)
 
-            # result = await plc[0].read_area(area=area, dbnumber=variable_db, start=address, size=size)
+            result = ''
+            # while plc[0].library.Cli_WaitAsCompletion(plc[0].pointer, 2000):
+            while result == '':
+                # print('fffff')
+            # byte_array = plc[0].db_read(db_number=variable_db, start=address, size=size)
+
+
+                while plc[0].library.Cli_WaitAsCompletion(plc[0].pointer, 100):
+                    await asyncio.sleep(random.randint(1, 3) / 100)
+                try:
+                        # result = plc[0].db_read(db_number=variable_db, start=address, size=size)
+
+                    result = await loop.run_in_executor(None, plc[0].db_read, variable_db, address, size)
+
+                except Snap7Exception:
+                    pass
+                else:
+                    break
+
+                # else:
+                #     break
+
+            # print('1')
+            # while not plc[0].library.Cli_WaitAsCompletion(plc[0].pointer, 2000):
+            #     print('2')
+            #     time.sleep(0.01)
+            # print('3')
+            # result = plc[0].as_db_read(db_number=variable_db, start=address, size=size)
+
+            # await asyncio.sleep(0.015)
             # result = plc[0].db_read(db_number=variable_db, start=address, size=size)
             # await asyncio.sleep(0.5)
-            result =  await loop.run_in_executor(None, plc[0].read_area(area=area, dbnumber=variable_db, start=address, size=size))
+
+            # g.send((plc, area, variable_db, address, size, variable_model, bool_index, current_time, session))
+            # result =  await loop.run_in_executor(None, plc[0].read_area(area=area, dbnumber=variable_db, start=address, size=size))
             value = read_value(variable_model, result, bool_index)
+            # time.sleep(0.2)
+            # value = 2
             print(value)
 
             value = Value(variable_id=variable_model.id, time=current_time, value=value)
             session.add(value)
+
             # session.commit()
             break
     return
@@ -637,6 +691,7 @@ def get():
     r = ''
     while True:
         n = yield r
+        plc, area, variable_db, address, size, variable_model, bool_index, current_time, session = n
         if not n:
             return
         result = plc[0].read_area(area=area, dbnumber=variable_db, start=address, size=size)

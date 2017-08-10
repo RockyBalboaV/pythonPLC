@@ -39,6 +39,7 @@ class ValueResource(ApiResource):
         group_name = self.args['group_name']
         query_id = self.args['query_id']
         query_name = self.args['query_name']
+        all_variable_id = self.args['all_variable_id']
 
         min_time = self.args['min_time']
         max_time = self.args['max_time']
@@ -59,6 +60,11 @@ class ValueResource(ApiResource):
 
         if variable_id:
             query = query.join(YjVariableInfo).filter(YjVariableInfo.id.in_(variable_id))
+
+        if all_variable_id:
+            sql = 'select yjvariableinfo.id from yjvariableinfo'
+            models = db.engine.execute(sql).fetchall()
+            variable_id = [model[0] for model in models]
 
         if variable_name:
             query = query.join(YjVariableInfo).filter(YjVariableInfo.variable_name == variable_name)
@@ -100,6 +106,7 @@ class ValueResource(ApiResource):
             query = query.paginate(page, per_page, False).items
         elif limit:
             # time1 = time.time()
+
             query = [
                 model
                 for v in variable_id

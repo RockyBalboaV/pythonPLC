@@ -153,6 +153,8 @@ value_parser.add_argument('variable_id', type=int, action='append')
 value_parser.add_argument('variable_name', type=str)
 value_parser.add_argument('query_id', type=int)
 value_parser.add_argument('query_name', type=str)
+value_parser.add_argument('all_variable_id', type=bool)
+
 
 value_parser.add_argument('min_time', type=int)
 value_parser.add_argument('max_time', type=int)
