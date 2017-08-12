@@ -46,11 +46,15 @@ if args.start:
     cf.read_file(open(os.path.join(here, 'config.ini'), encoding='utf-8'))
     python_path = cf.get(os.environ.get('env'), 'python')
 
-    celery = subprocess.Popen('{}celery -B -A app worker -l info'.format(python_path), shell=True)
-    # flower = subprocess.call('{}celery -B -A app.py worker -l info'.format(python_path, here), shell=True)
-    flower = subprocess.call('{}flower {}'.format(python_path, app.conf['broker_url']), shell=True)
+    flower = subprocess.Popen('{}flower --broker="{}"'.format(python_path, app.conf['broker_url']), shell=True)
 
-    celery.kill()
+    print('a')
+    celery = subprocess.call('{}celery -B -A app worker -l info'.format(python_path), shell=True)
+    # flower = subprocess.call('{}celery -B -A app.py worker -l info'.format(python_path, here), shell=True)
+    print('b')
+    print(app.conf['broker_url'])
+
+    flower.kill()
     # database_reset()
     # first_running()
     # print app.conf['BEAT_URL']

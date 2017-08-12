@@ -76,6 +76,7 @@ plc_client = list()
 
 
 def first_running():
+    print('first_running')
     Base.metadata.create_all(bind=eng)
     # print('bbbb')
     get_config()
@@ -119,6 +120,7 @@ def before_running():
     plcs = session.query(YjPLCInfo)
     global plc_client
     plc_client = plc_connection(plcs)
+    print(plc_client)
 
     for plc in plcs:
         ip = plc.ip
@@ -226,6 +228,7 @@ def beats(self):
 
 @app.task(bind=True, max_retries=MAX_RETRIES)
 def get_config(self):
+    print('get_config')
     session = Session()
     current_time = int(time.time())
     # data = encryption(data)
@@ -461,11 +464,13 @@ def upload(self, variable_list, group_model, current_time, session):
 
 @app.task(bind=True, rate_limit='1/s', max_retries=MAX_RETRIES, default_retry_delay=3)
 def check_group_upload_time(self):
+    print('check_group')
+    session = Session()
+    current_time = int(time.time())
     try:
 
-        session = Session()
-        current_time = int(time.time())
-        print('check_group')
+
+
         # try:
         # groups = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).all()
         group_models = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).filter(
@@ -636,7 +641,9 @@ async def get_value(variable_model, session):
     # 获得变量信息
     # 变量所属plc的信息
     ip = variable_model.ip
+    print(plc_client)
     for plc in plc_client:
+        print(plc)
         if plc[1] == ip:
 
             if not plc[0].get_connected():
@@ -651,7 +658,7 @@ async def get_value(variable_model, session):
             result = ''
             # while plc[0].library.Cli_WaitAsCompletion(plc[0].pointer, 2000):
             while result == '':
-                # print('fffff')
+                print('fffff')
             # byte_array = plc[0].db_read(db_number=variable_db, start=address, size=size)
 
 
