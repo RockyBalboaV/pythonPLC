@@ -16,7 +16,7 @@ cf.read_file(open(os.path.join(here, 'config.ini'), encoding='utf-8'))
 db_uri = cf.get(os.environ.get('env'), 'db_uri')
 
 # 创建连接
-eng = create_engine(db_uri + '?charset=utf8')
+eng = create_engine(db_uri + '?charset=utf8', pool_recycle=1, pool_size=20, max_overflow=0)
 # 创建基类
 Base = declarative_base()
 

@@ -150,6 +150,7 @@ def before_running():
                         v.ip = plc.ip
 
     session.commit()
+    session.close()
 
 
 @worker_process_init.connect
@@ -167,6 +168,8 @@ def beats(self):
     current_time = int(time.time())
     global station_info
     station_info = get_station_info()
+
+    
     data = station_info
     # data = encryption(data)
     # todo 报警变量加到data里
@@ -217,6 +220,8 @@ def beats(self):
     if not plc_client:
         plcs = session.query(YjPLCInfo)
         plc_client = plc_connection(plcs)
+
+    session.close()
 
 
 @app.task(bind=True, max_retries=MAX_RETRIES)
@@ -337,6 +342,7 @@ def get_config(self):
     log = TransferLog(trans_type='config', time=current_time, status=status, note=note)
     session.add(log)
     session.commit()
+    session.close()
 
     before_running()
 
@@ -503,6 +509,8 @@ def check_group_upload_time(self):
         session.rollback()
         self.retry(exc=exc, max_retries=MAX_RETRIES, countdown=5)
         # session.commit()
+    finally:
+        session.close()
 
 
 @app.task(bind=True, rate_limit='1/s', max_retries=MAX_RETRIES, default_retry_delay=3)
