@@ -2,6 +2,10 @@
 import os
 import argparse
 import subprocess
+try:
+    import configparser as ConfigParser
+except:
+    import ConfigParser
 import time
 
 parser = argparse.ArgumentParser()
@@ -29,7 +33,7 @@ if not os.environ.get('url'):
         os.environ['url'] = 'dev-server'
 
 # app中import了model，model创建时需要获取mysql数据地址，地址根据环境变量从ini文件中读取，导入app放在输入环境变量后
-from app import database_reset, first_running
+from app import database_reset, first_running, app
 
 if args.reset:
     database_reset()
@@ -37,7 +41,16 @@ if args.reset:
 if args.start:
     first_running()
     os.environ['pythonoptimize'] = '1'
-    subprocess.call('celery -B -A app worker -l info', shell=True)
+    here = os.path.abspath(os.path.dirname(__file__))
+    cf = ConfigParser.ConfigParser()
+    cf.read_file(open(os.path.join(here, 'config.ini'), encoding='utf-8'))
+    python_path = cf.get(os.environ.get('env'), 'python')
+
+    celery = subprocess.Popen('{}celery -B -A app worker -l info'.format(python_path), shell=True)
+    # flower = subprocess.call('{}celery -B -A app.py worker -l info'.format(python_path, here), shell=True)
+    flower = subprocess.call('{}flower {}'.format(python_path, app.conf['broker_url']), shell=True)
+
+    celery.kill()
     # database_reset()
     # first_running()
     # print app.conf['BEAT_URL']

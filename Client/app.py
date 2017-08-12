@@ -37,7 +37,7 @@ from data_collection import variable_size, variable_area, read_value, write_valu
 app = Celery()
 app.config_from_object(Config)
 
-here = os.path.abspath(os.path.dirname(__name__))
+here = os.path.abspath(os.path.dirname(__file__))
 cf = ConfigParser.ConfigParser()
 cf.read_file(open(os.path.join(here, 'config.ini'), encoding='utf-8'))
 

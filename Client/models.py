@@ -9,7 +9,7 @@ from sqlalchemy import Column, String, Integer, Float, Boolean, ForeignKey, crea
 from sqlalchemy.orm import sessionmaker, relationship, backref, class_mapper
 from sqlalchemy.ext.declarative import declarative_base
 
-here = os.path.abspath(os.path.dirname(__name__))
+here = os.path.abspath(os.path.dirname(__file__))
 cf = ConfigParser.ConfigParser()
 cf.read_file(open(os.path.join(here, 'config.ini'), encoding='utf-8'))
 
