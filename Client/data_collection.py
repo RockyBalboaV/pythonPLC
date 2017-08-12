@@ -59,7 +59,7 @@ def read_value(variable_model, result, bool_index=None):
         assert ValueError, 'data_type is not useful'
 
 
-def write_value(variable_model, data, bool_index=None):
+def write_value(variable_model, data, bool_index=None, byte=None):
     if variable_model.data_type == 'FLOAT':
         return struct.pack('!f', data)
     elif variable_model.data_type == 'INT':
@@ -71,8 +71,8 @@ def write_value(variable_model, data, bool_index=None):
     elif variable_model.data_type == 'BYTE':
         return struct.pack('!s', data)
     elif variable_model.data_type == 'BOOL':
-        bool_index = int(math.modf(variable_model.address)[0] * 10)
-        return set_bool(data, 0, bool_index)
+        set_bool(byte, 0, bool_index, data)
+        return byte
     elif variable_model.data_type == 'DWORD':
         return struct.pack('!I', data)
 

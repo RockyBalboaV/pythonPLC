@@ -146,7 +146,19 @@ def upload():
                               time=v["time"]
                               )
                 db.session.add(value)
-            db.session.commit()
+
+                try:
+                    alarm = VarAlarmInfo.query.filter_by(variable_id=v['variable_id']).first()
+                    log = VarAlarmLog(alarm_id=alarm.id, time=v['time'], confirm=False)
+                    db.session.add(log)
+                except:
+                    pass
 
             response = make_response('OK', 200, id_num=id_num, version=version)
+
+
+
+        db.session.commit()
+
+
         return response

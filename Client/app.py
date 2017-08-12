@@ -143,7 +143,10 @@ def before_running():
                         area = v.area
                         address = int(math.modf(v.address)[1])
                         bool_index = round(math.modf(v.address)[0] * 10)
-                        byte_value = write_value(v, v.write_value, bool_index)
+                        byte = None
+                        if v.data_type == 'BOOL':
+                            byte = db.read_area(area=area, dbnumber=variable_db, start=address, size=1)
+                        byte_value = write_value(v, v.write_value, bool_index, byte)
 
                         db.write_area(area=area, dbnumber=variable_db, start=address, data=byte_value)
 
