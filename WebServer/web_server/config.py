@@ -84,7 +84,7 @@ class DevConfig(Config):
 
 
 class ProdConfig(Config):
-    SQLALCHEMY_DATABASE_URI = 'mysql://web:web@localhost:3306/pythonPLC'
+    SQLALCHEMY_DATABASE_URI = 'mysql://root:root@localhost:3306/pythonPLC'
 
     # 指定消息代理
     CELERY_BROKER_URL = 'pyamqp://yakumo17s:touhou@localhost:5672/web_develop'

@@ -1,5 +1,5 @@
 from flask_admin import BaseView, expose
-from flask_admin.contrib.sqla import ModelView
+from flask_admin.contrib.sqlamodel import ModelView
 from flask_admin.contrib.fileadmin import FileAdmin
 from flask_login import login_required
 
