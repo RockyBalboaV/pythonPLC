@@ -148,8 +148,14 @@ def before_running():
                             byte = db.read_area(area=area, dbnumber=variable_db, start=address, size=1)
                         byte_value = write_value(v, v.write_value, bool_index, byte)
 
-                        print(area, variable_db, address, byte_value)
+                        # print(area, variable_db, address, byte_value)
                         db.write_area(area=area, dbnumber=variable_db, start=address, data=byte_value)
+                        # byte = db.read_area(area=area, dbnumber=variable_db, start=address, size=2)
+                        # from data_collection import get_bool, read_value
+                        # from snap7.util import get_int
+                        # if v.data_type=='INT':
+                        #     print(address, get_int(byte, 0), 'after')
+                        # print(address, get_bool(byte, 0, 0), 'after_write')
 
                     if v.rw_type == 1 or v.rw_type == 3:
                         v.acquisition_time = start_time + v.acquisition_cycle
@@ -576,9 +582,9 @@ def check_variable_get_time(self):
 
 
 
-    # for var in variables:
+    for var in variables:
     #     print('var')
-    #     get_value(var, session)
+        get_value2(var, session, current_time)
     # print 'variable'
     # print 'get value'
     # p = mp.Process(target=get_value_var, args=(var,))
@@ -594,15 +600,12 @@ def check_variable_get_time(self):
 
     # for t in t_list:
     #     t.join()
-
+    '''
     if not variables:
         return
     loop = asyncio.get_event_loop()
     executor = ThreadPoolExecutor(5)
     loop.set_default_executor(executor)
-
-    # g = get()
-    # g.send(None)
 
     tasks = [asyncio.Task(get_value(var, session, current_time)) for var in variables]
     try:
@@ -610,6 +613,7 @@ def check_variable_get_time(self):
     except ValueError:
         pass
     executor.shutdown(wait=True)
+    '''
 
     # loop.close()
     # pool.apply_async(func=get_value, args=(var,))
@@ -695,6 +699,43 @@ async def get_value(variable_model, session, current_time):
             value = read_value(variable_model, result, bool_index)
             # time.sleep(0.2)
             # value = 2
+            print(value)
+
+            value = Value(variable_id=variable_model.id, time=current_time, value=value)
+            session.add(value)
+
+            # session.commit()
+            break
+    return
+
+
+def get_value2(variable_model, session, current_time):
+    print('get_value')
+    # loop = asyncio.get_event_loop()
+
+    # session = Session()
+    # current_time = int(time.time())
+    variable_model.acquisition_time = current_time + variable_model.acquisition_cycle
+    # 获得变量信息
+    # 变量所属plc的信息
+    ip = variable_model.ip
+    print(plc_client)
+    for plc in plc_client:
+        print(plc)
+        if plc[1] == ip:
+
+            if not plc[0].get_connected():
+                plc[0].connect(plc.ip, plc.rack, plc.slot)
+
+            area = variable_area(variable_model)
+            variable_db = variable_model.db_num
+            size = variable_size(variable_model)
+            address = int(math.modf(variable_model.address)[1])
+            bool_index = round(math.modf(variable_model.address)[0] * 10)
+
+            result = plc[0].read_area(area, variable_db, address, size)
+
+            value = read_value(variable_model, result, bool_index)
             print(value)
 
             value = Value(variable_id=variable_model.id, time=current_time, value=value)
