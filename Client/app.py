@@ -140,7 +140,7 @@ def before_running():
                 for v in variables:
                     if v.rw_type == 2 or v.rw_type == 3 and v.write_value is not None:
                         variable_db = v.db_num
-                        area = v.area
+                        area = variable_area(v)
                         address = int(math.modf(v.address)[1])
                         bool_index = round(math.modf(v.address)[0] * 10)
                         byte = None
@@ -148,6 +148,7 @@ def before_running():
                             byte = db.read_area(area=area, dbnumber=variable_db, start=address, size=1)
                         byte_value = write_value(v, v.write_value, bool_index, byte)
 
+                        print(area, variable_db, address, byte_value)
                         db.write_area(area=area, dbnumber=variable_db, start=address, data=byte_value)
 
                     if v.rw_type == 1 or v.rw_type == 3:
@@ -174,7 +175,6 @@ def beats(self):
     global station_info
     station_info = get_station_info()
 
-    
     data = station_info
     # data = encryption(data)
     # todo 报警变量加到data里
@@ -236,6 +236,8 @@ def get_config(self):
     current_time = int(time.time())
     # data = encryption(data)
     data = station_info
+    print(data)
+    print(CONFIG_URL)
     try:
         response = requests.post(CONFIG_URL, json=data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
     except ConnectionError as e:
@@ -472,8 +474,6 @@ def check_group_upload_time(self):
     current_time = int(time.time())
     try:
 
-
-
         # try:
         # groups = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).all()
         group_models = session.query(YjGroupInfo).filter(current_time >= YjGroupInfo.upload_time).filter(
@@ -589,8 +589,8 @@ def check_variable_get_time(self):
     #     t = threading.Thread(target=get_value, args=(var,))
 
     #     t.start()
-        # t.join()
-        # t_list.append(t)
+    # t.join()
+    # t_list.append(t)
 
     # for t in t_list:
     #     t.join()
@@ -604,7 +604,7 @@ def check_variable_get_time(self):
     # g = get()
     # g.send(None)
 
-    tasks = [asyncio.Task(get_value(var, session)) for var in variables]
+    tasks = [asyncio.Task(get_value(var, session, current_time)) for var in variables]
     try:
         loop.run_until_complete(asyncio.wait(tasks))
     except ValueError:
@@ -634,12 +634,12 @@ def check_variable_get_time(self):
 
 # @asyncio.coroutine
 # @app.task
-async def get_value(variable_model, session):
+async def get_value(variable_model, session, current_time):
     print('get_value')
     loop = asyncio.get_event_loop()
 
     # session = Session()
-    current_time = int(time.time())
+    # current_time = int(time.time())
     variable_model.acquisition_time = current_time + variable_model.acquisition_cycle
     # 获得变量信息
     # 变量所属plc的信息
@@ -662,23 +662,22 @@ async def get_value(variable_model, session):
             # while plc[0].library.Cli_WaitAsCompletion(plc[0].pointer, 2000):
             while result == '':
                 print('fffff')
-            # byte_array = plc[0].db_read(db_number=variable_db, start=address, size=size)
-
+                # byte_array = plc[0].db_read(db_number=variable_db, start=address, size=size)
 
                 while plc[0].library.Cli_WaitAsCompletion(plc[0].pointer, 100):
                     await asyncio.sleep(random.randint(1, 3) / 100)
                 try:
-                        # result = plc[0].db_read(db_number=variable_db, start=address, size=size)
+                    # result = plc[0].db_read(db_number=variable_db, start=address, size=size)
 
-                    result = await loop.run_in_executor(None, plc[0].db_read, variable_db, address, size)
+                    result = await loop.run_in_executor(None, plc[0].read_area, area, variable_db, address, size)
 
                 except Snap7Exception:
                     pass
                 else:
                     break
 
-                # else:
-                #     break
+                    # else:
+                    #     break
 
             # print('1')
             # while not plc[0].library.Cli_WaitAsCompletion(plc[0].pointer, 2000):
@@ -704,6 +703,7 @@ async def get_value(variable_model, session):
             # session.commit()
             break
     return
+
 
 def get():
     r = ''

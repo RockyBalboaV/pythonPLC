@@ -144,12 +144,12 @@ from data_collection import variable_area, variable_size
 # c = 1
 # for a in range(7):
 #     time1 = time.time()
-client = snap7.client.Client()
+# client = snap7.client.Client()
 #     time2 = time.time()
 #     print(time2 - time1)
 #     # client = snap7.client.Client()
 #     time1 = time.time()
-client.connect('192.168.18.17', 0, 2)
+# client.connect('192.168.18.17', 0, 2)
 #     time2 = time.time()
 #     print(time2 - time1)
 #     b.append(client)

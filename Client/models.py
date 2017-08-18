@@ -153,7 +153,7 @@ class YjVariableInfo(Base):
     ten_id = Column(String(200))
     item_id = Column(String(20))
     write_value = Column(Integer)
-    area = Column(Float)
+    area = Column(Integer)
 
     acquisition_time = Column(Integer)
     ip = Column(String(20))

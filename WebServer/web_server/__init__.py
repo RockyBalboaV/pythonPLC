@@ -11,9 +11,7 @@ import eventlet
 from celery import Celery
 from flask import Flask, request, jsonify, g, render_template, redirect, url_for, current_app, flash, Config, session
 from flask import request_tearing_down, appcontext_tearing_down
-from flask_security import url_for_security
-from flask_login import login_user, logout_user, user_logged_in, login_required, current_user
-from flask_principal import identity_loaded, identity_changed, UserNeed, RoleNeed, Identity, AnonymousIdentity
+from flask_login import user_logged_in, current_user
 from pandas.io.sql import read_sql
 
 from models import *
@@ -85,12 +83,7 @@ def create_app(object_name):
                                    '/static/',
                                    name='Static File'))
 
-    def value2dict(std):
-        return {
-            "id": std.id,
-            "variable_id": std.variable_id,
-            "value": std.value
-        }
+
 
     def get_current_user():
         return session['username']
@@ -99,18 +92,7 @@ def create_app(object_name):
     def server_inner_error(error):
         return u"内部代码错误 by yakumo17s"
 
-    # @app.before_first_request
-    # def setup():
-    #     pass
 
-    # 使用flask-login.current_user代替
-    # @app.before_request
-    # def before_request():
-    #     pass
-    #
-    # @app.teardown_appcontext
-    # def teardown():
-    #     pass
     def close_db_connection(sender, **extra):
         db.session.close()
         # sender.logger.debug('Database close.')
@@ -138,15 +120,6 @@ def create_app(object_name):
     def user_loader(user_id):
         user = User.query.get(user_id)
         return user
-
-    @user_logged_in.connect_via(app)
-    def _track_logins(sender, user, **extra):
-        # 记录用户登录次数，登录IP
-        user.login_count += 1
-        user.last_login_ip = request.remote_addr
-        user.last_login_time = int(time.time())
-        db.session.add(user)
-        db.session.commit()
 
     def _get_frame(date_string):
         db = MySQLdb.connect('localhost', 'web', 'web', 'pyplc')
