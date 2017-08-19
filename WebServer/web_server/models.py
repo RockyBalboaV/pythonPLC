@@ -325,12 +325,19 @@ class QueryGroup(db.Model):
     )
 
 
+class VarAlarm(db.Model):
+    __tablename__ = 'var_alarm'
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    alarm_id = db.Column(db.Integer, db.ForeignKey('var_alarm_info.id'))
+    time = db.Column(db.Integer)
+
+
 class VarAlarmLog(db.Model):
     __tablename__ = 'var_alarm_log'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     alarm_id = db.Column(db.Integer, db.ForeignKey('var_alarm_info.id'))
     time = db.Column(db.Integer)
-    confirm = db.Column(db.Boolean)
+    status = db.Column(db.Integer)
 
 
 class VarAlarmInfo(db.Model):
@@ -341,6 +348,7 @@ class VarAlarmInfo(db.Model):
     note = db.Column(db.String(128))
 
     logs = db.relationship('VarAlarmLog', backref='var_alarm_info', lazy='dynamic', cascade="delete, delete-orphan")
+    alarms = db.relationship('VarAlarm', backref='var_alarm_info', lazy='dynamic', cascade="delete, delete-orphan")
 
 
 class InterfaceLog(db.Model):

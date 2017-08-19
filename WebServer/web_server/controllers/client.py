@@ -105,7 +105,8 @@ def set_config():
             "YjStationInfo": serialize(station),
             "YjPLCInfo": [serialize(plc) for plc in station.plcs],
             "YjGroupInfo": [serialize(group) for plc in station.plcs for group in plc.groups],
-            "YjVariableInfo": [serialize(variable) for plc in station.plcs for group in plc.groups for variable in group.variables]
+            "YjVariableInfo": [serialize(variable) for plc in station.plcs for group in plc.groups for variable in
+                               group.variables]
         }
         # time2 = time.time()
         # print(time2 - time1)
@@ -149,16 +150,23 @@ def upload():
 
                 try:
                     alarm = VarAlarmInfo.query.filter_by(variable_id=v['variable_id']).first()
-                    log = VarAlarmLog(alarm_id=alarm.id, time=v['time'], confirm=False)
-                    db.session.add(log)
+                    last_log = VarAlarmLog.query.filter(VarAlarmLog.alarm_id == alarm.id).order_by(
+                        VarAlarmLog.time.desc()).first()
+                    status = int(v['value'])
+                    if last_log.status != status:
+                        log = VarAlarmLog(alarm_id=alarm.id, time=v['time'], status=status)
+                        db.session.add(log)
+                    if status == 1:
+                        alarm = VarAlarm(alarm_id=alarm.id, time=v['time'])
+                        db.session.add(alarm)
+                    elif status == 0:
+                        alarm = VarAlarm.query.filter(VarAlarm.alarm_id == alarm.id).first()
+                        db.session.remove(alarm)
                 except:
                     pass
 
             response = make_response('OK', 200, id_num=id_num, version=version)
 
-
-
         db.session.commit()
-
 
         return response
