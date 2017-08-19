@@ -224,17 +224,18 @@ query_put_parser.add_argument('id', type=int)
 query_put_parser.add_argument('name', type=str)
 query_put_parser.add_argument('variable_id', type=int, action='append')
 
-# 变量警告查询
+# 变量警告日志查询
 
 alarm_parser = reqparse.RequestParser()
 alarm_parser.add_argument('id', type=int)
-alarm_parser.add_argument('confirm', type=bool)
+alarm_parser.add_argument('status', type=int)
 
 alarm_parser.add_argument('alarm_id', type=int, action='append')
 alarm_parser.add_argument('plc_id', type=int, action='append')
 alarm_parser.add_argument('variable_id', type=int, action='append')
-alarm_parser.add_argument('alarm_type', type=str, action='append')
+alarm_parser.add_argument('alarm_type', type=int, action='append')
 alarm_parser.add_argument('time', type=int)
+alarm_parser.add_argument('all_alarm_id', type=bool)
 
 alarm_parser.add_argument('min_time', type=int)
 alarm_parser.add_argument('max_time', type=int)
@@ -244,23 +245,50 @@ alarm_parser.add_argument('per_page', type=int)
 alarm_parser.add_argument('limit', type=int)
 alarm_parser.add_argument('token', type=str)
 
+# 添加警告日志
+
+alarm_put_parser = reqparse.RequestParser()
+alarm_put_parser.add_argument('id', type=int)
+alarm_put_parser.add_argument('status', type=int)
+alarm_put_parser.add_argument('alarm_id', type=int)
+alarm_put_parser.add_argument('time', type=int)
+
+# 查询当前报警
+alarm_now_parser = reqparse.RequestParser()
+alarm_now_parser.add_argument('id', type=int)
+alarm_now_parser.add_argument('alarm_id', type=int)
+alarm_now_parser.add_argument('time', type=int)
+alarm_now_parser.add_argument('variable_id', type=int, action='append')
+
+alarm_now_parser.add_argument('page', type=int)
+alarm_now_parser.add_argument('per_page', type=int)
+
+# 修改当前报警
+alarm_now_put_parser = reqparse.RequestParser()
+alarm_now_put_parser.add_argument('id', type=int)
+alarm_now_put_parser.add_argument('alarm_id', type=int)
+alarm_now_put_parser.add_argument('time', type=int)
+
 # 变量报警信息查询
+
 alarm_info_parser = reqparse.RequestParser()
 alarm_info_parser.add_argument('id', type=int)
 alarm_info_parser.add_argument('plc_id', type=int, action='append')
 alarm_info_parser.add_argument('variable_id', type=int, action='append')
-alarm_info_parser.add_argument('alarm_type', type=str)
+alarm_info_parser.add_argument('alarm_type', type=int)
 alarm_info_parser.add_argument('limit', type=int)
 alarm_info_parser.add_argument('page', type=int)
 alarm_info_parser.add_argument('per_page', type=int)
 alarm_info_parser.add_argument('token', type=str)
 
+
 # 变量报警信息设置
+
 alarm_info_put_parser = reqparse.RequestParser()
 alarm_info_put_parser.add_argument('id', type=int)
-alarm_info_put_parser.add_argument('variable_id', type=int, action='append')
+alarm_info_put_parser.add_argument('variable_id', type=int)
 
-alarm_info_put_parser.add_argument('alarm_type', type=int, action='append')
+alarm_info_put_parser.add_argument('alarm_type', type=int)
 alarm_info_put_parser.add_argument('note', type=str)
 alarm_info_put_parser.add_argument('token', type=str)
 
