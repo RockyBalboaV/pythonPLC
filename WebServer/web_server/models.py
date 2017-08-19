@@ -28,9 +28,9 @@ def serialize(model):
 
 
 roles = db.Table(
-    'role_users',
-    db.Column('user_id', db.Integer, db.ForeignKey('user.id'), primary_key=True),
-    db.Column('role_id', db.Integer, db.ForeignKey('role.id'), primary_key=True)
+    'roles_users',
+    db.Column('user_id', db.Integer, db.ForeignKey('users.id'), primary_key=True),
+    db.Column('role_id', db.Integer, db.ForeignKey('roles.id'), primary_key=True)
 )
 
 var_queries = db.Table(
@@ -285,6 +285,7 @@ class User(UserMixin, db.Model):
 
 
 class Role(db.Model):
+    __tablename__ = 'roles'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.String(30), unique=True)
     description = db.Column(db.String(64))
@@ -349,6 +350,7 @@ class VarAlarmInfo(db.Model):
 
     logs = db.relationship('VarAlarmLog', backref='var_alarm_info', lazy='dynamic', cascade="delete, delete-orphan")
     alarms = db.relationship('VarAlarm', backref='var_alarm_info', lazy='dynamic', cascade="delete, delete-orphan")
+
 
 
 class InterfaceLog(db.Model):
