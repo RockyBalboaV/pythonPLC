@@ -146,7 +146,7 @@ def before_running():
                         byte = None
                         if v.data_type == 'BOOL':
                             byte = db.read_area(area=area, dbnumber=variable_db, start=address, size=1)
-                        byte_value = write_value(v, v.write_value, bool_index, byte)
+                        byte_value = write_value(v.data_type, v.write_value, bool_index, byte)
 
                         # print(area, variable_db, address, byte_value)
                         db.write_area(area=area, dbnumber=variable_db, start=address, data=byte_value)
@@ -638,75 +638,75 @@ def check_variable_get_time(self):
 
 # @asyncio.coroutine
 # @app.task
-async def get_value(variable_model, session, current_time):
-    print('get_value')
-    loop = asyncio.get_event_loop()
-
-    # session = Session()
-    # current_time = int(time.time())
-    variable_model.acquisition_time = current_time + variable_model.acquisition_cycle
-    # 获得变量信息
-    # 变量所属plc的信息
-    ip = variable_model.ip
-    print(plc_client)
-    for plc in plc_client:
-        print(plc)
-        if plc[1] == ip:
-
-            if not plc[0].get_connected():
-                plc[0].connect(plc.ip, plc.rack, plc.slot)
-
-            area = variable_area(variable_model)
-            variable_db = variable_model.db_num
-            size = variable_size(variable_model)
-            address = int(math.modf(variable_model.address)[1])
-            bool_index = round(math.modf(variable_model.address)[0] * 10)
-
-            result = ''
-            # while plc[0].library.Cli_WaitAsCompletion(plc[0].pointer, 2000):
-            while result == '':
-                print('fffff')
-                # byte_array = plc[0].db_read(db_number=variable_db, start=address, size=size)
-
-                while plc[0].library.Cli_WaitAsCompletion(plc[0].pointer, 100):
-                    await asyncio.sleep(random.randint(1, 3) / 100)
-                try:
-                    # result = plc[0].db_read(db_number=variable_db, start=address, size=size)
-
-                    result = await loop.run_in_executor(None, plc[0].read_area, area, variable_db, address, size)
-
-                except Snap7Exception:
-                    pass
-                else:
-                    break
-
-                    # else:
-                    #     break
-
-            # print('1')
-            # while not plc[0].library.Cli_WaitAsCompletion(plc[0].pointer, 2000):
-            #     print('2')
-            #     time.sleep(0.01)
-            # print('3')
-            # result = plc[0].as_db_read(db_number=variable_db, start=address, size=size)
-
-            # await asyncio.sleep(0.015)
-            # result = plc[0].db_read(db_number=variable_db, start=address, size=size)
-            # await asyncio.sleep(0.5)
-
-            # g.send((plc, area, variable_db, address, size, variable_model, bool_index, current_time, session))
-            # result =  await loop.run_in_executor(None, plc[0].read_area(area=area, dbnumber=variable_db, start=address, size=size))
-            value = read_value(variable_model, result, bool_index)
-            # time.sleep(0.2)
-            # value = 2
-            print(value)
-
-            value = Value(variable_id=variable_model.id, time=current_time, value=value)
-            session.add(value)
-
-            # session.commit()
-            break
-    return
+# async def get_value(variable_model, session, current_time):
+#     print('get_value')
+#     loop = asyncio.get_event_loop()
+#
+#     # session = Session()
+#     # current_time = int(time.time())
+#     variable_model.acquisition_time = current_time + variable_model.acquisition_cycle
+#     # 获得变量信息
+#     # 变量所属plc的信息
+#     ip = variable_model.ip
+#     # print(plc_client)
+#     for plc in plc_client:
+#         # print(plc)
+#         if plc[1] == ip:
+#
+#             if not plc[0].get_connected():
+#                 plc[0].connect(plc.ip, plc.rack, plc.slot)
+#
+#             area = variable_area(variable_model)
+#             variable_db = variable_model.db_num
+#             size = variable_size(variable_model)
+#             address = int(math.modf(variable_model.address)[1])
+#             bool_index = round(math.modf(variable_model.address)[0] * 10)
+#
+#             result = ''
+#             # while plc[0].library.Cli_WaitAsCompletion(plc[0].pointer, 2000):
+#             while result == '':
+#                 # print('fffff')
+#                 # byte_array = plc[0].db_read(db_number=variable_db, start=address, size=size)
+#
+#                 while plc[0].library.Cli_WaitAsCompletion(plc[0].pointer, 100):
+#                     await asyncio.sleep(random.randint(1, 3) / 100)
+#                 try:
+#                     # result = plc[0].db_read(db_number=variable_db, start=address, size=size)
+#
+#                     result = await loop.run_in_executor(None, plc[0].read_area, area, variable_db, address, size)
+#
+#                 except Snap7Exception:
+#                     pass
+#                 else:
+#                     break
+#
+#                     # else:
+#                     #     break
+#
+#             # print('1')
+#             # while not plc[0].library.Cli_WaitAsCompletion(plc[0].pointer, 2000):
+#             #     print('2')
+#             #     time.sleep(0.01)
+#             # print('3')
+#             # result = plc[0].as_db_read(db_number=variable_db, start=address, size=size)
+#
+#             # await asyncio.sleep(0.015)
+#             # result = plc[0].db_read(db_number=variable_db, start=address, size=size)
+#             # await asyncio.sleep(0.5)
+#
+#             # g.send((plc, area, variable_db, address, size, variable_model, bool_index, current_time, session))
+#             # result =  await loop.run_in_executor(None, plc[0].read_area(area=area, dbnumber=variable_db, start=address, size=size))
+#             value = read_value(variable_model.data_type, result, bool_index)
+#             # time.sleep(0.2)
+#             # value = 2
+#             print(value)
+#
+#             value = Value(variable_id=variable_model.id, time=current_time, value=value)
+#             session.add(value)
+#
+#             # session.commit()
+#             break
+#     return
 
 
 def get_value2(variable_model, session, current_time):
@@ -735,8 +735,9 @@ def get_value2(variable_model, session, current_time):
 
             result = plc[0].read_area(area, variable_db, address, size)
 
-            value = read_value(variable_model, result, bool_index)
-            print(value)
+            value = read_value(variable_model.data_type, result, bool_index)
+            print(variable_model.id)
+            print(value, 'value')
 
             value = Value(variable_id=variable_model.id, time=current_time, value=value)
             session.add(value)
@@ -754,7 +755,7 @@ def get():
         if not n:
             return
         result = plc[0].read_area(area=area, dbnumber=variable_db, start=address, size=size)
-        value = read_value(variable_model, result, bool_index)
+        value = read_value(variable_model.data_type, result, bool_index)
         print(value)
         value = Value(variable_id=variable_model.id, time=current_time, value=value)
         session.add(value)

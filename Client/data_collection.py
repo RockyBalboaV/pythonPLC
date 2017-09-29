@@ -40,40 +40,40 @@ def variable_area(variable_model):
         return S7AreaDB
 
 
-def read_value(variable_model, result, bool_index=None):
-    if variable_model.data_type == 'FLOAT':
+def read_value(data_type, result, bool_index=None):
+    if data_type == 'FLOAT':
         return struct.unpack('!f', result)[0]
-    elif variable_model.data_type == 'INT':
+    elif data_type == 'INT':
         return struct.unpack('!h', result)[0]
-    elif variable_model.data_type == 'DINT':
+    elif data_type == 'DINT':
         return struct.unpack('!i', result)[0]
-    elif variable_model.data_type == 'WORD':
+    elif data_type == 'WORD':
         return struct.unpack('!H', result)[0]
-    elif variable_model.data_type == 'BYTE':
+    elif data_type == 'BYTE':
         return struct.unpack('!s', result)[0]
-    elif variable_model.data_type == 'BOOL':
+    elif data_type == 'BOOL':
         return get_bool(result, 0, bool_index)
-    elif variable_model.data_type == 'DWORD':
+    elif data_type == 'DWORD':
         return struct.unpack('!I', result)[0]
     else:
         assert ValueError, 'data_type is not useful'
 
 
-def write_value(variable_model, data, bool_index=None, byte=None):
-    if variable_model.data_type == 'FLOAT':
+def write_value(data_type, data, bool_index=None, byte=None):
+    if data_type == 'FLOAT':
         return struct.pack('!f', data)
-    elif variable_model.data_type == 'INT':
+    elif data_type == 'INT':
         return struct.pack('!h', data)
-    elif variable_model.data_type == 'DINT':
+    elif data_type == 'DINT':
         return struct.pack('!i', data)
-    elif variable_model.data_type == 'WORD':
+    elif data_type == 'WORD':
         return struct.pack('!H', data)
-    elif variable_model.data_type == 'BYTE':
+    elif data_type == 'BYTE':
         return struct.pack('!s', data)
-    elif variable_model.data_type == 'BOOL':
+    elif data_type == 'BOOL':
         set_bool(byte, 0, bool_index, data)
         return byte
-    elif variable_model.data_type == 'DWORD':
+    elif data_type == 'DWORD':
         return struct.pack('!I', data)
 
 

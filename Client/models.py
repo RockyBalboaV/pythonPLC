@@ -227,19 +227,19 @@ class TransferLog(Base):
 #     version = Column(Integer)
 
 
-class VarAlarmLog(Base):
-    __tablename__ = 'var_alarm_log'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    alarm_id = Column(Integer, ForeignKey('var_alarm_info.id'))
-    time = Column(Integer)
-    confirm = Column(Boolean)
-
-
-class VarAlarmInfo(Base):
-    __tablename__ = 'var_alarm_info'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    variable_id = Column(Integer, ForeignKey('yjvariableinfo.id'))
-    alarm_type = Column(Integer)
-    note = Column(String(128))
-
-    logs = relationship('VarAlarmLog', backref='var_alarm_info', lazy='dynamic', cascade='all')
+# class VarAlarmLog(Base):
+#     __tablename__ = 'var_alarm_log'
+#     id = Column(Integer, primary_key=True, autoincrement=True)
+#     alarm_id = Column(Integer, ForeignKey('var_alarm_info.id'))
+#     time = Column(Integer)
+#     confirm = Column(Boolean)
+#
+#
+# class VarAlarmInfo(Base):
+#     __tablename__ = 'var_alarm_info'
+#     id = Column(Integer, primary_key=True, autoincrement=True)
+#     variable_id = Column(Integer, ForeignKey('yjvariableinfo.id'))
+#     alarm_type = Column(Integer)
+#     note = Column(String(128))
+#
+#     logs = relationship('VarAlarmLog', backref='var_alarm_info', lazy='dynamic', cascade='all')

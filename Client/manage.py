@@ -63,9 +63,10 @@ if args.start:
     # get_config()
     # get_value()
     # upload()
-# from app import beats, get_config, check_variable_get_time, check_group_upload_time
+from app import beats, get_config, check_variable_get_time, check_group_upload_time
+# first_running()
 # beats()
-# get_config()
+get_config()
 # check_variable_get_time()
 # check_group_upload_time()
 # database_reset()
