@@ -31,12 +31,8 @@ from snap7.snap7exceptions import Snap7Exception
 import snap7
 import gevent
 
-from models import (eng, Base, Session, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, TransferLog, \
-                    Value, serialize, StationAlarm, PLCAlarm)
 from celeryconfig import Config
-from data_collection import variable_size, variable_area, read_value, write_value, PythonPLC
-from station_alarm import check_time_err, connect_server_err
-from plc_alarm import connect_plc_err
+
 
 # 初始化celery
 app = Celery()
@@ -46,7 +42,7 @@ app.config_from_object(Config)
 here = os.path.abspath(os.path.dirname(__file__))
 
 # 读取snap7 C库
-snap7.common.load_library(here + 'libsnap7.so')
+snap7.common.load_library(here + '/libsnap7.so')
 
 # 读取配置文件
 cf = ConfigParser.ConfigParser()
@@ -94,6 +90,12 @@ station_info = get_station_info()
 
 # plc连接实例列表
 plc_client = list()
+
+from models import (eng, Base, Session, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, TransferLog, \
+                    Value, serialize, StationAlarm, PLCAlarm)
+from data_collection import variable_size, variable_area, read_value, write_value, PythonPLC
+from station_alarm import check_time_err, connect_server_err
+from plc_alarm import connect_plc_err
 
 # pool = mp.Pool(3)
 
