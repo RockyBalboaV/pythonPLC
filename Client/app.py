@@ -38,20 +38,46 @@ from data_collection import variable_size, variable_area, read_value, write_valu
 from station_alarm import check_time_err, connect_server_err
 from plc_alarm import connect_plc_err
 
+# 初始化celery
 app = Celery()
 app.config_from_object(Config)
 
+# 获取当前目录位置
 here = os.path.abspath(os.path.dirname(__file__))
+
+# 读取snap7 C库
+snap7.common.load_library(here + 'libsnap7.so')
+
+# 读取配置文件
 cf = ConfigParser.ConfigParser()
 cf.read_file(open(os.path.join(here, 'config.ini'), encoding='utf-8'))
 
+# 从配置表中读取通用变量
+BEAT_URL = cf.get(os.environ.get('url'), 'beat_url')
+CONFIG_URL = cf.get(os.environ.get('url'), 'config_url')
+UPLOAD_URL = cf.get(os.environ.get('url'), 'upload_url')
+CONNECT_TIMEOUT = float(cf.get('client', 'connect_timeout'))
+REQUEST_TIMEOUT = float(cf.get('client', 'request_timeout'))
+MAX_RETRIES = int(cf.get('client', 'max_retries'))
+CHECK_DELAY = cf.get('client', 'check_delay')
+SERVER_TIMEOUT = cf.get('client', 'server_timeout')
+PLC_TIMEOUT = cf.get('client', 'plc_timeout')
+
 
 def database_reset():
+    """
+    初始化数据库
+    :return: 
+    """
     Base.metadata.drop_all(bind=eng)
     Base.metadata.create_all(bind=eng)
 
 
 def get_station_info():
+    """
+    通过配置表读取本机信息
+    :return: dict(id_num, version)
+    """
     session = Session()
     id_num = cf.get('client', 'id_num')
     try:
@@ -63,36 +89,36 @@ def get_station_info():
     return dict(id_num=id_num, version=version)
 
 
-# 设置通用变量
-# print('abcde')
+# 获取本机信息
 station_info = get_station_info()
-# print(os.environ.get('url'))
-BEAT_URL = cf.get(os.environ.get('url'), 'beat_url')
-CONFIG_URL = cf.get(os.environ.get('url'), 'config_url')
-UPLOAD_URL = cf.get(os.environ.get('url'), 'upload_url')
-CONNECT_TIMEOUT = float(cf.get('client', 'connect_timeout'))
-REQUEST_TIMEOUT = float(cf.get('client', 'request_timeout'))
-MAX_RETRIES = int(cf.get('client', 'max_retries'))
-CHECK_DELAY = cf.get('client', 'check_delay')
-SERVER_TIMEOUT = cf.get('client', 'server_timeout')
-PLC_TIMEOUT = cf.get('client', 'plc_timeout')
 
+# plc连接实例列表
 plc_client = list()
 
 # pool = mp.Pool(3)
+
+# 初始化requests
 s = requests.Session()
 s.mount('http://', HTTPAdapter(max_retries=3))
 s.mount('https://', HTTPAdapter(max_retries=3))
 
 
 def first_running():
-    print('first_running')
+    """
+    初次运行
+    :return: 
+    """
+    logging.info('first_running')
     Base.metadata.create_all(bind=eng)
-    # print('bbbb')
     get_config()
 
 
 def plc_connection(plcs):
+    """
+    连接plc，将连接实例存入list
+    :param plcs: sqlalchemy数据库查询对象列表
+    :return: snap7 client实例列表
+    """
     plc_client = list()
     for plc in plcs:
         client = snap7.client.Client()
@@ -117,6 +143,10 @@ def variable_connection(variables):
 
 
 def before_running():
+    """
+    运行前设置
+    :return: 
+    """
     session = Session()
     # print 'running setup'
     # 设定服务开始运行时间
@@ -177,7 +207,11 @@ def before_running():
 
 @app.task()
 def self_check():
-    # 定时自检
+    """
+    定时自检
+    :return: 
+    """
+
     current_time = int(time.time())
     session = Session()
 
@@ -228,6 +262,11 @@ def fix_mutilprocessing(**kwargs):
 
 @app.task(bind=True, rate_limit='5/s', max_retries=MAX_RETRIES)
 def beats(self):
+    """
+    与服务器的心跳连接
+    :param self: 
+    :return: 
+    """
     logging.debug('beats')
     session = Session()
     current_time = int(time.time())
@@ -238,7 +277,7 @@ def beats(self):
 
     # 获取心跳间隔时间内产生的报警
     station_alarms = session.query(StationAlarm).filter(last_beat_time <= StationAlarm.time < current_time).all()
-    plc_alarms = session.query(PLCAlarm).filter(PLCAlarm.level >= 2).\
+    plc_alarms = session.query(PLCAlarm).filter(PLCAlarm.level >= 2). \
         filter(last_beat_time <= PLCAlarm.time < current_time).all()
 
     data = dict(
@@ -301,6 +340,11 @@ def beats(self):
 
 @app.task(bind=True, max_retries=MAX_RETRIES)
 def get_config(self):
+    """
+    连接服务器接口，获取本机变量信息
+    :param self: 
+    :return: 
+    """
     logging.debug('get_config')
     session = Session()
 
@@ -431,6 +475,13 @@ def get_config(self):
 
 
 def upload_data(group_model, current_time, session):
+    """
+    查询该组内需要上传的变量，从数据库中取出变量对应的数值
+    :param group_model: 上传组数据库数据对象
+    :param current_time: 当前时间
+    :param session: 数据库连接会话
+    :return: 变量值列表
+    """
     # 获取该组信息
     group_id = group_model.id
     group_name = group_model.group_name
@@ -473,6 +524,7 @@ def upload_data(group_model, current_time, session):
 
                 get_time += variable.server_record_cycle
 
+    # 上传日志记录
     log = TransferLog(
         trans_type='group_upload',
         time=current_time,
@@ -487,8 +539,20 @@ def upload_data(group_model, current_time, session):
 
 @app.task(bind=True, max_retries=MAX_RETRIES, default_retry_delay=30)
 def upload(self, variable_list, group_model, current_time, session):
+    """
+    数据上传
+    :param self: 
+    :param variable_list: 
+    :param group_model: 
+    :param current_time: 
+    :param session: 
+    :return: 
+    """
+
+    # 获取变量组基本信息
     group_id = group_model.id
     group_name = group_model.group_name.encode('utf-8')
+
     # 包装数据
     data = {
         "id_num": station_info["id_num"],
@@ -539,7 +603,6 @@ def upload(self, variable_list, group_model, current_time, session):
         note=note
     )
     session.add(log)
-    # session.commit()
 
 
 @app.task(bind=True, rate_limit='1/s', max_retries=MAX_RETRIES, default_retry_delay=3)
