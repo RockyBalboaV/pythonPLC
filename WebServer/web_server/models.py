@@ -352,7 +352,6 @@ class VarAlarmInfo(db.Model):
     alarms = db.relationship('VarAlarm', backref='var_alarm_info', lazy='dynamic', cascade="delete, delete-orphan")
 
 
-
 class InterfaceLog(db.Model):
     __tablename__ = 'interface_log'
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)

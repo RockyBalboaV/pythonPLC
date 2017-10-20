@@ -86,9 +86,12 @@ class YjPLCInfo(Base):
     con_time = Column(Integer)
 
     station_id = Column("station_id", Integer, ForeignKey("yjstationinfo.id"))
-    station = relationship("YjStationInfo", foreign_keys="YjPLCInfo.station_id",
-                           backref=backref("plcs", cascade="all, delete-orphan"),
-                           primaryjoin="YjStationInfo.id==YjPLCInfo.station_id")
+    station = relationship(
+        "YjStationInfo",
+        foreign_keys="YjPLCInfo.station_id",
+        backref=backref("plcs", cascade="all, delete-orphan"),
+        primaryjoin="YjStationInfo.id==YjPLCInfo.station_id"
+    )
 
     def __init__(self, model_id, plc_name=None, station_id=None, note=None, ip=None,
                  mpi=None, type=None, plc_type=None,
@@ -125,9 +128,12 @@ class YjGroupInfo(Base):
     uploading = Column(Boolean)
 
     plc_id = Column("plc_id", Integer, ForeignKey("yjplcinfo.id"))
-    plc = relationship("YjPLCInfo", foreign_keys="YjGroupInfo.plc_id",
-                       backref=backref("groups", cascade="all, delete-orphan"),
-                       primaryjoin="YjPLCInfo.id==YjGroupInfo.plc_id")
+    plc = relationship(
+        "YjPLCInfo",
+        foreign_keys="YjGroupInfo.plc_id",
+        backref=backref("groups", cascade="all, delete-orphan"),
+        primaryjoin="YjPLCInfo.id==YjGroupInfo.plc_id"
+    )
 
     def __init__(self, model_id, group_name=None, plc_id=None, note=None,
                  upload_cycle=None, ten_id=None, item_id=None, upload=True):
@@ -165,9 +171,12 @@ class YjVariableInfo(Base):
     ip = Column(String(20))
 
     group_id = Column("group_id", Integer, ForeignKey("yjgroupinfo.id"))
-    group = relationship("YjGroupInfo", foreign_keys="YjVariableInfo.group_id",
-                         backref=backref("variables", cascade="all, delete-orphan"),
-                         primaryjoin="YjGroupInfo.id==YjVariableInfo.group_id")
+    group = relationship(
+        "YjGroupInfo",
+        foreign_keys="YjVariableInfo.group_id",
+        backref=backref("variables", cascade="all, delete-orphan"),
+        primaryjoin="YjGroupInfo.id==YjVariableInfo.group_id"
+    )
 
     def __init__(self, model_id, variable_name=None, group_id=None, db_num=None, address=None,
                  data_type=None, rw_type=None, upload=None,
@@ -200,9 +209,12 @@ class Value(Base):
     time = Column(Integer)
 
     variable_id = Column("variable_id", Integer, ForeignKey("yjvariableinfo.id"))
-    variable = relationship("YjVariableInfo", foreign_keys="Value.variable_id",
-                            backref=backref("values", cascade="all, delete-orphan"),
-                            primaryjoin="YjVariableInfo.id==Value.variable_id")
+    variable = relationship(
+        "YjVariableInfo",
+        foreign_keys="Value.variable_id",
+        backref=backref("values", cascade="all, delete-orphan"),
+        primaryjoin="YjVariableInfo.id==Value.variable_id"
+    )
 
     def __init__(self, variable_id, value, time):
         self.variable_id = variable_id
