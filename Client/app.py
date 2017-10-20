@@ -14,6 +14,7 @@ import asyncio
 import threading
 from concurrent.futures import ThreadPoolExecutor
 import logging
+import platform
 
 try:
     import configparser as ConfigParser
@@ -44,7 +45,21 @@ app.config_from_object(Config)
 here = os.path.abspath(os.path.dirname(__file__))
 
 # 读取snap7 C库
-snap7.common.load_library(here + '/plc_connect_lib/snap7/libsnap7.dylib')
+system_str = platform.system()
+lib_path = '/plc_connect_lib/snap7'
+# Mac os
+if system_str == 'Darwin':
+    lib_path += '/mac_os/libsnap7.dylib'
+elif system_str == 'Linux':
+    # raspberry
+    if platform.node() == 'raspberrypi':
+        lib_path += '/raspberry/libsnap7.so'
+
+    # ubuntu
+    elif platform.machine() == 'x86_64':
+        lib_path += '/ubuntu/libsnap7.so'
+
+snap7.common.load_library(here + lib_path)
 
 # 读取配置文件
 cf = ConfigParser.ConfigParser()
