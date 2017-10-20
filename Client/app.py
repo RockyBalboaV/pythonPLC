@@ -2,6 +2,7 @@
 
 import os
 import requests
+from requests.adapters import HTTPAdapter
 from requests.exceptions import ConnectionError
 import json
 import struct
@@ -12,6 +13,7 @@ import math
 import asyncio
 import threading
 from concurrent.futures import ThreadPoolExecutor
+import logging
 
 try:
     import configparser as ConfigParser
@@ -30,9 +32,11 @@ import snap7
 import gevent
 
 from models import (eng, Base, Session, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, TransferLog, \
-                    Value, serialize)
+                    Value, serialize, StationAlarm, PLCAlarm)
 from celeryconfig import Config
 from data_collection import variable_size, variable_area, read_value, write_value, PythonPLC
+from station_alarm import check_time_err, connect_server_err
+from plc_alarm import connect_plc_err
 
 app = Celery()
 app.config_from_object(Config)
@@ -69,10 +73,16 @@ UPLOAD_URL = cf.get(os.environ.get('url'), 'upload_url')
 CONNECT_TIMEOUT = float(cf.get('client', 'connect_timeout'))
 REQUEST_TIMEOUT = float(cf.get('client', 'request_timeout'))
 MAX_RETRIES = int(cf.get('client', 'max_retries'))
+CHECK_DELAY = cf.get('client', 'check_delay')
+SERVER_TIMEOUT = cf.get('client', 'server_timeout')
+PLC_TIMEOUT = cf.get('client', 'plc_timeout')
+
 plc_client = list()
 
-
 # pool = mp.Pool(3)
+s = requests.Session()
+s.mount('http://', HTTPAdapter(max_retries=3))
+s.mount('https://', HTTPAdapter(max_retries=3))
 
 
 def first_running():
@@ -88,7 +98,7 @@ def plc_connection(plcs):
         client = snap7.client.Client()
         client.connect(plc.ip, plc.rack, plc.slot)
         if client.get_connected():
-            plc_client.append((client, plc.ip, plc.rack, plc.slot))
+            plc_client.append((client, plc.ip, plc.rack, plc.slot, plc.id, plc.plc_name))
     return plc_client
 
 
@@ -165,6 +175,49 @@ def before_running():
     session.close()
 
 
+@app.task()
+def self_check():
+    # 定时自检
+    current_time = int(time.time())
+    session = Session()
+
+    station_model = session.query(YjStationInfo).first()
+
+    # 获取上次检查时间并检查时间间隔
+    check_time = station_model.check_time
+    if current_time - check_time > CHECK_DELAY:
+        alarm = check_time_err()
+        session.add(alarm)
+    station_model.check_time = current_time
+
+    # 检查与服务器通讯状态
+    if current_time - station_model.con_time > SERVER_TIMEOUT:
+        alarm = connect_server_err()
+        session.add(alarm)
+
+    # 检查PLC通讯状态
+    for plc in plc_client:
+        plc_model = session.query(YjPLCInfo).filter_by(id=plc[4]).first()
+
+        # 连接成功，记录时间
+        if plc[0].get_connected():
+            plc_model.con_time = current_time
+        else:
+            # 连接失败，重新连接并记录
+            plc[0].connect(plc[1], plc[2], plc[3])
+
+            # 超过一定时间的上传服务器
+            if current_time - plc_model.con_time > PLC_TIMEOUT:
+                level = 2
+            else:
+                level = 1
+            alarm = connect_plc_err(level=level, plc_id=plc[4], plc_name=plc[5])
+            session.add(alarm)
+
+    session.commit()
+    session.close()
+
+
 @worker_process_init.connect
 def fix_mutilprocessing(**kwargs):
     try:
@@ -175,47 +228,58 @@ def fix_mutilprocessing(**kwargs):
 
 @app.task(bind=True, rate_limit='5/s', max_retries=MAX_RETRIES)
 def beats(self):
-    print('beats')
+    logging.debug('beats')
     session = Session()
     current_time = int(time.time())
-    global station_info
-    station_info = get_station_info()
+    station_model = session.query(YjStationInfo).first()
 
-    data = station_info
+    # 获取上次心跳时间 todo 存入缓存，从缓存中获取
+    last_beat_time = station_model.con_time
+
+    # 获取心跳间隔时间内产生的报警
+    station_alarms = session.query(StationAlarm).filter(last_beat_time <= StationAlarm.time < current_time).all()
+    plc_alarms = session.query(PLCAlarm).filter(PLCAlarm.level >= 2).\
+        filter(last_beat_time <= PLCAlarm.time < current_time).all()
+
+    data = dict(
+        id_num=station_model.id_num,
+        version=station_model.version,
+        station_alarms=station_alarms,
+        plc_alarms=plc_alarms
+    )
+
     # data = encryption(data)
     # todo 报警变量加到data里
 
     try:
-        rv = requests.post(BEAT_URL, json=data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
+        rv = s.post(BEAT_URL, json=data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
     except (ConnectionError, MaxRetriesExceededError) as e:
+        logging.warning(e)
+
         status = 'error'
-        note = '无法连接服务器，检查网络状态。'
-        log = TransferLog(
-            trans_type='beats',
-            time=current_time,
-            status=status,
-            note=note
-        )
-        session.add(log)
-        session.commit()
-        try:
-            raise self.retry(exc=e)
-        except ConnectionError:
-            pass
+        note = '无法连接服务器，检查网络状态。重试。'
+
+        # 重试celery任务
+        # try:
+        #     raise self.retry(exc=e)
+        # except ConnectionError:
+        #     pass
     else:
         # data = decryption(rv)
         data = rv.json()
         # print(data)
 
+        status = 'OK'
+
+        station_model.con_time = current_time
+
+        # 配置有更新
         if data["modification"] == 1:
-            # print('ccccc')
-            # get_config.delay()
             get_config()
             # print 'get_config'
             note = '完成一次心跳连接，时间:{},发现配置信息有更新.'.format(datetime.datetime.fromtimestamp(current_time))
         else:
             note = '完成一次心跳连接，时间:{}.'.format(datetime.datetime.fromtimestamp(current_time))
-        status = 'OK'
 
     log = TransferLog(
         trans_type='beats',
@@ -237,8 +301,9 @@ def beats(self):
 
 @app.task(bind=True, max_retries=MAX_RETRIES)
 def get_config(self):
-    print('get_config')
+    logging.debug('get_config')
     session = Session()
+
     current_time = int(time.time())
     # data = encryption(data)
     data = station_info
@@ -264,6 +329,7 @@ def get_config(self):
     elif response.status_code == 200:
         data = response.json()['data']
         print(data)
+        # 配置更新，删除现有表
         try:
             session.delete(session.query(YjStationInfo).filter_by(id_num=station_info['id_num']).first())
             # YjStationInfo.__table__.drop(eng, checkfirst=True)
@@ -292,7 +358,6 @@ def get_config(self):
             version=version
         )
         session.add(station)
-        # session.commit()
 
         for plc in data["YjPLCInfo"]:
             p = YjPLCInfo(
@@ -312,7 +377,6 @@ def get_config(self):
             )
 
             session.add(p)
-        # session.commit()
 
         for group in data["YjGroupInfo"]:
             g = YjGroupInfo(
@@ -325,7 +389,6 @@ def get_config(self):
                 item_id=group["item_id"]
             )
             session.add(g)
-        # session.commit()
 
         for variable in data["YjVariableInfo"]:
             v = YjVariableInfo(
@@ -346,14 +409,20 @@ def get_config(self):
                 area=variable['area']
             )
             session.add(v)
-        # session.commit()
 
         status = 'OK'
-        note = '成功将配置从version: {} 升级到 version: {}.'.format(station_info['version'], version)
+        note = '成功将配置从version: {} 升级到 version: {}.'.format(
+            station_info['version'], version)
     else:
         status = 'error'
-        note = '获取配置时发生未知问题，检查服务器代码。 {}'.format(response.status_code)
-    log = TransferLog(trans_type='config', time=current_time, status=status, note=note)
+        note = '获取配置时发生未知问题，检查服务器代码。 {}'.format(
+            response.status_code)
+    log = TransferLog(
+        trans_type='config',
+        time=current_time,
+        status=status,
+        note=note
+    )
     session.add(log)
     session.commit()
     session.close()
@@ -583,7 +652,7 @@ def check_variable_get_time(self):
 
 
     for var in variables:
-    #     print('var')
+        #     print('var')
         get_value2(var, session, current_time)
     # print 'variable'
     # print 'get value'

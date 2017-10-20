@@ -1,5 +1,6 @@
 # coding=utf-8
 import os, datetime
+
 try:
     import configparser as ConfigParser
 except:
@@ -43,11 +44,15 @@ class YjStationInfo(Base):
     plc_count = Column(Integer)
     ten_id = Column(String(255))
     item_id = Column(String(20))
-    con_date = Column(Integer)
+    con_time = Column(Integer)
     version = Column(Integer)
+    uptime = Column(Integer)
+    off_time = Column(Integer)
+    check_time = Column(Integer)
+    power_err = Column(Boolean)
 
     def __init__(self, model_id, station_name=None, mac=None, ip=None, note=None, id_num=None,
-                 plc_count=0, ten_id=None, item_id=None, con_date=None, version=0):
+                 plc_count=0, ten_id=None, item_id=None, con_time=None, version=0):
         self.id = model_id
         self.station_name = station_name
         self.mac = mac
@@ -57,7 +62,7 @@ class YjStationInfo(Base):
         self.plc_count = plc_count
         self.ten_id = ten_id
         self.item_id = item_id
-        self.con_date = con_date
+        self.con_time = con_time
         self.version = version
 
     def __repr__(self):
@@ -78,6 +83,7 @@ class YjPLCInfo(Base):
     rack = Column(Integer)
     slot = Column(Integer)
     tcp_port = Column(Integer)
+    con_time = Column(Integer)
 
     station_id = Column("station_id", Integer, ForeignKey("yjstationinfo.id"))
     station = relationship("YjStationInfo", foreign_keys="YjPLCInfo.station_id",
@@ -220,26 +226,22 @@ class TransferLog(Base):
         self.note = note
 
 
-# class ConfigUpdateLog(Base):
-#     __tablename__ = 'config_update_log'
-#     id = Column(Integer, primary_key=True, autoincrement=True)
-#     time = Column(Integer)
-#     version = Column(Integer)
+class StationAlarm(Base):
+    __tablename__ = 'station_alarm'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    id_num = Column(String(200))
+    code = Column(Integer)
+    note = Column(String(200))
+    time = Column(Integer)
 
 
-# class VarAlarmLog(Base):
-#     __tablename__ = 'var_alarm_log'
-#     id = Column(Integer, primary_key=True, autoincrement=True)
-#     alarm_id = Column(Integer, ForeignKey('var_alarm_info.id'))
-#     time = Column(Integer)
-#     confirm = Column(Boolean)
-#
-#
-# class VarAlarmInfo(Base):
-#     __tablename__ = 'var_alarm_info'
-#     id = Column(Integer, primary_key=True, autoincrement=True)
-#     variable_id = Column(Integer, ForeignKey('yjvariableinfo.id'))
-#     alarm_type = Column(Integer)
-#     note = Column(String(128))
-#
-#     logs = relationship('VarAlarmLog', backref='var_alarm_info', lazy='dynamic', cascade='all')
+class PLCAlarm(Base):
+    __tablename__ = 'plc_alarm'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    id_num = Column(String(200))
+    plc_id = Column(Integer)
+    level = Column(Integer)
+    note = Column(String(200))
+    time = Column(Integer)
