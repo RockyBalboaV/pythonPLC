@@ -8,7 +8,8 @@ from os import path, kill
 import snap7
 
 import app
-from models import *
+from util import decryption, encryption
+from models import create_engine, sessionmaker, Session, YjStationInfo, YjVariableInfo
 
 ip = '192.168.18.17'
 tcpport = 102
@@ -16,44 +17,63 @@ db_number = 10
 rack = 0
 slot = 2
 
+DB_URI = 'mysql+pymysql://%(USERNAME)s:%(PASSWORD)s@%(HOSTNAME)s/%(DATABASE)s'
+
 
 class TestClient(unittest.TestCase):
-
     def setUp(self):
         eng = create_engine(DB_URI)
         Session = sessionmaker(bind=eng)
         self.session = Session()
 
-
         print 'setUp starting...'
 
     def tearDown(self):
-
         self.session.close()
         print 'tearDowning starting...'
 
     def test_encryption_decryption(self):
         # 加密解密的数据中包括引号会报错
-        raw_data = {"description": "Its test"}
-        data = app.decryption(app.encryption(raw_data))
+        raw_data = {
+            "description": "Its test"
+        }
+        data = decryption(encryption(raw_data))
         self.assertEqual(raw_data, data)
 
     def test_get_station_info(self):
-        station = YjStationInfo(id=999, name='test', mac='test', ip='test', note='test', idnum='1', plcnum=1, tenid=0,
-                                itemid=0, version=1)
+        station = YjStationInfo(
+            model_id=999,
+            station_name='test',
+            mac='test',
+            ip='test',
+            note='test',
+            id_num='1',
+            version=1
+        )
         self.session.add(station)
         self.session.commit()
 
-        station_info = {"idnum": "1", "version": 1}
-        self.assertEqual(station_info, app.get_station_info(name='test'))
+        station_model = self.session.query(YjStationInfo).filter_by(id_num='1').first()
+        version = station_model.version
+        station_info = {"id_num": "1", 'version': 1}
+        self.assertEqual(station_info, app.get_station_info())
 
         self.session.delete(self.session.query(YjStationInfo).filter(YjStationInfo.name == 'test').first())
         self.session.commit()
 
     def test_get_data_from_query(self):
-
-        station = YjStationInfo(id=999, name='test', mac='test', ip='test', note='test', idnum='1', plcnum=1, tenid=0,
-                                itemid=0, version=1)
+        station = YjStationInfo(
+            model_id=999,
+            station_name='test',
+            mac='test',
+            ip='test',
+            note='test',
+            id_num='1',
+            plc_count=1,
+            ten_id=0,
+            item_id=0,
+            version=1
+        )
         self.session.add(station)
         self.session.commit()
 
@@ -80,7 +100,8 @@ class TestClient(unittest.TestCase):
         self.session.commit()
 
     def test_variable_size(self):
-        variable = YjVariableInfo(id=9999, tagname='test', address='0', rwtype=1, upload=1, acquisitioncycle=1, serverrecordcycle=5, datatype='FLOAT', tenid=0)
+        variable = YjVariableInfo(id=9999, tagname='test', address='0', rwtype=1, upload=1, acquisitioncycle=1,
+                                  serverrecordcycle=5, datatype='FLOAT', tenid=0)
         self.session.add(variable)
         self.session.commit()
 
@@ -103,7 +124,6 @@ class TestClient(unittest.TestCase):
 
 @unittest.skip("its uncomplete")
 class TestPLC(unittest.TestCase):
-
     def setUp(self):
         self.client = snap7.client.Client()
         self.client.connect(ip, rack, slot, tcpport)
@@ -122,6 +142,7 @@ class TestPLC(unittest.TestCase):
         self.client.db_write(db_number=db, start=start, data=data)
         result = self.client.db_read(db_number=db, start=start, size=size)
         self.assertEqual(data, result)
+
 
 if __name__ == '__main__':
     unittest.main()

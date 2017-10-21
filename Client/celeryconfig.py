@@ -8,8 +8,8 @@ class Config(object):
     # 设置终端信息
 
     # 指定消息代理
-    BROKER_URL = 'pyamqp://pyplc:123456@localhost:5672/pyplc'
-    # BROKER_URL = 'pyamqp://yakumo17s:touhou@localhost:5672/web_develop'
+    # BROKER_URL = 'pyamqp://pyplc:123456@localhost:5672/pyplc'
+    BROKER_URL = 'pyamqp://yakumo17s:touhou@localhost:5672/pyplc'
     # 指定结果存储数据库
     CELERY_RESULT_BACKEND = 'redis://localhost'
     # 序列化方案
@@ -54,9 +54,9 @@ class Config(object):
             'queue': 'check',
             'routing_key': 'check.check_variable_get_time',
         },
-        'app.tasks.get_value': {
+        'app.tasks.self_check': {
             'queue': 'check',
-            'routing_key': 'check.get_value',
+            'routing_key': 'check.self_check',
         }
 
     }
@@ -64,16 +64,20 @@ class Config(object):
     CELERYBEAT_SCHEDULE = {
         'beats': {
             'task': 'app.beats',
-            'schedule': timedelta(seconds=10),
+            'schedule': timedelta(seconds=60),
         },
 
         'check_group_upload_time': {
             'task': 'app.check_group_upload_time',
-            'schedule': timedelta(seconds=3)
+            'schedule': timedelta(seconds=30)
         },
         'check_variable_get_time': {
             'task': 'app.check_variable_get_time',
-            'schedule': timedelta(seconds=1)
+            'schedule': timedelta(seconds=10)
+        },
+        'self_check': {
+            'task': 'app.self_check',
+            'schedule': timedelta(seconds=60)
         }
 
     }

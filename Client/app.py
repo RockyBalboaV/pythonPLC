@@ -36,7 +36,6 @@ from models import (eng, Base, Session, YjStationInfo, YjPLCInfo, YjGroupInfo, Y
                     Value, serialize, StationAlarm, PLCAlarm)
 from celeryconfig import Config
 
-
 # 初始化celery
 app = Celery()
 app.config_from_object(Config)
@@ -80,6 +79,7 @@ PLC_TIMEOUT = cf.get('client', 'plc_timeout')
 def database_reset():
     """
     初始化数据库
+    
     :return: 
     """
     Base.metadata.drop_all(bind=eng)
@@ -89,6 +89,7 @@ def database_reset():
 def get_station_info():
     """
     通过配置表读取本机信息
+    
     :return: dict(id_num, version)
     """
     session = Session()
@@ -108,7 +109,6 @@ station_info = get_station_info()
 # plc连接实例列表
 plc_client = list()
 
-
 from data_collection import variable_size, variable_area, read_value, write_value, PythonPLC
 from station_alarm import check_time_err, connect_server_err
 from plc_alarm import connect_plc_err
@@ -123,10 +123,11 @@ s.mount('https://', HTTPAdapter(max_retries=3))
 
 def first_running():
     """
-    初次运行
+    开机初次运行
+    
     :return: 
     """
-    logging.info('first_running')
+    logging.debug('first_running')
     Base.metadata.create_all(bind=eng)
     get_config()
 
@@ -134,8 +135,9 @@ def first_running():
 def plc_connection(plcs):
     """
     连接plc，将连接实例存入list
+    
     :param plcs: sqlalchemy数据库查询对象列表
-    :return: snap7 client实例列表
+    :return: snap7 client实例元组 [0]client对象实例 [1]plc ip地址 [2]plc 机架号  [3]plc 插槽号 [4]plc 配置数据主键 [5]plc 名称
     """
     plc_client = list()
     for plc in plcs:
@@ -146,27 +148,17 @@ def plc_connection(plcs):
     return plc_client
 
 
-def variable_connection(variables):
-    variable_client = list()
-    for v in variables:
-        client = snap7.client.Client()
-        ip = v.group.plc.ip
-        rack = v.group.plc.rack
-        slot = v.group.plc.slot
-        client.connect(ip, rack, slot)
-        id = v.id
-        if client.get_connected():
-            variable_client.append((client, ip, rack, slot, id))
-    return variable_client
-
-
 def before_running():
     """
     运行前设置
+    
     :return: 
     """
+    logging.debug('运行前初始化')
+
+    # 建立数据库连接
     session = Session()
-    # print 'running setup'
+
     # 设定服务开始运行时间
     current_time = int(time.time())
     start_time = current_time + int(cf.get('client', 'START_TIMEDELTA'))
@@ -175,50 +167,90 @@ def before_running():
     global station_info
     station_info = get_station_info()
 
+    # 获取该终端所有PLC信息
     plcs = session.query(YjPLCInfo)
+
+    # 建立PLC连接池
     global plc_client
     plc_client = plc_connection(plcs)
-    print(plc_client)
+    logging.debug("PLC连接池： " + str(plc_client))
 
     for plc in plcs:
+
+        # 获得该PLC的信息
         ip = plc.ip
-        rack = plc.rack
-        slot = plc.slot
+        # rack = plc.rack
+        # slot = plc.slot
 
-        with PythonPLC(ip, rack, slot) as db:
+        # 从PLC连接池中获得该PLC的连接
+        plc_cli = None
+        for client in plc_client:
+            if client[1] == ip:
+                plc_cli = client
+                break
 
-            groups = plc.groups
+        # 获取该PLC下所有组信息
+        groups = plc.groups
 
+        # 设定变量组信息
+        for g in groups:
             # 设定变量组初始上传时间
-            for g in groups:
-                g.upload_time = start_time + g.upload_cycle
+            g.upload_time = start_time + g.upload_cycle
 
-                variables = g.variables
+            # 获取该变量组下所有变量信息
+            variables = g.variables
 
-                for v in variables:
-                    if v.rw_type == 2 or v.rw_type == 3 and v.write_value is not None:
-                        variable_db = v.db_num
-                        area = variable_area(v)
-                        address = int(math.modf(v.address)[1])
-                        bool_index = round(math.modf(v.address)[0] * 10)
+            # 设定变量信息
+            for v in variables:
+
+                # 获取变量读写类型
+                rw_type = v.rw_type
+                value = v.write_value
+
+                # 判断变量存在写操作
+                if rw_type == 2 or rw_type == 3 and value is not None:
+
+                    # 获取写入变量值所需信息
+                    data_type = v.data_type
+                    db = v.db_num
+                    area = variable_area(v)
+                    address = int(math.modf(v.address)[1])
+                    bool_index = round(math.modf(v.address)[0] * 10)
+
+                    # todo 获取整个字节，将布尔值所在位插入到字节中
+                    if data_type == 'BOOL':
+
+                        # 获取当前字节
+                        try:
+                            # 只读，没插
+                            byte = plc_cli.read_area(area=area, dbnumber=db, start=address, size=1)
+                        except ValueError as e:
+                            logging.error(e)
+                            # todo plc连接问题日志记录
+                            byte = None
+                    else:
                         byte = None
-                        if v.data_type == 'BOOL':
-                            byte = db.read_area(area=area, dbnumber=variable_db, start=address, size=1)
-                        byte_value = write_value(v.data_type, v.write_value, bool_index, byte)
 
-                        # print(area, variable_db, address, byte_value)
-                        db.write_area(area=area, dbnumber=variable_db, start=address, data=byte_value)
-                        # byte = db.read_area(area=area, dbnumber=variable_db, start=address, size=2)
-                        # from data_collection import get_bool, read_value
-                        # from snap7.util import get_int
-                        # if v.data_type=='INT':
-                        #     print(address, get_int(byte, 0), 'after')
-                        # print(address, get_bool(byte, 0, 0), 'after_write')
+                    # 将写入数据转为字节码
+                    byte_value = write_value(v.data_type, v.write_value, bool_index, byte)
 
-                    if v.rw_type == 1 or v.rw_type == 3:
-                        v.acquisition_time = start_time + v.acquisition_cycle
-                        v.ip = plc.ip
+                    # print(area, variable_db, address, byte_value)
 
+                    # 数据写入
+                    plc_cli.write_area(area=area, dbnumber=db, start=address, data=byte_value)
+                    # byte = db.read_area(area=area, dbnumber=variable_db, start=address, size=2)
+                    # from data_collection import get_bool, read_value
+                    # from snap7.util import get_int
+                    # if v.data_type=='INT':
+                    #     print(address, get_int(byte, 0), 'after')
+                    # print(address, get_bool(byte, 0, 0), 'after_write')
+
+                # 判断变量存在读操作
+                if rw_type == 1 or rw_type == 3:
+                    # 设定变量初始读取时间
+                    v.acquisition_time = start_time + v.acquisition_cycle
+
+    # 数据库写入操作后，关闭数据库连接
     session.commit()
     session.close()
 
@@ -226,16 +258,21 @@ def before_running():
 @app.task()
 def self_check():
     """
+    celery任务
     定时自检
+    
     :return: 
     """
+    logging.debug('自检')
 
-    current_time = int(time.time())
+    # 建立数据库连接
     session = Session()
+    current_time = int(time.time())
 
+    # 获取站点配置信息
     station_model = session.query(YjStationInfo).first()
 
-    # 获取上次检查时间并检查时间间隔
+    # 获取上次检查时间并检查时间间隔，判断程序运行状态
     check_time = station_model.check_time
     if current_time - check_time > CHECK_DELAY:
         alarm = check_time_err()
@@ -248,6 +285,11 @@ def self_check():
         session.add(alarm)
 
     # 检查PLC通讯状态
+    global plc_client
+    if not plc_client:
+        plcs = session.query(YjPLCInfo)
+        plc_client = plc_connection(plcs)
+
     for plc in plc_client:
         plc_model = session.query(YjPLCInfo).filter_by(id=plc[4]).first()
 
@@ -261,15 +303,19 @@ def self_check():
             # 超过一定时间的上传服务器
             if current_time - plc_model.con_time > PLC_TIMEOUT:
                 level = 2
+
+            # 发现连接失败
             else:
                 level = 1
             alarm = connect_plc_err(level=level, plc_id=plc[4], plc_name=plc[5])
             session.add(alarm)
 
+    # 数据库写入，关闭连接
     session.commit()
     session.close()
 
 
+# todo 多进程没用上
 @worker_process_init.connect
 def fix_mutilprocessing(**kwargs):
     try:
@@ -278,16 +324,23 @@ def fix_mutilprocessing(**kwargs):
         mp.current_process()._authkey = mp.current_process().authkey
 
 
-@app.task(bind=True, rate_limit='5/s', max_retries=MAX_RETRIES)
-def beats(self):
+@app.task(rate_limit='5/s', max_retries=MAX_RETRIES)
+def beats():
     """
+    celery任务
     与服务器的心跳连接
+    
     :param self: 
     :return: 
     """
     logging.debug('beats')
+
+    # 建立数据库连接
     session = Session()
+
     current_time = int(time.time())
+
+    # 从数据库获取站点信息 todo 缓存中取
     station_model = session.query(YjStationInfo).first()
 
     # 获取上次心跳时间 todo 存入缓存，从缓存中获取
@@ -298,6 +351,7 @@ def beats(self):
     plc_alarms = session.query(PLCAlarm).filter(PLCAlarm.level >= 2). \
         filter(last_beat_time <= PLCAlarm.time < current_time).all()
 
+    # todo 缓存
     data = dict(
         id_num=station_model.id_num,
         version=station_model.version,
@@ -308,10 +362,13 @@ def beats(self):
     # data = encryption(data)
     # todo 报警变量加到data里
 
+    # 发送心跳包
     try:
         rv = s.post(BEAT_URL, json=data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
+
+    # 连接服务器失败
     except (ConnectionError, MaxRetriesExceededError) as e:
-        logging.warning(e)
+        logging.warning('心跳连接错误：' + str(e))
 
         status = 'error'
         note = '无法连接服务器，检查网络状态。重试。'
@@ -321,6 +378,8 @@ def beats(self):
         #     raise self.retry(exc=e)
         # except ConnectionError:
         #     pass
+
+    # 连接成功
     else:
         # data = decryption(rv)
         data = rv.json()
@@ -332,9 +391,11 @@ def beats(self):
 
         # 配置有更新
         if data["modification"] == 1:
+            logging.info('发现配置有更新，准备获取配置')
             get_config()
-            # print 'get_config'
             note = '完成一次心跳连接，时间:{},发现配置信息有更新.'.format(datetime.datetime.fromtimestamp(current_time))
+
+        # 配置无更新
         else:
             note = '完成一次心跳连接，时间:{}.'.format(datetime.datetime.fromtimestamp(current_time))
 
@@ -345,161 +406,180 @@ def beats(self):
         note=note
     )
     session.add(log)
+
     session.commit()
-
-    global plc_client
-
-    if not plc_client:
-        plcs = session.query(YjPLCInfo)
-        plc_client = plc_connection(plcs)
-
     session.close()
 
 
-@app.task(bind=True, max_retries=MAX_RETRIES)
-def get_config(self):
+@app.task(max_retries=MAX_RETRIES)
+def get_config():
     """
     连接服务器接口，获取本机变量信息
+    
     :param self: 
     :return: 
     """
-    logging.debug('get_config')
+    logging.debug('连接服务器,获取数据')
+
+    # 建立数据库连接
     session = Session()
 
     current_time = int(time.time())
     # data = encryption(data)
     data = station_info
-    print(data)
-    print(CONFIG_URL)
+    logging.info('获取配置，发送请求：' + str(data))
+
+    # 连接服务器
     try:
         response = requests.post(CONFIG_URL, json=data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
+
+    # 连接失败
     except ConnectionError as e:
+        logging.warning('获取配置错误：' + str(e))
+
         status = 'error'
         note = '无法连接服务器，检查网络状态。'
-        log = TransferLog(trans_type='config', time=current_time, status=status, note=note)
+        log = TransferLog(
+            trans_type='config',
+            time=current_time,
+            status=status,
+            note=note
+        )
         session.add(log)
-        session.commit()
-        try:
-            raise self.retry(exc=e)
-        except ConnectionError:
-            pass
-        return 1
 
-    if response.status_code == 404:
-        status = 'error'
-        note = '获取配置信息失败'
-    elif response.status_code == 200:
-        data = response.json()['data']
-        print(data)
-        # 配置更新，删除现有表
-        try:
-            session.delete(session.query(YjStationInfo).filter_by(id_num=station_info['id_num']).first())
+        # try:
+        #     raise self.retry(exc=e)
+        # except ConnectionError:
+        #     pass
+        # return 1
+    # 连接成功
+    else:
+        if response.status_code == 404:
+            status = 'error'
+            note = '获取配置信息失败'
+
+        elif response.status_code == 200:
+            data = response.json()['data']
+
+            print(data)
+
+            # 配置更新，删除现有表
+            try:
+                session.delete(session.query(YjStationInfo).filter_by(id_num=station_info['id_num']).first())
             # YjStationInfo.__table__.drop(eng, checkfirst=True)
             # YjPLCInfo.__table__.drop(eng, checkfirst=True)
             # YjGroupInfo.__table__.drop(eng, checkfirst=True)
             # YjVariableInfo.__table__.drop(eng, checkfirst=True)
             # Value.__table__.drop(eng, checkfirst=True)
             # Base.metadata.create_all(bind=eng)
-        except UnmappedInstanceError:
-            session.rollback()
+            except UnmappedInstanceError:
+                session.rollback()
+            else:
+                session.commit()
+
+            version = data["YjStationInfo"]["version"]
+
+            station = YjStationInfo(
+                model_id=data["YjStationInfo"]["id"],
+                station_name=data["YjStationInfo"]["station_name"],
+                mac=data["YjStationInfo"]["mac"],
+                ip=data["YjStationInfo"]["ip"],
+                note=data["YjStationInfo"]["note"],
+                id_num=data["YjStationInfo"]["id_num"],
+                plc_count=data["YjStationInfo"]["plc_count"],
+                ten_id=data["YjStationInfo"]["ten_id"],
+                item_id=data["YjStationInfo"]["item_id"],
+                version=version
+            )
+            session.add(station)
+
+            for plc in data["YjPLCInfo"]:
+                p = YjPLCInfo(
+                    model_id=plc["id"],
+                    plc_name=plc["plc_name"],
+                    station_id=plc["station_id"],
+                    note=plc["note"],
+                    ip=plc["ip"],
+                    mpi=plc["mpi"],
+                    type=plc["type"],
+                    plc_type=plc["plc_type"],
+                    ten_id=plc["ten_id"],
+                    item_id=plc["item_id"],
+                    rack=plc['rack'],
+                    slot=plc['slot'],
+                    tcp_port=plc['tcp_port']
+                )
+
+                session.add(p)
+
+            for group in data["YjGroupInfo"]:
+                g = YjGroupInfo(
+                    model_id=group["id"],
+                    group_name=group["group_name"],
+                    plc_id=group["plc_id"],
+                    note=group["note"],
+                    upload_cycle=group["upload_cycle"],
+                    ten_id=group["ten_id"],
+                    item_id=group["item_id"]
+                )
+                session.add(g)
+
+            for variable in data["YjVariableInfo"]:
+                v = YjVariableInfo(
+                    model_id=variable["id"],
+                    variable_name=variable["variable_name"],
+                    group_id=variable["group_id"],
+                    db_num=variable['db_num'],
+                    address=variable["address"],
+                    data_type=variable["data_type"],
+                    rw_type=variable["rw_type"],
+                    upload=variable["upload"],
+                    acquisition_cycle=variable["acquisition_cycle"],
+                    server_record_cycle=variable["server_record_cycle"],
+                    note=variable["note"],
+                    ten_id=variable["ten_id"],
+                    item_id=variable["item_id"],
+                    write_value=variable["write_value"],
+                    area=variable['area']
+                )
+                session.add(v)
+
+            status = 'OK'
+            note = '成功将配置从version: {} 升级到 version: {}.'.format(
+                station_info['version'], version)
         else:
-            session.commit()
+            status = 'error'
+            note = '获取配置时发生未知问题，检查服务器代码。 {}'.format(
+                response.status_code)
 
-        version = data["YjStationInfo"]["version"]
-
-        station = YjStationInfo(
-            model_id=data["YjStationInfo"]["id"],
-            station_name=data["YjStationInfo"]["station_name"],
-            mac=data["YjStationInfo"]["mac"],
-            ip=data["YjStationInfo"]["ip"],
-            note=data["YjStationInfo"]["note"],
-            id_num=data["YjStationInfo"]["id_num"],
-            plc_count=data["YjStationInfo"]["plc_count"],
-            ten_id=data["YjStationInfo"]["ten_id"],
-            item_id=data["YjStationInfo"]["item_id"],
-            version=version
+        # 记录服务器连接状况
+        log = TransferLog(
+            trans_type='config',
+            time=current_time,
+            status=status,
+            note=note
         )
-        session.add(station)
-
-        for plc in data["YjPLCInfo"]:
-            p = YjPLCInfo(
-                model_id=plc["id"],
-                plc_name=plc["plc_name"],
-                station_id=plc["station_id"],
-                note=plc["note"],
-                ip=plc["ip"],
-                mpi=plc["mpi"],
-                type=plc["type"],
-                plc_type=plc["plc_type"],
-                ten_id=plc["ten_id"],
-                item_id=plc["item_id"],
-                rack=plc['rack'],
-                slot=plc['slot'],
-                tcp_port=plc['tcp_port']
-            )
-
-            session.add(p)
-
-        for group in data["YjGroupInfo"]:
-            g = YjGroupInfo(
-                model_id=group["id"],
-                group_name=group["group_name"],
-                plc_id=group["plc_id"],
-                note=group["note"],
-                upload_cycle=group["upload_cycle"],
-                ten_id=group["ten_id"],
-                item_id=group["item_id"]
-            )
-            session.add(g)
-
-        for variable in data["YjVariableInfo"]:
-            v = YjVariableInfo(
-                model_id=variable["id"],
-                variable_name=variable["variable_name"],
-                group_id=variable["group_id"],
-                db_num=variable['db_num'],
-                address=variable["address"],
-                data_type=variable["data_type"],
-                rw_type=variable["rw_type"],
-                upload=variable["upload"],
-                acquisition_cycle=variable["acquisition_cycle"],
-                server_record_cycle=variable["server_record_cycle"],
-                note=variable["note"],
-                ten_id=variable["ten_id"],
-                item_id=variable["item_id"],
-                write_value=variable["write_value"],
-                area=variable['area']
-            )
-            session.add(v)
-
-        status = 'OK'
-        note = '成功将配置从version: {} 升级到 version: {}.'.format(
-            station_info['version'], version)
-    else:
-        status = 'error'
-        note = '获取配置时发生未知问题，检查服务器代码。 {}'.format(
-            response.status_code)
-    log = TransferLog(
-        trans_type='config',
-        time=current_time,
-        status=status,
-        note=note
-    )
     session.add(log)
+
     session.commit()
     session.close()
 
     before_running()
 
 
-def upload_data(group_model, current_time, session):
+def upload_data(group_model, current_time):
     """
     查询该组内需要上传的变量，从数据库中取出变量对应的数值
+    
     :param group_model: 上传组数据库数据对象
     :param current_time: 当前时间
     :param session: 数据库连接会话
     :return: 变量值列表
     """
+
+    # 建立数据库连接
+    session = Session()
+
     # 获取该组信息
     group_id = group_model.id
     group_name = group_model.group_name
@@ -544,7 +624,7 @@ def upload_data(group_model, current_time, session):
 
     # 上传日志记录
     log = TransferLog(
-        trans_type='group_upload',
+        trans_type='upload',
         time=current_time,
         status='OK',
         note='group_id: {} group_name:{} 将要上传.'.format(group_id, group_name)
@@ -552,20 +632,25 @@ def upload_data(group_model, current_time, session):
     # 记录本次传输
     session.add(log)
 
+    session.commit()
+    session.close()
+
     return variable_list
 
 
-@app.task(bind=True, max_retries=MAX_RETRIES, default_retry_delay=30)
-def upload(self, variable_list, group_model, current_time, session):
+@app.task(max_retries=MAX_RETRIES, default_retry_delay=30)
+def upload(variable_list, group_model, current_time):
     """
     数据上传
     :param self: 
     :param variable_list: 
     :param group_model: 
     :param current_time: 
-    :param session: 
     :return: 
     """
+
+    # 建立数据库连接
+    session = Session()
 
     # 获取变量组基本信息
     group_id = group_model.id
@@ -580,9 +665,13 @@ def upload(self, variable_list, group_model, current_time, session):
     }
     print(data)
     # data = encryption(data)
+
+    # 连接服务器，准备上传数据
     try:
         response = requests.post(UPLOAD_URL, json=data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
     except ConnectionError as e:
+        logging.warning('上传数据错误：' + str(e))
+
         status = 'error'
         note = '无法连接服务器，检查网络状态。'
         log = TransferLog(
@@ -592,42 +681,51 @@ def upload(self, variable_list, group_model, current_time, session):
             note=note
         )
         session.add(log)
-        # session.commit()
-        try:
-            raise self.retry(exc=e)
-        except ConnectionError:
-            pass
-        return 1
 
-    data = response.json()
-    # data = decryption(data)
-
-    # 日志记录
-    # 正常传输
-    if response.status_code == 200:
-        note = 'group_id: {} group_name:{} 成功上传.'.format(group_id, group_name)
-
-    # 版本错误
-    elif response.status_code == 403:
-        note = 'group_id: {} group_name:{} 上传的数据不是在最新版本配置下采集的.'.format(group_id, group_name)
-
-    # 未知错误
     else:
-        note = 'group_id: {} group_name:{} 无法识别服务端反馈。'.format(group_id, group_name)
-    log = TransferLog(
-        trans_type='upload_call_back',
-        time=current_time,
-        status=data["status"],
-        note=note
-    )
-    session.add(log)
+        data = response.json()
+        # data = decryption(data)
+
+        # 日志记录
+        # 正常传输
+        if response.status_code == 200:
+            note = 'group_id: {} group_name:{} 成功上传.'.format(group_id, group_name)
+
+        # 版本错误
+        elif response.status_code == 403:
+            note = 'group_id: {} group_name:{} 上传的数据不是在最新版本配置下采集的.'.format(group_id, group_name)
+
+        # 未知错误
+        else:
+            note = 'group_id: {} group_name:{} 无法识别服务端反馈。'.format(group_id, group_name)
+        log = TransferLog(
+            trans_type='upload_call_back',
+            time=current_time,
+            status=data["status"],
+            note=note
+        )
+        session.add(log)
+
+    session.commit()
+    session.close()
 
 
 @app.task(bind=True, rate_limit='1/s', max_retries=MAX_RETRIES, default_retry_delay=3)
 def check_group_upload_time(self):
-    print('check_group')
+    """
+    检查变量组上传时间，将满足条件的变量组数据打包上传
+    
+    :param self: 
+    :return: 
+    """
+
+    logging.debug('检查变量组上传时间')
+
+    # 建立数据库连接
     session = Session()
+
     current_time = int(time.time())
+
     try:
 
         # try:
@@ -653,8 +751,8 @@ def check_group_upload_time(self):
         for group_model in group_models:
             print('a')
             group_model.upload_time = current_time + group_model.upload_cycle
-            value_list = upload_data(group_model, current_time, session)
-            upload(value_list, group_model, current_time, session)
+            value_list = upload_data(group_model, current_time)
+            upload(value_list, group_model, current_time)
 
         session.commit()
         # curr_proc = mp.current_process()
@@ -679,9 +777,19 @@ def check_group_upload_time(self):
 
 @app.task(bind=True, rate_limit='1/s', max_retries=MAX_RETRIES, default_retry_delay=3)
 def check_variable_get_time(self):
+    """
+    检查变量采集时间，采集满足条件的变量值
+    
+    :param self: 
+    :return: 
+    """
+
+    logging.debug('检查变量采集时间')
+
+    # 建立数据库连接
     session = Session()
+
     current_time = int(time.time())
-    print('check_variable')
     # try:
     variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time).all()
     # print(variables)
@@ -729,7 +837,6 @@ def check_variable_get_time(self):
 
     # pool = mp.Pool(4)
     # gevent_list = list()
-
 
 
     for var in variables:
@@ -860,6 +967,14 @@ def check_variable_get_time(self):
 
 
 def get_value2(variable_model, session, current_time):
+    """
+    采集数据
+    
+    :param variable_model: 
+    :param session: 
+    :param current_time: 
+    :return: 
+    """
     print('get_value')
     # loop = asyncio.get_event_loop()
 
