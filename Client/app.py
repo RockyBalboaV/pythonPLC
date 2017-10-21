@@ -347,9 +347,13 @@ def beats():
     last_beat_time = station_model.con_time
 
     # 获取心跳间隔时间内产生的报警
-    station_alarms = session.query(StationAlarm).filter(last_beat_time <= StationAlarm.time < current_time).all()
-    plc_alarms = session.query(PLCAlarm).filter(PLCAlarm.level >= 2). \
-        filter(last_beat_time <= PLCAlarm.time < current_time).all()
+    if last_beat_time:
+        station_alarms = session.query(StationAlarm).filter(last_beat_time <= StationAlarm.time < current_time).all()
+        plc_alarms = session.query(PLCAlarm).filter(PLCAlarm.level >= 2). \
+            filter(last_beat_time <= PLCAlarm.time < current_time).all()
+    else:
+        station_alarms = None
+        plc_alarms = None
 
     # todo 缓存
     data = dict(
