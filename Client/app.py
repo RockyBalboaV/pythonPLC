@@ -994,7 +994,7 @@ def get_value2(variable_model, session, current_time):
         if plc[1] == ip:
 
             if not plc[0].get_connected():
-                plc[0].connect(plc.ip, plc.rack, plc.slot)
+                plc[0].connect(plc[1], plc[2], plc[3])
 
             area = variable_area(variable_model)
             variable_db = variable_model.db_num
