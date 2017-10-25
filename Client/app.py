@@ -124,7 +124,6 @@ s.mount('http://', HTTPAdapter(max_retries=3))
 s.mount('https://', HTTPAdapter(max_retries=3))
 
 
-
 def first_running():
     """
     开机初次运行
@@ -141,7 +140,7 @@ def plc_connection(plcs):
     连接plc，将连接实例存入list
     
     :param plcs: sqlalchemy数据库查询对象列表
-    :return: snap7 client实例元组 [0]client对象实例 [1]plc ip地址 [2]plc 机架号  [3]plc 插槽号 [4]plc 配置数据主键 [5]plc 名称
+    :return: snap7 client实例元组 [0]plc ip地址 [1]plc 机架号  [2]plc 插槽号 [3]plc 配置数据主键 [4]plc 名称 [5]plc 连接时间
     """
     current_time = int(time.time())
     plc_client = list()
@@ -326,7 +325,6 @@ def self_check():
 
         # 超过一定时间的上传服务器
         if current_time - plc_connect_time > PLC_TIMEOUT:
-
             alarm = connect_plc_err(station_model.id_num, level=1, plc_id=plc[3], plc_name=plc[4])
             session.add(alarm)
 
@@ -1087,16 +1085,18 @@ def check_variable_get_time():
                 read_multi(plc, variables, current_time)
             except Exception as e:
                 logging.error('read_multi执行错误' + str(e))
-                break
+                continue
+            else:
+                plc[5] = current_time
         else:
             # 没有变量需要采集时，进行一次连接来测试通信状态
 
             client = snap7.client.Client()
             client.connect(plc[0], plc[1], plc[2])
             if not client.get_connected():
-                break
+                continue
 
-        plc[5] = current_time
+            plc[5] = current_time
 
     r.set('plc', plc_client)
 
@@ -1107,8 +1107,6 @@ def read_multi(plc, variables, current_time):
     time1 = time.time()
     print('采集')
     session = Session()
-
-
 
     var_num = len(variables)
     print('采集数量：{}'.format(var_num))
@@ -1126,11 +1124,11 @@ def read_multi(plc, variables, current_time):
         bool_indexes.append(bool_index)
 
         data_items[num].Area = ctypes.c_int32(area)
-        data_items[0].WordLen = ctypes.c_int32(S7WLByte)
-        data_items[0].Result = ctypes.c_int32(0)
-        data_items[0].DBNumber = ctypes.c_int32(db_number)
-        data_items[0].Start = ctypes.c_int32(address)
-        data_items[0].Amount = ctypes.c_int32(size)  # reading a REAL, 4 bytes
+        data_items[num].WordLen = ctypes.c_int32(S7WLByte)
+        data_items[num].Result = ctypes.c_int32(0)
+        data_items[num].DBNumber = ctypes.c_int32(db_number)
+        data_items[num].Start = ctypes.c_int32(address)
+        data_items[num].Amount = ctypes.c_int32(size)  # reading a REAL, 4 bytes
 
     for di in data_items:
         # create the buffer
@@ -1142,31 +1140,44 @@ def read_multi(plc, variables, current_time):
         di.pData = pBuffer
 
     client = snap7.client.Client()
-    client.connect(plc[0], plc[1], plc[2])
-
-    result, data_items = client.read_multi_vars(data_items)
-
-    # print(result, data_items)
-    # for di in data_items:
-    #     check_error(di.Result)
-
-    for num in range(0, var_num):
-        di = data_items[num]
-
-        value = read_value(
-            variables[num].data_type,
-            di.pData,
-            bool_index=bool_indexes[num]
+    try:
+        client.connect(plc[0], plc[1], plc[2])
+    except Exception as e:
+        logging.warning('PLC连接失败' + str(e))
+        station_info = r.get('station_info')
+        plc_alarm = connect_plc_err(
+            station_info['id_num'],
+            level=0,
+            plc_id=plc[3],
+            plc_name=plc[4]
         )
+        session.add(plc_alarm)
+        session.commit()
+        assert False
+    else:
+        result, data_items = client.read_multi_vars(data_items)
 
-        print(value)
+        # print(result, data_items)
+        # for di in data_items:
+        #     check_error(di.Result)
 
-        value_model = Value(
-            variable_id=variables[num].id,
-            time=current_time,
-            value=value
-        )
-        session.add(value_model)
+        for num in range(0, var_num):
+            di = data_items[num]
+
+            value = read_value(
+                variables[num].data_type,
+                di.pData,
+                bool_index=bool_indexes[num]
+            )
+
+            print(value)
+
+            value_model = Value(
+                variable_id=variables[num].id,
+                time=current_time,
+                value=value
+            )
+            session.add(value_model)
 
     session.commit()
     session.close()

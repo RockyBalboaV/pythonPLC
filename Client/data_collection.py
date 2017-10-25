@@ -79,36 +79,51 @@ def get_byte(_bytearray, byte_index):
 
 
 def read_value(data_type, result, byte_index=0, bool_index=0):
+
     if data_type == 'FLOAT':
         return get_real(result, byte_index)
+
     elif data_type == 'INT':
         return get_int(result, byte_index)
+
     elif data_type == 'DINT':
         return get_dint(result, byte_index)
+
     elif data_type == 'WORD':
         return get_word(result, byte_index)
+
     elif data_type == 'BYTE':
         return get_byte(result, byte_index)
+
     elif data_type == 'BOOL':
         return get_bool(result, byte_index, bool_index)
+
     elif data_type == 'DWORD':
         return get_dword(result, byte_index)
+
     else:
         assert ValueError, 'data_type is not useful'
 
 
 def write_value(data_type, result, data, byte_index=0, bool_index=0):
+
     if data_type == 'FLOAT':
         set_real(result, byte_index, data)
+
     elif data_type == 'INT':
         set_int(result, byte_index, data)
+
     elif data_type == 'DINT':
         set_dint(result, byte_index, data)
+
     elif data_type == 'WORD':
         set_word(result, byte_index, data)
+
     elif data_type == 'BYTE':
         set_byte(result, byte_index, data)
+
     elif data_type == 'BOOL':
         set_bool(result, byte_index, bool_index, data)
+
     elif data_type == 'DWORD':
         set_dword(result, byte_index, data)
