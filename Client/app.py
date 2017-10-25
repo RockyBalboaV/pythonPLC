@@ -1071,6 +1071,7 @@ def check_variable_get_time():
     plc_client = r.get('plc')
     # print(plc_client)
     for plc in plc_client:
+        # todo 循环内部 使用并发
         variables = session.query(YjVariableInfo).join(YjGroupInfo, YjGroupInfo.plc_id == plc[3]). \
             filter(current_time >= YjVariableInfo.acquisition_time).all()
 
@@ -1107,8 +1108,7 @@ def read_multi(plc, variables, current_time):
     print('采集')
     session = Session()
 
-    client = snap7.client.Client()
-    client.connect(plc[0], plc[1], plc[2])
+
 
     var_num = len(variables)
     print('采集数量：{}'.format(var_num))
@@ -1141,9 +1141,12 @@ def read_multi(plc, variables, current_time):
                               ctypes.POINTER(ctypes.c_uint8))
         di.pData = pBuffer
 
+    client = snap7.client.Client()
+    client.connect(plc[0], plc[1], plc[2])
+
     result, data_items = client.read_multi_vars(data_items)
 
-    print(result, data_items)
+    # print(result, data_items)
     # for di in data_items:
     #     check_error(di.Result)
 

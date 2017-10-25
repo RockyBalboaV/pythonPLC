@@ -80,19 +80,19 @@ def get_byte(_bytearray, byte_index):
 
 def read_value(data_type, result, byte_index=0, bool_index=0):
     if data_type == 'FLOAT':
-        get_real(result, byte_index)
+        return get_real(result, byte_index)
     elif data_type == 'INT':
-        get_int(result, byte_index)
+        return get_int(result, byte_index)
     elif data_type == 'DINT':
-        get_dint(result, byte_index)
+        return get_dint(result, byte_index)
     elif data_type == 'WORD':
-        get_word(result, byte_index)
+        return get_word(result, byte_index)
     elif data_type == 'BYTE':
-        get_byte(result, byte_index)
+        return get_byte(result, byte_index)
     elif data_type == 'BOOL':
-        get_bool(result, byte_index, bool_index)
+        return get_bool(result, byte_index, bool_index)
     elif data_type == 'DWORD':
-        get_dword(result, byte_index)
+        return get_dword(result, byte_index)
     else:
         assert ValueError, 'data_type is not useful'
 
