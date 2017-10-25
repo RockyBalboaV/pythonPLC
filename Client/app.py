@@ -103,10 +103,13 @@ def get_station_info():
     id_num = cf.get('client', 'id_num')
     try:
         station_model = session.query(YjStationInfo).filter_by(id_num=id_num).first()
-        version = station_model.version
+        if station_model.version is not None:
+            version = station_model.version
+        else:
+            version = int(cf.get('client', 'version'))
     except Exception as e:
         logging.warning('与服务器连接失败' + str(e))
-        version = cf.get('client', 'version')
+        version = int(cf.get('client', 'version'))
 
     return dict(id_num=id_num, version=version)
 
