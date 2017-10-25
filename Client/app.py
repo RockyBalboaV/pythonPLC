@@ -78,9 +78,9 @@ UPLOAD_URL = cf.get(os.environ.get('url'), 'upload_url')
 CONNECT_TIMEOUT = float(cf.get('client', 'connect_timeout'))
 REQUEST_TIMEOUT = float(cf.get('client', 'request_timeout'))
 MAX_RETRIES = int(cf.get('client', 'max_retries'))
-CHECK_DELAY = cf.get('client', 'check_delay')
-SERVER_TIMEOUT = cf.get('client', 'server_timeout')
-PLC_TIMEOUT = cf.get('client', 'plc_timeout')
+CHECK_DELAY = int(cf.get('client', 'check_delay'))
+SERVER_TIMEOUT = int(cf.get('client', 'server_timeout'))
+PLC_TIMEOUT = int(cf.get('client', 'plc_timeout'))
 
 
 def database_reset():
@@ -220,54 +220,54 @@ def before_running():
                     rw_type = v.rw_type
                     value = v.write_value
 
-                    # 判断变量存在写操作
-                    if rw_type == 2 or rw_type == 3 and value is not None:
-
-                        # 获取写入变量值所需信息
-                        data_type = v.data_type
-                        db = v.db_num
-                        area = variable_area(v)
-                        address = int(math.modf(v.address)[1])
-                        bool_index = round(math.modf(v.address)[0] * 10)
-                        size = variable_size(data_type)
-
-                        # 获取当前字节
-                        try:
-                            result = plc_cli.read_area(
-                                area=area,
-                                dbnumber=db,
-                                start=address,
-                                size=size
-                            )
-                        except Exception as e:
-                            logging.error(e)
-                            alarm = read_err(
-                                station_id_num=station_info['id_num'],
-                                plc_id=plc.id,
-                                plc_name=plc.plc_name,
-                                area=area,
-                                db_num=db,
-                                start=address,
-                                data_type=data_type
-                            )
-                            session.add(alarm)
-                        else:
-
-                            # 将写入数据转为字节码
-                            byte_value = write_value(
-                                data_type,
-                                result,
-                                value,
-                                bool_index=bool_index
-                            )
-
-                            # 数据写入
-                            plc_cli.write_area(
-                                area=area,
-                                dbnumber=db,
-                                start=address,
-                                data=byte_value
-                            )
+                    # # 判断变量存在写操作
+                    # if rw_type == 2 or rw_type == 3 and value is not None:
+                    #
+                    #     # 获取写入变量值所需信息
+                    #     data_type = v.data_type
+                    #     db = v.db_num
+                    #     area = variable_area(v)
+                    #     address = int(math.modf(v.address)[1])
+                    #     bool_index = round(math.modf(v.address)[0] * 10)
+                    #     size = variable_size(data_type)
+                    #
+                    #     # 获取当前字节
+                    #     try:
+                    #         result = plc_cli.read_area(
+                    #             area=area,
+                    #             dbnumber=db,
+                    #             start=address,
+                    #             size=size
+                    #         )
+                    #     except Exception as e:
+                    #         logging.error(e)
+                    #         alarm = read_err(
+                    #             station_id_num=station_info['id_num'],
+                    #             plc_id=plc.id,
+                    #             plc_name=plc.plc_name,
+                    #             area=area,
+                    #             db_num=db,
+                    #             start=address,
+                    #             data_type=data_type
+                    #         )
+                    #         session.add(alarm)
+                    #     else:
+                    #
+                    #         # 将写入数据转为字节码
+                    #         byte_value = write_value(
+                    #             data_type,
+                    #             result,
+                    #             value,
+                    #             bool_index=bool_index
+                    #         )
+                    #
+                    #         # 数据写入
+                    #         plc_cli.write_area(
+                    #             area=area,
+                    #             dbnumber=db,
+                    #             start=address,
+                    #             data=byte_value
+                    #         )
 
                     # 判断变量存在读操作
                     if rw_type == 1 or rw_type == 3:
