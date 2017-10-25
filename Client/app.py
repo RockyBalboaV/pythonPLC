@@ -5,8 +5,8 @@ import requests
 from requests.adapters import HTTPAdapter
 from requests.exceptions import ConnectionError
 import json
-import struct
 import random
+import ctypes
 import time
 import multiprocessing as mp
 import math
@@ -21,7 +21,7 @@ try:
 except:
     import ConfigParser
 import datetime
-
+from utils.redis_middle_class import Conn_db
 from celery import Celery
 from celery.signals import worker_process_init
 from celery.exceptions import MaxRetriesExceededError, SoftTimeLimitExceeded
@@ -30,11 +30,16 @@ import billiard
 from sqlalchemy.orm.exc import UnmappedInstanceError, UnmappedClassError
 from snap7.snap7exceptions import Snap7Exception
 import snap7
+from snap7.common import check_error
+from snap7.snap7types import S7DataItem, S7WLByte
 import gevent
 
 from models import (eng, Base, Session, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, TransferLog, \
                     Value, serialize, StationAlarm, PLCAlarm)
 from celeryconfig import Config
+from data_collection import variable_size, variable_area, read_value, write_value
+from station_alarm import check_time_err, connect_server_err
+from plc_alarm import connect_plc_err, read_err
 
 # 初始化celery
 app = Celery()
@@ -46,9 +51,11 @@ here = os.path.abspath(os.path.dirname(__file__))
 # 读取snap7 C库
 system_str = platform.system()
 lib_path = '/plc_connect_lib/snap7'
+
 # Mac os
 if system_str == 'Darwin':
     lib_path += '/mac_os/libsnap7.dylib'
+
 elif system_str == 'Linux':
     # raspberry
     if platform.node() == 'raspberrypi':
@@ -97,21 +104,14 @@ def get_station_info():
     try:
         station_model = session.query(YjStationInfo).filter_by(id_num=id_num).first()
         version = station_model.version
-    except:
+    except Exception as e:
+        logging.warning('与服务器连接失败' + str(e))
         version = cf.get('client', 'version')
 
     return dict(id_num=id_num, version=version)
 
 
-# 获取本机信息
-station_info = get_station_info()
-
-# plc连接实例列表
-plc_client = list()
-
-from data_collection import variable_size, variable_area, read_value, write_value, PythonPLC
-from station_alarm import check_time_err, connect_server_err
-from plc_alarm import connect_plc_err
+r = Conn_db()
 
 # pool = mp.Pool(3)
 
@@ -119,6 +119,7 @@ from plc_alarm import connect_plc_err
 s = requests.Session()
 s.mount('http://', HTTPAdapter(max_retries=3))
 s.mount('https://', HTTPAdapter(max_retries=3))
+
 
 
 def first_running():
@@ -139,12 +140,13 @@ def plc_connection(plcs):
     :param plcs: sqlalchemy数据库查询对象列表
     :return: snap7 client实例元组 [0]client对象实例 [1]plc ip地址 [2]plc 机架号  [3]plc 插槽号 [4]plc 配置数据主键 [5]plc 名称
     """
+    current_time = int(time.time())
     plc_client = list()
     for plc in plcs:
-        client = snap7.client.Client()
-        client.connect(plc.ip, plc.rack, plc.slot)
-        if client.get_connected():
-            plc_client.append((client, plc.ip, plc.rack, plc.slot, plc.id, plc.plc_name))
+        # client = snap7.client.Client()
+        # client.connect(plc.ip, plc.rack, plc.slot)
+        # if client.get_connected():
+        plc_client.append([plc.ip, plc.rack, plc.slot, plc.id, plc.plc_name, current_time])
     return plc_client
 
 
@@ -164,91 +166,113 @@ def before_running():
     start_time = current_time + int(cf.get('client', 'START_TIMEDELTA'))
 
     # 获取站信息
-    global station_info
     station_info = get_station_info()
+    r.set('station_info', station_info)
 
     # 获取该终端所有PLC信息
     plcs = session.query(YjPLCInfo)
 
     # 建立PLC连接池
-    global plc_client
     plc_client = plc_connection(plcs)
+    r.set('plc', plc_client)
     logging.debug("PLC连接池： " + str(plc_client))
+    print("PLC连接池： " + str(plc_client))
 
     for plc in plcs:
 
         # 获得该PLC的信息
         ip = plc.ip
-        # rack = plc.rack
-        # slot = plc.slot
+        rack = plc.rack
+        slot = plc.slot
 
-        # 从PLC连接池中获得该PLC的连接
-        plc_cli = None
-        for client in plc_client:
-            if client[1] == ip:
-                plc_cli = client
-                break
+        plc_cli = snap7.client.Client()
 
-        # 获取该PLC下所有组信息
-        groups = plc.groups
+        print(ip, rack, slot)
 
-        # 设定变量组信息
-        for g in groups:
-            # 设定变量组初始上传时间
-            g.upload_time = start_time + g.upload_cycle
+        try:
+            plc_cli.connect(ip, rack, slot)
+        except Exception as e:
+            logging.error(e)
+            alarm = connect_plc_err(
+                station_id_num=station_info['id_num'],
+                level=0,
+                plc_id=plc.id,
+                plc_name=plc.plc_name
+            )
+            session.add(alarm)
 
-            # 获取该变量组下所有变量信息
-            variables = g.variables
+        else:
+            # 获取该PLC下所有组信息
+            groups = plc.groups
 
-            # 设定变量信息
-            for v in variables:
+            # 设定变量组信息
+            for g in groups:
+                # 设定变量组初始上传时间
+                g.upload_time = start_time + g.upload_cycle
 
-                # 获取变量读写类型
-                rw_type = v.rw_type
-                value = v.write_value
+                # 获取该变量组下所有变量信息
+                variables = g.variables
 
-                # 判断变量存在写操作
-                if rw_type == 2 or rw_type == 3 and value is not None:
+                # 设定变量信息
+                for v in variables:
 
-                    # 获取写入变量值所需信息
-                    data_type = v.data_type
-                    db = v.db_num
-                    area = variable_area(v)
-                    address = int(math.modf(v.address)[1])
-                    bool_index = round(math.modf(v.address)[0] * 10)
+                    # 获取变量读写类型
+                    rw_type = v.rw_type
+                    value = v.write_value
 
-                    # todo 获取整个字节，将布尔值所在位插入到字节中
-                    if data_type == 'BOOL':
+                    # 判断变量存在写操作
+                    if rw_type == 2 or rw_type == 3 and value is not None:
+
+                        # 获取写入变量值所需信息
+                        data_type = v.data_type
+                        db = v.db_num
+                        area = variable_area(v)
+                        address = int(math.modf(v.address)[1])
+                        bool_index = round(math.modf(v.address)[0] * 10)
+                        size = variable_size(data_type)
 
                         # 获取当前字节
                         try:
-                            # 只读，没插
-                            byte = plc_cli.read_area(area=area, dbnumber=db, start=address, size=1)
-                        except ValueError as e:
+                            result = plc_cli.read_area(
+                                area=area,
+                                dbnumber=db,
+                                start=address,
+                                size=size
+                            )
+                        except Exception as e:
                             logging.error(e)
-                            # todo plc连接问题日志记录
-                            byte = None
-                    else:
-                        byte = None
+                            alarm = read_err(
+                                station_id_num=station_info['id_num'],
+                                plc_id=plc.id,
+                                plc_name=plc.plc_name,
+                                area=area,
+                                db_num=db,
+                                start=address,
+                                data_type=data_type
+                            )
+                            session.add(alarm)
+                        else:
 
-                    # 将写入数据转为字节码
-                    byte_value = write_value(v.data_type, v.write_value, bool_index, byte)
+                            # 将写入数据转为字节码
+                            byte_value = write_value(
+                                data_type,
+                                result,
+                                value,
+                                bool_index=bool_index
+                            )
 
-                    # print(area, variable_db, address, byte_value)
+                            # 数据写入
+                            plc_cli.write_area(
+                                area=area,
+                                dbnumber=db,
+                                start=address,
+                                data=byte_value
+                            )
 
-                    # 数据写入
-                    plc_cli.write_area(area=area, dbnumber=db, start=address, data=byte_value)
-                    # byte = db.read_area(area=area, dbnumber=variable_db, start=address, size=2)
-                    # from data_collection import get_bool, read_value
-                    # from snap7.util import get_int
-                    # if v.data_type=='INT':
-                    #     print(address, get_int(byte, 0), 'after')
-                    # print(address, get_bool(byte, 0, 0), 'after_write')
-
-                # 判断变量存在读操作
-                if rw_type == 1 or rw_type == 3:
-                    # 设定变量初始读取时间
-                    v.acquisition_time = start_time + v.acquisition_cycle
+                    # 判断变量存在读操作
+                    if rw_type == 1 or rw_type == 3:
+                        # 设定变量初始读取时间
+                        v.acquisition_time = start_time + v.acquisition_cycle
 
     # 数据库写入操作后，关闭数据库连接
     session.commit()
@@ -274,40 +298,33 @@ def self_check():
 
     # 获取上次检查时间并检查时间间隔，判断程序运行状态
     check_time = station_model.check_time
-    if current_time - check_time > CHECK_DELAY:
-        alarm = check_time_err()
-        session.add(alarm)
+    if check_time is not None:
+        if current_time - check_time > CHECK_DELAY:
+            alarm = check_time_err(station_model.id_num)
+            session.add(alarm)
     station_model.check_time = current_time
 
     # 检查与服务器通讯状态
-    if current_time - station_model.con_time > SERVER_TIMEOUT:
-        alarm = connect_server_err()
-        session.add(alarm)
+    con_time = station_model.con_time
+    if con_time is not None:
+        if current_time - con_time > SERVER_TIMEOUT:
+            alarm = connect_server_err(station_model.id_num)
+            session.add(alarm)
 
     # 检查PLC通讯状态
-    global plc_client
+    plc_client = r.get('plc')
     if not plc_client:
         plcs = session.query(YjPLCInfo)
         plc_client = plc_connection(plcs)
+        r.set('plc', plc_client)
 
     for plc in plc_client:
-        plc_model = session.query(YjPLCInfo).filter_by(id=plc[4]).first()
+        plc_connect_time = plc[5]
 
-        # 连接成功，记录时间
-        if plc[0].get_connected():
-            plc_model.con_time = current_time
-        else:
-            # 连接失败，重新连接并记录
-            plc[0].connect(plc[1], plc[2], plc[3])
+        # 超过一定时间的上传服务器
+        if current_time - plc_connect_time > PLC_TIMEOUT:
 
-            # 超过一定时间的上传服务器
-            if current_time - plc_model.con_time > PLC_TIMEOUT:
-                level = 2
-
-            # 发现连接失败
-            else:
-                level = 1
-            alarm = connect_plc_err(level=level, plc_id=plc[4], plc_name=plc[5])
+            alarm = connect_plc_err(station_model.id_num, level=1, plc_id=plc[3], plc_name=plc[4])
             session.add(alarm)
 
     # 数据库写入，关闭连接
@@ -315,16 +332,7 @@ def self_check():
     session.close()
 
 
-# todo 多进程没用上
-@worker_process_init.connect
-def fix_mutilprocessing(**kwargs):
-    try:
-        mp.current_process()._authkey
-    except AttributeError:
-        mp.current_process()._authkey = mp.current_process().authkey
-
-
-@app.task(rate_limit='5/s', max_retries=MAX_RETRIES)
+@app.task(rate_limit='2/m', max_retries=MAX_RETRIES)
 def beats():
     """
     celery任务
@@ -333,7 +341,9 @@ def beats():
     :param self: 
     :return: 
     """
-    logging.debug('beats')
+
+    logging.debug('心跳连接')
+    print('心跳连接')
 
     # 建立数据库连接
     session = Session()
@@ -348,9 +358,10 @@ def beats():
 
     # 获取心跳间隔时间内产生的报警
     if last_beat_time:
-        station_alarms = session.query(StationAlarm).filter(last_beat_time <= StationAlarm.time < current_time).all()
+        station_alarms = session.query(StationAlarm).filter(last_beat_time <= StationAlarm.time). \
+            filter(StationAlarm.time < current_time).all()
         plc_alarms = session.query(PLCAlarm).filter(PLCAlarm.level >= 2). \
-            filter(last_beat_time <= PLCAlarm.time < current_time).all()
+            filter(last_beat_time <= PLCAlarm.time).filter(PLCAlarm.time < current_time).all()
     else:
         station_alarms = None
         plc_alarms = None
@@ -420,16 +431,17 @@ def get_config():
     """
     连接服务器接口，获取本机变量信息
     
-    :param self: 
     :return: 
     """
     logging.debug('连接服务器,获取数据')
+    print('连接服务器,获取数据')
 
     # 建立数据库连接
     session = Session()
 
     current_time = int(time.time())
     # data = encryption(data)
+    station_info = r.get('station_info')
     data = station_info
     logging.info('获取配置，发送请求：' + str(data))
 
@@ -469,14 +481,14 @@ def get_config():
 
             # 配置更新，删除现有表
             try:
-                session.delete(session.query(YjStationInfo).filter_by(id_num=station_info['id_num']).first())
-            # YjStationInfo.__table__.drop(eng, checkfirst=True)
-            # YjPLCInfo.__table__.drop(eng, checkfirst=True)
-            # YjGroupInfo.__table__.drop(eng, checkfirst=True)
-            # YjVariableInfo.__table__.drop(eng, checkfirst=True)
-            # Value.__table__.drop(eng, checkfirst=True)
-            # Base.metadata.create_all(bind=eng)
-            except UnmappedInstanceError:
+                # session.delete(session.query(YjStationInfo).filter_by(id_num=station_info['id_num']).first())
+                session.query(YjStationInfo).delete()
+                session.query(YjPLCInfo).delete()
+                session.query(YjGroupInfo).delete()
+                session.query(YjVariableInfo).delete()
+
+            except Exception as e:
+                logging.error('删除表时出错' + str(e))
                 session.rollback()
             else:
                 session.commit()
@@ -577,9 +589,11 @@ def upload_data(group_model, current_time):
     
     :param group_model: 上传组数据库数据对象
     :param current_time: 当前时间
-    :param session: 数据库连接会话
     :return: 变量值列表
     """
+
+    logging.debug('上传数据打包')
+    print('上传数据打包')
 
     # 建立数据库连接
     session = Session()
@@ -646,15 +660,19 @@ def upload_data(group_model, current_time):
 def upload(variable_list, group_model, current_time):
     """
     数据上传
-    :param self: 
     :param variable_list: 
     :param group_model: 
     :param current_time: 
     :return: 
     """
+    logging.debug('上传数据')
+    print('上传数据')
 
     # 建立数据库连接
     session = Session()
+
+    # 获取本机信息
+    station_info = r.get('station_info')
 
     # 获取变量组基本信息
     group_id = group_model.id
@@ -714,7 +732,7 @@ def upload(variable_list, group_model, current_time):
     session.close()
 
 
-@app.task(bind=True, rate_limit='1/s', max_retries=MAX_RETRIES, default_retry_delay=3)
+@app.task(bind=True, rate_limit='6/m', max_retries=MAX_RETRIES, default_retry_delay=3)
 def check_group_upload_time(self):
     """
     检查变量组上传时间，将满足条件的变量组数据打包上传
@@ -724,6 +742,7 @@ def check_group_upload_time(self):
     """
 
     logging.debug('检查变量组上传时间')
+    print('检查变量组上传时间')
 
     # 建立数据库连接
     session = Session()
@@ -779,122 +798,122 @@ def check_group_upload_time(self):
         session.close()
 
 
-@app.task(bind=True, rate_limit='1/s', max_retries=MAX_RETRIES, default_retry_delay=3)
-def check_variable_get_time(self):
-    """
-    检查变量采集时间，采集满足条件的变量值
-    
-    :param self: 
-    :return: 
-    """
-
-    logging.debug('检查变量采集时间')
-
-    # 建立数据库连接
-    session = Session()
-
-    current_time = int(time.time())
-    # try:
-    variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time).all()
-    # print(variables)
-    # if variables and not plc_client:
-    #     plcs = session.query(YjPLCInfo).all()
-    #     for plc in plcs:
-    #         plc_connection(plc)
-
-
-    # variables = session.execute(variables)
-    # print(variables)
-    # if variables.return_rows:
-    #     print json.dumps([dict(r) for r in variables])
-    # except:
-    #     session.rollback()
-    #     return 'skip'
-
-    # task = signature('task.get_value', args=(v, ))
-    # sig = group
-    # (get_value.sub for v in variables)()
-    # sig.delay()
-    # poll = billiard.context.BaseContext
-    # poll = poll.Pool(poll)
-    # # poll = mp.Pool(4)
-    # poll.map(get_value, [(v, )
-    #                      for v in variables])
-    # result = poll.map(get_value, [(v,)
-    #                               for v in variables])
-    # try:
-    # print('v_t')
-    # for v in variables:
-    # 保证一段时间内不会产生两个task采集同一个变量
-    # v.acquisition_time = current_time + v.acquisition_cycle
-    # session.merge(v)
-    # session.commit()
-    # print('v_g')
-    # from multiprocessing import Pool as ThreadPool
-    # if not variables:
-    #     return
-    # p_list = []
-    # pool = ThreadPool(5)
-    # pool.map(get_value, variables)
-    # pool.close()
-    # pool.join()
-
-    # pool = mp.Pool(4)
-    # gevent_list = list()
-
-
-    for var in variables:
-        #     print('var')
-        get_value2(var, session, current_time)
-    # print 'variable'
-    # print 'get value'
-    # p = mp.Process(target=get_value_var, args=(var,))
-    # p.start()
-    # p_list.append(p)
-    # t_list = list()
-    # for var in variables:
-    #     t = threading.Thread(target=get_value, args=(var,))
-
-    #     t.start()
-    # t.join()
-    # t_list.append(t)
-
-    # for t in t_list:
-    #     t.join()
-    '''
-    if not variables:
-        return
-    loop = asyncio.get_event_loop()
-    executor = ThreadPoolExecutor(5)
-    loop.set_default_executor(executor)
-
-    tasks = [asyncio.Task(get_value(var, session, current_time)) for var in variables]
-    try:
-        loop.run_until_complete(asyncio.wait(tasks))
-    except ValueError:
-        pass
-    executor.shutdown(wait=True)
-    '''
-
-    # loop.close()
-    # pool.apply_async(func=get_value, args=(var,))
-    # gevent_list.append(gevent.spawn(get_value_var(var)))
-    # gevent.joinall(gevent_list)
-    # pool.close()
-    # pool.join()
-    # for res in p_list:
-    #     res.join()
-    # get_value.apply_async((var, session))
-    # poll.apply_async(get_value, (v,))
-    try:
-        session.commit()
-        # except:
-        #     session.rollback()
-    except SoftTimeLimitExceeded as exc:
-        session.rollback()
-        self.retry(exc=exc, max_retries=MAX_RETRIES, countdown=5)
-    finally:
-        session.close()
+# @app.task(bind=True, rate_limit='1/s', max_retries=MAX_RETRIES, default_retry_delay=3)
+# def check_variable_get_time(self):
+#     """
+#     检查变量采集时间，采集满足条件的变量值
+#
+#     :param self:
+#     :return:
+#     """
+#
+#     logging.debug('检查变量采集时间')
+#
+#     # 建立数据库连接
+#     session = Session()
+#
+#     current_time = int(time.time())
+#     # try:
+#     variables = session.query(YjVariableInfo).filter(current_time >= YjVariableInfo.acquisition_time).all()
+#     # print(variables)
+#     # if variables and not plc_client:
+#     #     plcs = session.query(YjPLCInfo).all()
+#     #     for plc in plcs:
+#     #         plc_connection(plc)
+#
+#
+#     # variables = session.execute(variables)
+#     # print(variables)
+#     # if variables.return_rows:
+#     #     print json.dumps([dict(r) for r in variables])
+#     # except:
+#     #     session.rollback()
+#     #     return 'skip'
+#
+#     # task = signature('task.get_value', args=(v, ))
+#     # sig = group
+#     # (get_value.sub for v in variables)()
+#     # sig.delay()
+#     # poll = billiard.context.BaseContext
+#     # poll = poll.Pool(poll)
+#     # # poll = mp.Pool(4)
+#     # poll.map(get_value, [(v, )
+#     #                      for v in variables])
+#     # result = poll.map(get_value, [(v,)
+#     #                               for v in variables])
+#     # try:
+#     # print('v_t')
+#     # for v in variables:
+#     # 保证一段时间内不会产生两个task采集同一个变量
+#     # v.acquisition_time = current_time + v.acquisition_cycle
+#     # session.merge(v)
+#     # session.commit()
+#     # print('v_g')
+#     # from multiprocessing import Pool as ThreadPool
+#     # if not variables:
+#     #     return
+#     # p_list = []
+#     # pool = ThreadPool(5)
+#     # pool.map(get_value, variables)
+#     # pool.close()
+#     # pool.join()
+#
+#     # pool = mp.Pool(4)
+#     # gevent_list = list()
+#
+#
+#     for var in variables:
+#         #     print('var')
+#         get_value2(var, session, current_time)
+#     # print 'variable'
+#     # print 'get value'
+#     # p = mp.Process(target=get_value_var, args=(var,))
+#     # p.start()
+#     # p_list.append(p)
+#     # t_list = list()
+#     # for var in variables:
+#     #     t = threading.Thread(target=get_value, args=(var,))
+#
+#     #     t.start()
+#     # t.join()
+#     # t_list.append(t)
+#
+#     # for t in t_list:
+#     #     t.join()
+#     '''
+#     if not variables:
+#         return
+#     loop = asyncio.get_event_loop()
+#     executor = ThreadPoolExecutor(5)
+#     loop.set_default_executor(executor)
+#
+#     tasks = [asyncio.Task(get_value(var, session, current_time)) for var in variables]
+#     try:
+#         loop.run_until_complete(asyncio.wait(tasks))
+#     except ValueError:
+#         pass
+#     executor.shutdown(wait=True)
+#     '''
+#
+#     # loop.close()
+#     # pool.apply_async(func=get_value, args=(var,))
+#     # gevent_list.append(gevent.spawn(get_value_var(var)))
+#     # gevent.joinall(gevent_list)
+#     # pool.close()
+#     # pool.join()
+#     # for res in p_list:
+#     #     res.join()
+#     # get_value.apply_async((var, session))
+#     # poll.apply_async(get_value, (v,))
+#     try:
+#         session.commit()
+#         # except:
+#         #     session.rollback()
+#     except SoftTimeLimitExceeded as exc:
+#         session.rollback()
+#         self.retry(exc=exc, max_retries=MAX_RETRIES, countdown=5)
+#     finally:
+#         session.close()
 
 
 # @asyncio.coroutine
@@ -996,9 +1015,9 @@ def get_value2(variable_model, session, current_time):
             if not plc[0].get_connected():
                 plc[0].connect(plc[1], plc[2], plc[3])
 
-            area = variable_area(variable_model)
+            area = variable_area(variable_model.area)
             variable_db = variable_model.db_num
-            size = variable_size(variable_model)
+            size = variable_size(variable_model.data_type)
             address = int(math.modf(variable_model.address)[1])
             bool_index = round(math.modf(variable_model.address)[0] * 10)
 
@@ -1028,3 +1047,123 @@ def get():
         print(value)
         value = Value(variable_id=variable_model.id, time=current_time, value=value)
         session.add(value)
+
+
+@app.task(rate_limit='6/m', max_retries=MAX_RETRIES, default_retry_delay=3)
+def check_variable_get_time():
+    """
+    检查变量采集时间，采集满足条件的变量值
+
+    :return: 
+    """
+
+    logging.debug('检查变量采集时间')
+    print('检查变量采集时间')
+
+    # 建立数据库连接
+    session = Session()
+
+    current_time = int(time.time())
+
+    plc_client = r.get('plc')
+    # print(plc_client)
+    for plc in plc_client:
+        variables = session.query(YjVariableInfo).join(YjGroupInfo, YjGroupInfo.plc_id == plc[3]). \
+            filter(current_time >= YjVariableInfo.acquisition_time).all()
+
+        if variables:
+
+            # 更新变量下次获取时间
+            for v in variables:
+                v.acquisition_time = v.acquisition_cycle + current_time
+
+            session.commit()
+            #   print(variables)
+            try:
+                read_multi(plc, variables, current_time)
+            except Exception as e:
+                logging.error('read_multi执行错误' + str(e))
+                break
+        else:
+            # 没有变量需要采集时，进行一次连接来测试通信状态
+
+            client = snap7.client.Client()
+            client.connect(plc[0], plc[1], plc[2])
+            if not client.get_connected():
+                break
+
+        plc[5] = current_time
+
+    r.set('plc', plc_client)
+
+    session.close()
+
+
+def read_multi(plc, variables, current_time):
+    time1 = time.time()
+    print('采集')
+    session = Session()
+
+    client = snap7.client.Client()
+    client.connect(plc[0], plc[1], plc[2])
+
+    var_num = len(variables)
+    print('采集数量：{}'.format(var_num))
+    bool_indexes = list()
+    data_items = (S7DataItem * var_num)()
+
+    for num in range(var_num):
+        # variables[num].acquisition_time = current_time + variables[num].acquisition_cycle
+
+        area = variable_area(variables[num].area)
+        db_number = variables[num].db_num
+        size = variable_size(variables[num].data_type)
+        address = int(math.modf(variables[num].address)[1])
+        bool_index = round(math.modf(variables[num].address)[0] * 10)
+        bool_indexes.append(bool_index)
+
+        data_items[num].Area = ctypes.c_int32(area)
+        data_items[0].WordLen = ctypes.c_int32(S7WLByte)
+        data_items[0].Result = ctypes.c_int32(0)
+        data_items[0].DBNumber = ctypes.c_int32(db_number)
+        data_items[0].Start = ctypes.c_int32(address)
+        data_items[0].Amount = ctypes.c_int32(size)  # reading a REAL, 4 bytes
+
+    for di in data_items:
+        # create the buffer
+        buffer = ctypes.create_string_buffer(di.Amount)
+
+        # cast the pointer to the buffer to the required type
+        pBuffer = ctypes.cast(ctypes.pointer(buffer),
+                              ctypes.POINTER(ctypes.c_uint8))
+        di.pData = pBuffer
+
+    result, data_items = client.read_multi_vars(data_items)
+
+    print(result, data_items)
+    # for di in data_items:
+    #     check_error(di.Result)
+
+    for num in range(0, var_num):
+        di = data_items[num]
+
+        value = read_value(
+            variables[num].data_type,
+            di.pData,
+            bool_index=bool_indexes[num]
+        )
+
+        print(value)
+
+        value_model = Value(
+            variable_id=variables[num].id,
+            time=current_time,
+            value=value
+        )
+        session.add(value_model)
+
+    session.commit()
+    session.close()
+
+    time2 = time.time()
+    print(time2 - time1)

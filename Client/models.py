@@ -85,7 +85,7 @@ class YjPLCInfo(Base):
     tcp_port = Column(Integer)
     con_time = Column(Integer)
 
-    station_id = Column("station_id", Integer, ForeignKey("yjstationinfo.id"))
+    station_id = Column("station_id", Integer, ForeignKey("yjstationinfo.id", ondelete='CASCADE', onupdate='CASCADE'))
     station = relationship(
         "YjStationInfo",
         foreign_keys="YjPLCInfo.station_id",
@@ -127,7 +127,7 @@ class YjGroupInfo(Base):
     upload_time = Column(Integer)
     uploading = Column(Boolean)
 
-    plc_id = Column("plc_id", Integer, ForeignKey("yjplcinfo.id"))
+    plc_id = Column("plc_id", Integer, ForeignKey("yjplcinfo.id", ondelete='CASCADE', onupdate='CASCADE'))
     plc = relationship(
         "YjPLCInfo",
         foreign_keys="YjGroupInfo.plc_id",
@@ -170,7 +170,7 @@ class YjVariableInfo(Base):
     acquisition_time = Column(Integer)
     ip = Column(String(20))
 
-    group_id = Column("group_id", Integer, ForeignKey("yjgroupinfo.id"))
+    group_id = Column("group_id", Integer, ForeignKey("yjgroupinfo.id", ondelete='CASCADE', onupdate='CASCADE'))
     group = relationship(
         "YjGroupInfo",
         foreign_keys="YjVariableInfo.group_id",
@@ -208,7 +208,7 @@ class Value(Base):
     value = Column(String(128))
     time = Column(Integer)
 
-    variable_id = Column("variable_id", Integer, ForeignKey("yjvariableinfo.id"))
+    variable_id = Column("variable_id", Integer, ForeignKey("yjvariableinfo.id", ondelete='SET NULL', onupdate='CASCADE'))
     variable = relationship(
         "YjVariableInfo",
         foreign_keys="Value.variable_id",

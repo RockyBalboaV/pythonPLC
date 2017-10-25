@@ -8,8 +8,8 @@ class Config(object):
     # 设置终端信息
 
     # 指定消息代理
-    # BROKER_URL = 'pyamqp://pyplc:123456@localhost:5672/pyplc'
-    BROKER_URL = 'pyamqp://yakumo17s:touhou@localhost:5672/pyplc'
+    BROKER_URL = 'pyamqp://pyplc:123456@localhost:5672/pyplc'
+    # BROKER_URL = 'pyamqp://yakumo17s:touhou@localhost:5672/pyplc'
     # 指定结果存储数据库
     CELERY_RESULT_BACKEND = 'redis://localhost'
     # 序列化方案
@@ -66,7 +66,6 @@ class Config(object):
             'task': 'app.beats',
             'schedule': timedelta(seconds=60),
         },
-
         'check_group_upload_time': {
             'task': 'app.check_group_upload_time',
             'schedule': timedelta(seconds=30)

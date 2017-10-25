@@ -48,11 +48,11 @@ if args.start:
 
     flower = subprocess.Popen('{}flower --broker="{}"'.format(python_path, app.conf['broker_url']), shell=True)
 
-    print('a')
+    # print('a')
     celery = subprocess.call('{}celery -B -A app worker -l info'.format(python_path), shell=True)
     # flower = subprocess.call('{}celery -B -A app.py worker -l info'.format(python_path, here), shell=True)
-    print('b')
-    print(app.conf['broker_url'])
+    # print('b')
+    # print(app.conf['broker_url'])
 
     flower.kill()
     # database_reset()
@@ -63,10 +63,10 @@ if args.start:
     # get_config()
     # get_value()
     # upload()
-from app import beats, get_config, check_variable_get_time, check_group_upload_time
+# from app import beats, get_config, check_variable_get_time, check_group_upload_time
 # first_running()
 # beats()
-get_config()
+# get_config()
 # check_variable_get_time()
 # check_group_upload_time()
 # database_reset()
