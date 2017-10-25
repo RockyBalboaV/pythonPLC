@@ -111,7 +111,11 @@ def get_station_info():
         logging.warning('与服务器连接失败' + str(e))
         version = int(cf.get('client', 'version'))
 
-    return dict(id_num=id_num, version=version)
+    station_info = dict(
+        id_num=id_num,
+        version=version
+    )
+    return station_info
 
 
 r = Conn_db()
@@ -376,7 +380,6 @@ def beats():
     )
 
     # data = encryption(data)
-    # todo 报警变量加到data里
 
     # 发送心跳包
     try:
@@ -1075,19 +1078,24 @@ def check_variable_get_time():
 
         if variables:
 
-            # 更新变量下次获取时间
-            for v in variables:
-                v.acquisition_time = v.acquisition_cycle + current_time
+            while len(variables) > 0:
+                variable_group = variables[:20]
+                variables = variables[20:]
+                # 更新变量下次获取时间
+                for v in variable_group:
+                    v.acquisition_time = v.acquisition_cycle + current_time
 
-            session.commit()
-            #   print(variables)
-            try:
-                read_multi(plc, variables, current_time)
-            except Exception as e:
-                logging.error('read_multi执行错误' + str(e))
-                continue
-            else:
-                plc[5] = current_time
+                session.commit()
+                #   print(variables)
+                try:
+                    read_multi(plc, variable_group, current_time)
+                except Exception as e:
+                    logging.error('read_multi执行错误' + str(e))
+                    continue
+                else:
+                    plc[5] = current_time
+
+
         else:
             # 没有变量需要采集时，进行一次连接来测试通信状态
 
