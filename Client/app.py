@@ -40,6 +40,7 @@ from celeryconfig import Config
 from data_collection import variable_size, variable_area, read_value, write_value
 from station_alarm import check_time_err, connect_server_err
 from plc_alarm import connect_plc_err, read_err
+from util import encryption, decryption
 
 # 初始化celery
 app = Celery()
@@ -444,7 +445,7 @@ def get_config():
     session = Session()
 
     current_time = int(time.time())
-    # data = encryption(data)
+
     station_info = r.get('station_info')
     data = station_info
     logging.info('获取配置，发送请求：' + str(data))
@@ -480,6 +481,8 @@ def get_config():
 
         elif response.status_code == 200:
             data = response.json()['data']
+
+            data = encryption(data)
 
             print(data)
 
@@ -690,7 +693,7 @@ def upload(variable_list, group_model, current_time):
         "value": variable_list
     }
     print(data)
-    # data = encryption(data)
+    data = encryption(data)
 
     # 连接服务器，准备上传数据
     try:
