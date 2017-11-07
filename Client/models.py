@@ -1,20 +1,11 @@
 # coding=utf-8
-import os, datetime
-
-try:
-    import configparser as ConfigParser
-except:
-    import ConfigParser
+import os
 
 from sqlalchemy import Column, String, Integer, Float, Boolean, ForeignKey, create_engine, MetaData
 from sqlalchemy.orm import sessionmaker, relationship, backref, class_mapper
 from sqlalchemy.ext.declarative import declarative_base
 
-here = os.path.abspath(os.path.dirname(__file__))
-cf = ConfigParser.ConfigParser()
-cf.read_file(open(os.path.join(here, 'config.ini'), encoding='utf-8'))
-
-db_uri = cf.get(os.environ.get('env'), 'db_uri')
+from manage import db_uri
 
 # 创建连接
 eng = create_engine(db_uri + '?charset=utf8', pool_recycle=1, pool_size=20, max_overflow=0)
@@ -208,7 +199,8 @@ class Value(Base):
     value = Column(String(128))
     time = Column(Integer)
 
-    variable_id = Column("variable_id", Integer, ForeignKey("yjvariableinfo.id", ondelete='SET NULL', onupdate='CASCADE'))
+    variable_id = Column("variable_id", Integer,
+                         ForeignKey("yjvariableinfo.id", ondelete='SET NULL', onupdate='CASCADE'))
     variable = relationship(
         "YjVariableInfo",
         foreign_keys="Value.variable_id",

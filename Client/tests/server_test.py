@@ -1,5 +1,7 @@
 import os
 import configparser as ConfigParser
+
+import pytest
 import requests
 
 # 获取当前目录位置
@@ -24,17 +26,21 @@ CHECK_DELAY = cf.get('client', 'check_delay')
 SERVER_TIMEOUT = cf.get('client', 'server_timeout')
 PLC_TIMEOUT = cf.get('client', 'plc_timeout')
 
+
 # test 'http://127.0.0.1:11000/client/upload'
 
-def test_upload():
-    data = {
-        'id_num': 'test',
-        'version': '1',
-            'value': []}
+class TestServer():
+    def test_upload(self):
 
-    rp = requests.post(url=UPLOAD_URL, json=data)
-    print(rp, rp.content)
-    print(rp.json())
+        data = {
+            'id_num': 'test',
+            'version': '1',
+            'value': []
+        }
+
+        rp = requests.post(url=UPLOAD_URL, json=data)
+        assert rp.status_code == 200
+        print(rp, rp.content)
+        print(rp.json())
 
 
-test_upload()

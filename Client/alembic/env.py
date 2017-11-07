@@ -1,7 +1,11 @@
 from __future__ import with_statement
+import os
+import sys
+
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 from logging.config import fileConfig
+
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
@@ -15,6 +19,9 @@ fileConfig(config.config_file_name)
 # for 'autogenerate' support
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
+
+# 此处需要将项目路径添加到sys.path，否则from import时找不到models
+sys.path.append(os.path.dirname(os.path.abspath(__file__)) + "/../")
 from models import Base
 target_metadata = Base.metadata
 
