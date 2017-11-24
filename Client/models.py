@@ -1,14 +1,15 @@
 # coding=utf-8
 import os
 
-from sqlalchemy import Column, String, Integer, Float, Boolean, ForeignKey, create_engine, MetaData
+from sqlalchemy import Column, String, Integer, Float, Boolean, ForeignKey, create_engine, MetaData, Table, JSON, \
+    BigInteger
 from sqlalchemy.orm import sessionmaker, relationship, backref, class_mapper
 from sqlalchemy.ext.declarative import declarative_base
 
-from manage import db_uri
+from param import DB_URI
 
 # 创建连接
-eng = create_engine(db_uri + '?charset=utf8', pool_recycle=1, pool_size=20, max_overflow=0)
+eng = create_engine(DB_URI + '?charset=utf8', pool_recycle=1, pool_size=20, max_overflow=0)
 # 创建基类
 Base = declarative_base()
 
@@ -24,6 +25,15 @@ def serialize(model):
     return dict((c, getattr(model, c)) for c in columns)
 
 
+class VarGroups(Base):
+    __tablename__ = 'variables_groups'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    variable_id = Column(Integer, ForeignKey('yjvariableinfo.id'), primary_key=True)
+    group_id = Column(Integer, ForeignKey('yjgroupinfo.id'), primary_key=True)
+    variable = relationship('YjVariableInfo', back_populates='groups')
+    group = relationship('YjGroupInfo', back_populates='variables')
+
+
 class YjStationInfo(Base):
     __tablename__ = 'yjstationinfo'
     id = Column(Integer, primary_key=True, nullable=False)
@@ -35,26 +45,10 @@ class YjStationInfo(Base):
     plc_count = Column(Integer)
     ten_id = Column(String(255))
     item_id = Column(String(20))
-    con_time = Column(Integer)
-    version = Column(Integer)
     uptime = Column(Integer)
     off_time = Column(Integer)
     check_time = Column(Integer)
     power_err = Column(Boolean)
-
-    def __init__(self, model_id, station_name=None, mac=None, ip=None, note=None, id_num=None,
-                 plc_count=0, ten_id=None, item_id=None, con_time=None, version=0):
-        self.id = model_id
-        self.station_name = station_name
-        self.mac = mac
-        self.ip = ip
-        self.note = note
-        self.id_num = id_num
-        self.plc_count = plc_count
-        self.ten_id = ten_id
-        self.item_id = item_id
-        self.con_time = con_time
-        self.version = version
 
     def __repr__(self):
         return '<Station : %r >' % self.station_name
@@ -84,23 +78,6 @@ class YjPLCInfo(Base):
         primaryjoin="YjStationInfo.id==YjPLCInfo.station_id"
     )
 
-    def __init__(self, model_id, plc_name=None, station_id=None, note=None, ip=None,
-                 mpi=None, type=None, plc_type=None,
-                 ten_id=0, item_id=None, rack=0, slot=0, tcp_port=102):
-        self.id = model_id
-        self.plc_name = plc_name
-        self.station_id = station_id
-        self.note = note
-        self.ip = ip
-        self.mpi = mpi
-        self.type = type
-        self.plc_type = plc_type
-        self.ten_id = ten_id
-        self.item_id = item_id
-        self.rack = rack
-        self.slot = slot
-        self.tcp_port = tcp_port
-
     def __repr__(self):
         return '<PLC : %r >' % self.plc_name
 
@@ -113,8 +90,11 @@ class YjGroupInfo(Base):
     upload_cycle = Column(Integer)
     ten_id = Column(String(255))
     item_id = Column(String(20))
+    acquisition_cycle = Column(Integer)
+    server_record_cycle = Column(Integer)
+    acquisition_time = Column(Integer)
 
-    upload = Column(Boolean)
+    is_upload = Column(Boolean)
     upload_time = Column(Integer)
     uploading = Column(Boolean)
 
@@ -126,16 +106,8 @@ class YjGroupInfo(Base):
         primaryjoin="YjPLCInfo.id==YjGroupInfo.plc_id"
     )
 
-    def __init__(self, model_id, group_name=None, plc_id=None, note=None,
-                 upload_cycle=None, ten_id=None, item_id=None, upload=True):
-        self.id = model_id
-        self.group_name = group_name
-        self.plc_id = plc_id
-        self.note = note
-        self.upload_cycle = upload_cycle
-        self.ten_id = ten_id
-        self.item_id = item_id
-        self.upload = upload
+    # variables = relationship('YjVariableInfo', secondary=var_groups)
+    variables = relationship('VarGroups', back_populates='group')
 
     def __repr__(self):
         return '<Group : %r >' % self.group_name
@@ -147,47 +119,23 @@ class YjVariableInfo(Base):
     variable_name = Column(String(20))
     db_num = Column(Integer)
     address = Column(Float)
-    data_type = Column(String(10))
+    data_type = Column(Integer)
     rw_type = Column(Integer)
-    upload = Column(Integer)
-    acquisition_cycle = Column(Integer)
-    server_record_cycle = Column(Integer)
+    is_upload = Column(Boolean)
     note = Column(String(50))
     ten_id = Column(String(200))
     item_id = Column(String(20))
     write_value = Column(Integer)
     area = Column(Integer)
+    is_analog = Column(Boolean)
+    analog_low_range = Column(Float)
+    analog_high_range = Column(Float)
+    digital_low_range = Column(Float)
+    digital_high_range = Column(Float)
+    offset = Column(Float)
 
-    acquisition_time = Column(Integer)
-    ip = Column(String(20))
-
-    group_id = Column("group_id", Integer, ForeignKey("yjgroupinfo.id", ondelete='CASCADE', onupdate='CASCADE'))
-    group = relationship(
-        "YjGroupInfo",
-        foreign_keys="YjVariableInfo.group_id",
-        backref=backref("variables", cascade="all, delete-orphan"),
-        primaryjoin="YjGroupInfo.id==YjVariableInfo.group_id"
-    )
-
-    def __init__(self, model_id, variable_name=None, group_id=None, db_num=None, address=None,
-                 data_type=None, rw_type=None, upload=None,
-                 acquisition_cycle=None, server_record_cycle=None,
-                 note=None, ten_id=None, item_id=None, write_value=None, area=None):
-        self.id = model_id
-        self.variable_name = variable_name
-        self.group_id = group_id
-        self.db_num = db_num
-        self.address = address
-        self.data_type = data_type
-        self.rw_type = rw_type
-        self.upload = upload
-        self.acquisition_cycle = acquisition_cycle
-        self.server_record_cycle = server_record_cycle
-        self.note = note
-        self.ten_id = ten_id
-        self.item_id = item_id
-        self.write_value = write_value
-        self.area = area
+    # groups = relationship('YjGroupInfo', secondary=var_groups)
+    groups = relationship('VarGroups', back_populates='variable')
 
     def __repr__(self):
         return '<Variable : %r >' % self.variable_name
@@ -195,8 +143,8 @@ class YjVariableInfo(Base):
 
 class Value(Base):
     __tablename__ = 'values'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    value = Column(String(128))
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    value = Column(Float)
     time = Column(Integer)
 
     variable_id = Column("variable_id", Integer,
@@ -208,11 +156,6 @@ class Value(Base):
         primaryjoin="YjVariableInfo.id==Value.variable_id"
     )
 
-    def __init__(self, variable_id, value, time):
-        self.variable_id = variable_id
-        self.value = value
-        self.time = time
-
 
 class TransferLog(Base):
     __tablename__ = 'transfer_logs'
@@ -222,12 +165,6 @@ class TransferLog(Base):
     status = Column(String(20))
     note = Column(String(200))
     status_code = Column(Integer)
-
-    def __init__(self, trans_type, time, status, note):
-        self.trans_type = trans_type
-        self.time = time
-        self.status = status
-        self.note = note
 
 
 class StationAlarm(Base):

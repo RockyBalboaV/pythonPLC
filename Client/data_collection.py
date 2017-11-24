@@ -12,37 +12,53 @@ def snap7_path():
 
     # Mac os
     if system_str == 'Darwin':
-        lib_path += '/mac_os/libsnap7.dylib'
+        lib_path += '/Mac_OS/libsnap7.dylib'
 
     elif system_str == 'Linux':
         # raspberry
         if platform.node() == 'raspberrypi':
-            lib_path += '/raspberry/libsnap7.so'
+            lib_path += '/Raspberry_Pi/libsnap7.so'
 
         # ubuntu
         elif platform.machine() == 'x86_64':
-            lib_path += '/ubuntu/libsnap7.so'
+            lib_path += '/Ubuntu/libsnap7.so'
+
+    else:
+        lib_path += '/Win64/snap7.dll'
 
     return lib_path
 
 
 def variable_size(data_type):
-    if data_type == 'FLOAT':
+    # 'FLOAT'
+    if data_type == 1:
         return 4
-    elif data_type == 'INT':
+
+    # 'INT'
+    elif data_type == 2:
         return 2
-    elif data_type == 'DINT':
+
+    # 'DINT'
+    elif data_type == 3:
         return 4
-    elif data_type == 'WORD':
+
+    # 'WORD'
+    elif data_type == 4:
         return 2
-    elif data_type == 'BYTE':
-        return 1
-    elif data_type == 'BOOL':
-        return 1
-    elif data_type == 'DWORD':
+
+    # 'DWORD'
+    elif data_type == 5:
         return 4
+
+    # 'BYTE'
+    elif data_type == 6:
+        return 1
+
+    # 'BOOL'
+    elif data_type == 7:
+        return 1
+
     else:
-        assert ValueError, 'data_type is not useful'
         return 4
 
 
@@ -100,49 +116,78 @@ def get_byte(_bytearray, byte_index):
 
 
 def read_value(data_type, result, byte_index=0, bool_index=0):
-    if data_type == 'FLOAT':
+    # 'FLOAT'
+    if data_type == 1:
         return get_real(result, byte_index)
 
-    elif data_type == 'INT':
+    # 'INT'
+    elif data_type == 2:
         return get_int(result, byte_index)
 
-    elif data_type == 'DINT':
+    # 'DINT'
+    elif data_type == 3:
         return get_dint(result, byte_index)
 
-    elif data_type == 'WORD':
+    # 'WORD'
+    elif data_type == 4:
         return get_word(result, byte_index)
 
-    elif data_type == 'BYTE':
+    # 'DWORD'
+    elif data_type == 5:
+        return get_dword(result, byte_index)
+
+    # 'BYTE'
+    elif data_type == 6:
         return get_byte(result, byte_index)
 
-    elif data_type == 'BOOL':
+    # 'BOOL'
+    elif data_type == 7:
         return get_bool(result, byte_index, bool_index)
-
-    elif data_type == 'DWORD':
-        return get_dword(result, byte_index)
 
     else:
         assert ValueError, 'data_type is not useful'
 
 
 def write_value(data_type, result, data, byte_index=0, bool_index=0):
-    if data_type == 'FLOAT':
+    # 'FLOAT'
+    if data_type == 1:
         set_real(result, byte_index, data)
 
-    elif data_type == 'INT':
+    # 'INT'
+    elif data_type == 2:
         set_int(result, byte_index, data)
 
-    elif data_type == 'DINT':
+    # 'DINT'
+    elif data_type == 3:
         set_dint(result, byte_index, data)
 
-    elif data_type == 'WORD':
+    # 'WORD'
+    elif data_type == 4:
         set_word(result, byte_index, data)
 
-    elif data_type == 'BYTE':
+    # 'DWORD'
+    elif data_type == 5:
+        set_dword(result, byte_index, data)
+
+    # 'BYTE'
+    elif data_type == 6:
         set_byte(result, byte_index, data)
 
-    elif data_type == 'BOOL':
+    # 'BOOL'
+    elif data_type == 7:
         set_bool(result, byte_index, bool_index, data)
 
-    elif data_type == 'DWORD':
-        set_dword(result, byte_index, data)
+
+def analog2digital(analog_value, analog_low_range, analog_high_range, digital_low_range, digital_high_range):
+    analog_low_range = analog_low_range if isinstance(analog_low_range, (float, int)) else 0
+    analog_high_range = analog_high_range if isinstance(analog_high_range, (float, int)) else 0
+    digital_high_range = digital_high_range if isinstance(digital_high_range, (float, int)) else 0
+    digital_low_range = digital_low_range if isinstance(digital_low_range, (float, int)) else 0
+
+    try:
+        digital_value = ((analog_value - analog_low_range) / (analog_high_range - analog_low_range)) * (
+            digital_high_range - digital_low_range)
+    except ZeroDivisionError:
+        digital_value = 0
+
+    return digital_value

@@ -23,7 +23,7 @@ class Config(object):
     # 设置时区
     CELERY_TIMEZONE = 'Asia/Shanghai'
     # worker并发数
-    CELERYD_CONCURRENCY = 1
+    CELERYD_CONCURRENCY = 2
     # 忽略任务执行状态
     CELERY_IGNORE_RESULT = True
     # Worker任务数
@@ -31,7 +31,7 @@ class Config(object):
 
     CELERY_QUEUE = (
         Queue('basic', routing_key='basic.#'),
-        Queue('check', routing_key='check.#')
+        Queue('check', routing_key='check.#'),
     )
     CELERY_DEFAULT_EXCHANGE = 'basic'
     CELERY_DEFAULT_EXCHANGE_TYPE = 'topic'
@@ -57,9 +57,13 @@ class Config(object):
         'app.tasks.self_check': {
             'queue': 'check',
             'routing_key': 'check.self_check',
+        },
+        'app.tasks.server_confirm': {
+            'queue': 'basic',
+            'routing_key': 'basic.server_confirm'
         }
-
     }
+
     # 定时任务
     CELERYBEAT_SCHEDULE = {
         'beats': {
@@ -68,15 +72,15 @@ class Config(object):
         },
         'check_group_upload_time': {
             'task': 'app.check_group_upload_time',
-            'schedule': timedelta(seconds=30)
+            'schedule': timedelta(seconds=5)
         },
         'check_variable_get_time': {
             'task': 'app.check_variable_get_time',
-            'schedule': timedelta(seconds=10)
+            'schedule': timedelta(seconds=1)
         },
         'self_check': {
             'task': 'app.self_check',
-            'schedule': timedelta(seconds=60)
+            'schedule': timedelta(seconds=30)
         }
 
     }

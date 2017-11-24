@@ -4,39 +4,34 @@ import zlib
 import base64
 import json
 
-
-def encryption(data):
-    """
-    :param data: dict
-    :return: dict
-    """
-    h = hmac.new(b'poree')
-    data = unicode(data)
-    h.update(data)
-    data = zlib.compress(data)
-    data = base64.b64encode(data)
-    digest = h.hexdigest()
-    data = {"data": data, "digest": digest}
-    return data
+from models import Session
 
 
-def decryption(rj):
+def encryption_client(dict_data):
     """
-    :param rj: json
-    :return: dict
+    压缩
+    :param dict_data: 
+    :return: 
     """
-    data = rj["data"]
-    di = rj["digest"]
-    data = base64.b64decode(data)
-    data = zlib.decompress(data)
-    h = hmac.new(b'poree')
-    h.update(data)
-    test = h.hexdigest()
-    if di == test:
-        data = json.loads(data.replace("'", '"'))
-    else:
-        data = {"status": "Error"}
-    return data
+
+    str_data = json.dumps(dict_data).encode('utf-8')
+    zlib_data = zlib.compress(str_data)
+
+    return zlib_data
+
+
+def decryption_client(base64_data):
+    """
+    解压
+    :param base64_data: 
+    :return: 
+    """
+
+    zlib_data = base64.b64decode(base64_data)
+    str_data = zlib.decompress(zlib_data)
+    dict_data = json.loads(str_data)
+
+    return dict_data
 
 
 def get_data_from_query(models):
@@ -56,3 +51,9 @@ def get_data_from_model(model):
     for c in model.__table__.columns:
         model_column[c.name] = getattr(model, c.name, None)
     return model_column
+
+
+def db_write(model):
+    session = Session()
+    session.add(model)
+    session.commit()
