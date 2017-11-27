@@ -4,13 +4,16 @@ import getpass
 import requests
 import time
 import json
+import psutil
 
 import pytest
 
 os.environ['env'] = 'dev'
 os.environ['url'] = 'dev-server'
 
-from app import server_confirm, get_config, beats, before_running
+from app import server_confirm, get_config, beats, before_running, first_running, check_alarm, redis_add_alarm_variables,\
+    ntpdate
+
 from util import encryption_client, decryption_client
 from data_collection import analog2digital
 
@@ -1338,12 +1341,29 @@ class TestFunc(object):
 
         assert round(value, 1) == 33.3
 
+    def test_sys_info(self):
+        # 开机时间
+        print(int(psutil.boot_time()))
+        # 硬盘总量
+        print(psutil.disk_usage('/')[0] / 1024 / 1024)
+        # 空闲容量
+        print(psutil.disk_usage('/')[2] / 1024 / 1024)
+        # 内存总量
+        print(psutil.virtual_memory()[0] / 1024 / 1024)
+        # 空闲内存
+        print(psutil.virtual_memory()[4] / 1024 / 1024)
+
 
 class TestTask(object):
     def test_get_config(self):
         get_config()
 
-get_config()
+
+# get_config()
 # beats()
+# first_running()
 # ntpdate()
 # before_running()
+# check_alarm()
+# print(redis_add_alarm_variables())
+ntpdate()

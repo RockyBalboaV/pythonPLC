@@ -61,6 +61,10 @@ class Config(object):
         'app.tasks.server_confirm': {
             'queue': 'basic',
             'routing_key': 'basic.server_confirm'
+        },
+        'app.tasks.ntpdate': {
+            'queue': 'basic',
+            'routing_key': 'basic.ntpdate'
         }
     }
 
@@ -81,8 +85,11 @@ class Config(object):
         'self_check': {
             'task': 'app.self_check',
             'schedule': timedelta(seconds=30)
+        },
+        'ntpdate': {
+            'task': 'app.ntedate',
+            'schedule': timedelta(seconds=10)
         }
-
     }
 
 

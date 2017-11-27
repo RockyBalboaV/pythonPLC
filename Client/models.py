@@ -27,11 +27,11 @@ def serialize(model):
 
 class VarGroups(Base):
     __tablename__ = 'variables_groups'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    variable_id = Column(Integer, ForeignKey('yjvariableinfo.id'), primary_key=True)
-    group_id = Column(Integer, ForeignKey('yjgroupinfo.id'), primary_key=True)
-    variable = relationship('YjVariableInfo', back_populates='groups')
-    group = relationship('YjGroupInfo', back_populates='variables')
+    id = Column(Integer, primary_key=True)
+    variable_id = Column(Integer, ForeignKey('yjvariableinfo.id'))
+    group_id = Column(Integer, ForeignKey('yjgroupinfo.id'))
+    variable = relationship('YjVariableInfo', back_populates='groups', cascade="all, delete-orphan, delete", single_parent=True)
+    group = relationship('YjGroupInfo', back_populates='variables', cascade="all, delete-orphan, delete", single_parent=True)
 
 
 class YjStationInfo(Base):
@@ -106,8 +106,7 @@ class YjGroupInfo(Base):
         primaryjoin="YjPLCInfo.id==YjGroupInfo.plc_id"
     )
 
-    # variables = relationship('YjVariableInfo', secondary=var_groups)
-    variables = relationship('VarGroups', back_populates='group')
+    variables = relationship('VarGroups', back_populates='group', cascade="all, delete-orphan", single_parent=True)
 
     def __repr__(self):
         return '<Group : %r >' % self.group_name
@@ -134,8 +133,7 @@ class YjVariableInfo(Base):
     digital_high_range = Column(Float)
     offset = Column(Float)
 
-    # groups = relationship('YjGroupInfo', secondary=var_groups)
-    groups = relationship('VarGroups', back_populates='variable')
+    groups = relationship('VarGroups', back_populates='variable', cascade="all, delete-orphan", single_parent=True)
 
     def __repr__(self):
         return '<Variable : %r >' % self.variable_name
@@ -164,7 +162,6 @@ class TransferLog(Base):
     time = Column(Integer)
     status = Column(String(20))
     note = Column(String(200))
-    status_code = Column(Integer)
 
 
 class StationAlarm(Base):
@@ -173,8 +170,8 @@ class StationAlarm(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_num = Column(String(200))
     code = Column(Integer)
-    note = Column(String(200))
     time = Column(Integer)
+    note = Column(String(100))
 
 
 class PLCAlarm(Base):
@@ -183,6 +180,28 @@ class PLCAlarm(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_num = Column(String(200))
     plc_id = Column(Integer)
-    level = Column(Integer)
-    note = Column(String(200))
     time = Column(Integer)
+    code = Column(Integer)
+    note = Column(String(100))
+    level = Column(Integer)
+
+
+class AlarmInfo(Base):
+    __tablename__ = 'alarm_info'
+    id = Column(Integer, primary_key=True)
+    variable_id = Column(Integer, ForeignKey('yjvariableinfo.id'))
+    alarm_type = Column(Integer)
+    note = Column(String(128))
+    is_send_message = Column(Boolean)
+    type = Column(Integer)  # 1 bool 2 data
+    bool = Column(Boolean)
+    symbol = Column(Integer)  # 1 > 2 >= 3 < 4 <=
+    limit = Column(Float)
+    delay = Column(Integer)
+
+    variable = relationship(
+        "YjVariableInfo",
+        foreign_keys="AlarmInfo.variable_id",
+        backref=backref("alarm_info", cascade="all, delete-orphan"),
+        primaryjoin="YjVariableInfo.id==AlarmInfo.variable_id"
+    )

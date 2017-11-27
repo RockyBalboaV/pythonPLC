@@ -9,33 +9,30 @@ import time
 import subprocess
 import math
 import logging
-
-import configparser
+import getpass
 
 import datetime
 from utils.redis_middle_class import Conn_db
 from celery import Celery
-from celery.signals import worker_process_init
 from celery.exceptions import MaxRetriesExceededError, SoftTimeLimitExceeded
-from celery.utils.log import get_task_logger
-import billiard
-from sqlalchemy.orm.exc import UnmappedInstanceError, UnmappedClassError
+from sqlalchemy.orm.exc import UnmappedClassError
+from sqlalchemy.exc import IntegrityError
 from snap7.snap7exceptions import Snap7Exception
 import snap7
 from snap7.snap7types import S7DataItem, S7WLByte
-import gevent
+import psutil
 
 from models import eng, Base, Session, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, TransferLog, \
-    Value, serialize, StationAlarm, PLCAlarm
+    Value, serialize, StationAlarm, PLCAlarm, VarGroups, AlarmInfo
 from celeryconfig import Config
 from data_collection import variable_size, variable_area, read_value, write_value, snap7_path, analog2digital
-from station_alarm import check_time_err, connect_server_err
+from station_alarm import check_time_err, connect_server_err, server_return_err
 from plc_alarm import connect_plc_err, read_err
 from util import encryption_client, decryption_client
 from param import (ID_NUM, BEAT_URL, CONFIG_URL, UPLOAD_URL, CONFIRM_CONFIG_URL, CONNECT_TIMEOUT, REQUEST_TIMEOUT,
-                   MAX_RETRIES, CHECK_DELAY, SERVER_TIMEOUT, PLC_TIMEOUT, START_TIMEDELTA)
+                   MAX_RETRIES, CHECK_DELAY, SERVER_TIMEOUT, PLC_TIMEOUT, START_TIMEDELTA, NTP_SERVER)
 
-from data_collection_3 import readsuan
+from data_collection_2 import readsuan
 
 # 初始化celery
 app = Celery()
@@ -86,10 +83,6 @@ def first_running():
 
     r.set('id_num', ID_NUM)
 
-    get_config()
-
-    before_running()
-
 
 def plc_connection(plcs):
     """
@@ -102,9 +95,6 @@ def plc_connection(plcs):
     current_time = int(time.time())
     plc_client = list()
     for plc in plcs:
-        # client = snap7.client.Client()
-        # client.connect(plc.ip, plc.rack, plc.slot)
-        # if client.get_connected():
         plc_client.append([plc.ip, plc.rack, plc.slot, plc.id, plc.plc_name, current_time])
     return plc_client
 
@@ -126,8 +116,6 @@ def before_running():
 
     # 获取站信息
     id_num = r.get('id_num')
-    # station_info = get_station_info()
-    # r.set('station_info', station_info)
 
     # 获取该终端所有PLC信息
     plcs = session.query(YjPLCInfo)
@@ -159,7 +147,6 @@ def before_running():
                 id_num=id_num,
                 level=0,
                 plc_id=plc.id,
-                plc_name=plc.plc_name
             )
             session.add(alarm)
 
@@ -242,7 +229,6 @@ def self_check():
                 id_num,
                 level=1,
                 plc_id=plc[3],
-                plc_name=plc[4]
             )
             session.add(alarm)
 
@@ -257,7 +243,7 @@ def beats():
     celery任务
     与服务器的心跳连接
     
-    :param self: 
+    :param : 
     :return: 
     """
 
@@ -302,7 +288,7 @@ def beats():
         r.set('con_time', current_time)
 
         # 配置有更新
-        if data['modification'] == 1:
+        if data['is_modify'] == 1:
             logging.info('发现配置有更新，准备获取配置')
             get_config()
             before_running()
@@ -348,6 +334,7 @@ def get_config():
     post_data = {
         'id_num': id_num
     }
+
     logging.info('获取配置，发送请求：' + str(post_data))
 
     # 连接服务器
@@ -358,14 +345,7 @@ def get_config():
     except ConnectionError as e:
         logging.warning('获取配置错误：' + str(e))
 
-        status = 'error'
-        note = '无法连接服务器，检查网络状态。'
-        log = TransferLog(
-            trans_type='config',
-            time=current_time,
-            status=status,
-            note=note
-        )
+        log = connect_server_err(id_num)
         session.add(log)
 
         # try:
@@ -378,11 +358,7 @@ def get_config():
         # 记录本次服务器通讯时间
         r.set('con_time', current_time)
 
-        if response.status_code == 404:
-            status = 'error'
-            note = '获取配置信息失败'
-
-        elif response.status_code == 200:
+        if response.status_code == 200:
             rp = response.json()
 
             data = rp['data']
@@ -392,12 +368,14 @@ def get_config():
 
             # 配置更新，删除现有表
             try:
+                session.query(VarGroups).delete()
+                session.query(AlarmInfo).delete()
+                session.query(YjVariableInfo).delete()
                 session.query(YjStationInfo).delete()
                 session.query(YjPLCInfo).delete()
                 session.query(YjGroupInfo).delete()
-                session.query(YjVariableInfo).delete()
 
-            except Exception as e:
+            except IntegrityError as e:
                 logging.error('更新配置时，删除旧表出错: ' + str(e))
                 session.rollback()
             else:
@@ -408,67 +386,20 @@ def get_config():
             session.bulk_insert_mappings(YjPLCInfo, data['plcs'])
             session.bulk_insert_mappings(YjGroupInfo, data['groups'])
             session.bulk_insert_mappings(YjVariableInfo, data['variables'])
-            # session.bulk_insert_mappings(YjVariableInfo, data['variables'])
-
-            # # todo 速度测试
-            # time1 = time.time()
-            #
-            # # 添加'sqlalchemy' table数据
-            # print('*********', data['groups_variables'], '**********')
-            # relation_dict = {
-            #     'group': {},
-            #     'var': {}
-            # }
-            #
-            # i = 0
-            # for model in data['groups_variables']:
-            #     if relation_dict['var'].__contains__(str(model['variable_id'])):
-            #         variable_model = relation_dict['var'][str(model['variable_id'])]
-            #     else:
-            #         variable_model = session.query(YjVariableInfo).filter_by(id=model['variable_id']).first()
-            #         relation_dict['var'][str(model['variable_id'])] = variable_model
-            #
-            #     if relation_dict['group'].__contains__(str(model['variable_id'])):
-            #         group_model = relation_dict['group'][str(model['group_id'])]
-            #     else:
-            #         group_model = session.query(YjGroupInfo).filter_by(id=model['group_id']).first()
-            #         relation_dict['group'][str(model['group_id'])] = group_model
-            #
-            #     if group_model and variable_model:
-            #         group_model.variables.append(variable_model)
-            #     else:
-            #         i += 1
-            #         a = model
-            #
-            # print(relation_dict)
-            # time2 = time.time()
-            # print(time2 - time1)
-            # print(i, a)
-
-            status = 'OK'
-            note = '成功更新配置信息.'
+            session.bulk_insert_mappings(VarGroups, data['variables_groups'])
+            session.bulk_insert_mappings(AlarmInfo, data['alarm'])
 
             # todo 发送获取配置完成的信息
-            # result = server_confirm('http://fdslaf')
             result = server_confirm(CONFIRM_CONFIG_URL)
 
-
         else:
-            status = 'error'
-            note = '获取配置时发生未知问题，检查服务器代码。 状态码：{}'.format(
-                response.status_code)
+            log = server_return_err(id_num)
+            session.add(log)
+            session.commit()
+    finally:
+        session.close()
 
         # 记录服务器连接状况
-        log = TransferLog(
-            trans_type='config',
-            time=current_time,
-            status=status,
-            note=note
-        )
-    session.add(log)
-
-    session.commit()
-    session.close()
 
 
 def upload_data(group_model, current_time):
@@ -490,36 +421,31 @@ def upload_data(group_model, current_time):
     group_name = group_model.group_name
     server_record_cycle = group_model.server_record_cycle
 
-    # print(type(group_name))
-
     # 准备本次上传的数据
     variables = group_model.variables
     variable_list = list()
 
     for variable in variables:
 
-        # 判断该变量是否需要上传
-        if variable.is_upload:
+        # 获取上次传输时间,没有上次时间就往前推一个上传周期
+        get_time = current_time - group_model.upload_cycle
 
-            # 获取上次传输时间,没有上次时间就往前推一个上传周期
-            get_time = current_time - group_model.upload_cycle
+        # 读取需要上传的值,所有时间大于上次上传的值
+        all_values = session.query(Value).filter_by(variable_id=variable.id).filter(
+            get_time <= Value.time).filter(Value.time < current_time)
 
-            # 读取需要上传的值,所有时间大于上次上传的值
-            all_values = session.query(Value).filter_by(variable_id=variable.id).filter(
-                get_time <= Value.time).filter(Value.time < current_time)
+        # 循环从上次读取时间开始计算，每个一个记录周期提取一个数值
+        while get_time < current_time:
+            upload_value = all_values.filter(
+                get_time + server_record_cycle > Value.time).filter(Value.time >= get_time).first()
+            # 当上传时间小于采集时间时，会出现取值时间节点后无采集数据，得到None，使得后续语句报错。
+            try:
+                value_dict = serialize(upload_value)
+                variable_list.append(value_dict)
+            except UnmappedClassError:
+                pass
 
-            # 循环从上次读取时间开始计算，每个一个记录周期提取一个数值
-            while get_time < current_time:
-                upload_value = all_values.filter(
-                    get_time + server_record_cycle > Value.time).filter(Value.time >= get_time).first()
-                # 当上传时间小于采集时间时，会出现取值时间节点后无采集数据，得到None，使得后续语句报错。
-                try:
-                    value_dict = serialize(upload_value)
-                    variable_list.append(value_dict)
-                except UnmappedClassError:
-                    pass
-
-                get_time += server_record_cycle
+            get_time += server_record_cycle
 
     # 上传日志记录
     log = TransferLog(
@@ -574,15 +500,8 @@ def upload(variable_list, group_model, current_time):
     except ConnectionError as e:
         logging.warning('上传数据错误：' + str(e))
 
-        status = 'error'
-        note = '无法连接服务器，检查网络状态。'
-        log = TransferLog(
-            trans_type='upload_call_back',
-            time=current_time,
-            status=status,
-            note=note
-        )
-        session.add(log)
+        alarm = connect_server_err()
+        session.add(alarm)
 
     else:
         data = response.json()
@@ -593,13 +512,10 @@ def upload(variable_list, group_model, current_time):
         if response.status_code == 200:
             note = 'group_id: {} group_name:{} 成功上传.'.format(group_id, group_name)
 
-        # 版本错误
-        elif response.status_code == 403:
-            note = 'group_id: {} group_name:{} 上传的数据不是在最新版本配置下采集的.'.format(group_id, group_name)
-
         # 未知错误
         else:
             note = 'group_id: {} group_name:{} 无法识别服务端反馈。'.format(group_id, group_name)
+
         log = TransferLog(
             trans_type='upload_call_back',
             time=current_time,
@@ -672,7 +588,12 @@ def check_variable_get_time():
 
             # 更新变量下次获取时间
             group.acquisition_time = group.acquisition_cycle + current_time
-            variables = group.variables
+            time1 = time.time()
+            # todo 变量信息存到缓存里，避免每次读mysql
+            relation = group.variables
+            variables = [rel.variable for rel in relation]
+            time2 = time.time()
+            print(time2 - time1, '关系转换')
             session.commit()
 
             if variables:
@@ -750,17 +671,12 @@ def read_multi(plc, variables, current_time):
             id_num,
             level=0,
             plc_id=plc[3],
-            plc_name=plc[4]
         )
         session.add(plc_alarm)
         session.commit()
         assert False
     else:
         result, data_items = client.read_multi_vars(data_items)
-
-        # print(result, data_items)
-        # for di in data_items:
-        #     check_error(di.Result)
 
         for num in range(0, var_num):
             di = data_items[num]
@@ -773,26 +689,21 @@ def read_multi(plc, variables, current_time):
 
             # 数模转换
             if variables[num].is_analog:
-                raw_value = analog2digital(variables[num], raw_value)
+                raw_value = analog2digital(raw_value, variables[num].analog_low_range, variables[num].analog_high_range,
+                                           variables[num].digital_low_range, variables[num].digital_high_range)
 
             offset = variables[num].offset if isinstance(variables[num].offset, float) else 0
-            value = round(raw_value + offset, 2)
+            value = round(raw_value, 2) + offset
             print(value)
 
-            # value_model = Value(
-            #     variable_id=variables[num].id,
-            #     time=current_time,
-            #     value=value
-            # )
             value_model = {
                 'variable_id': variables[num].id,
                 'time': current_time,
                 'value': value
             }
-            # session.add(value_model)
+
             value_list.append(value_model)
 
-        # session.bulk_save_objects(value_list)
         session.bulk_insert_mappings(Value, value_list)
 
     session.commit()
@@ -806,9 +717,24 @@ def read_multi(plc, variables, current_time):
 
 @app.task()
 def ntpdate():
-    ntp = subprocess.call('ntpdate cn.ntp.org.cn', shell=True)
-    print(ntp)
+    # todo 添加配置读取
+    # todo 待测试 使用supervisor启动时用户为root 不需要sudo输入密码 不安全
+    pw = 'touhou'
 
+    cmd2 = 'echo {} | sudo -S ntpdate {}'.format(pw, NTP_SERVER)
+    ntp = subprocess.Popen(
+        cmd2,
+        shell=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+    ntp.wait()  # 判断进程执行状态
+    stdout, stderr = ntp.communicate()
+
+    print(stdout.decode('utf-8'))
+    print(stderr.decode('utf-8'))
+    # todo 日志写入
 
 @app.task
 def server_confirm(url):
@@ -831,15 +757,9 @@ def server_confirm(url):
     else:
         http_code = rp.status_code
         if http_code == 200:
-            # todo 成功确认
-            pass
+            return True
         else:
-            # todo 失败 重试请求
-            print('1')
-            pass
-
-    print('complete')
-    return 'app'
+            return False
 
 
 def plc_write(variable_model, plc_cli, plc_model):
@@ -904,6 +824,9 @@ def plc_write(variable_model, plc_cli, plc_model):
 
 def beats_data(id_num, session, con_time, current_time):
     # 获取心跳间隔时间内产生的报警
+    alarm_data = check_alarm()
+
+    # 获取
     station_alarms = list()
     plc_alarms = list()
     if con_time:
@@ -917,11 +840,15 @@ def beats_data(id_num, session, con_time, current_time):
         for p in plc:
             plc_alarms.append(serialize(p))
 
-    data = dict(
-        id_num=id_num,
-        station_alarms=station_alarms,
-        plc_alarms=plc_alarms
-    )
+    # 获取设备信息
+    info = station_info()
+
+    data = {
+        'id_num': id_num,
+        'station_alarms': station_alarms,
+        'plc_alarms': plc_alarms,
+        'station_info': info
+    }
 
     return data
 
@@ -933,3 +860,133 @@ def check_plc_connected(plc, current_time):
     client.connect(plc[0], plc[1], plc[2])
     if client.get_connected():
         plc[5] = current_time
+
+
+def station_info():
+    # 开机时间
+    boot_time = int(psutil.boot_time())
+    # 硬盘总量
+    total_usage = int(psutil.disk_usage('/')[0] / 1024 / 1024)
+    # 空闲容量
+    free_usage = int(psutil.disk_usage('/')[2] / 1024 / 1024)
+    # 内存总量
+    total_memory = int(psutil.virtual_memory()[0] / 1024 / 1024)
+    # 空闲内存
+    free_memory = int(psutil.virtual_memory()[4] / 1024 / 1024)
+    # 发送流量
+    bytes_sent = int(psutil.net_io_counters()[0])
+    # 接收流量
+    bytes_recv = int(psutil.net_io_counters()[1])
+
+    info = {
+        'boot_time': boot_time,
+        'total_usage': total_usage,
+        'free_usage': free_usage,
+        'total_memory': total_memory,
+        'free_memory': free_memory,
+        'bytes_sent': bytes_sent,
+        'bytes_recv': bytes_recv
+    }
+
+    return info
+
+
+@app.task()
+def check_alarm():
+    alarm_variables = r.get('alarm_variables')
+
+    alarm_data = list()
+
+    if not alarm_variables:
+        alarm_variables = redis_add_alarm_variables()
+        if not alarm_variables:
+            return alarm_data
+        r.set('alarm_variables', alarm_variables)
+
+    # 循环报警变量，查看最近采集的数值是否满足报警条件
+    current_time = time.time()
+    session = Session()
+
+    for alarm in alarm_variables:
+        # 获取需要判断的采集数据
+        if alarm['delay']:
+            values = session.query(Value).filter_by(variable_id=alarm['variable_id']). \
+                filter(Value.time > current_time - alarm['delay'] - 1).all()
+        else:
+            values = session.query(Value).filter_by(variable_id=alarm['variable_id']). \
+                order_by(Value.time.desc()).limit(1).all()
+
+        is_alarm = False
+        if alarm['type'] == 1:
+            for v in values:
+                if v.value == alarm['bool']:
+                    is_alarm = True
+                else:
+                    is_alarm = False
+                    break
+
+        elif alarm['type'] == 2:
+            if alarm['symbol'] == 1:
+                for v in values:
+                    if v.value > alarm['limit']:
+                        is_alarm = True
+                    else:
+                        is_alarm = False
+                        break
+
+            elif alarm['symbol'] == 2:
+                for v in values:
+                    if v.value >= alarm['limit']:
+                        is_alarm = True
+                    else:
+                        is_alarm = False
+                        break
+
+            elif alarm['symbol'] == 3:
+                for v in values:
+                    if v.value < alarm['limit']:
+                        is_alarm = True
+                    else:
+                        is_alarm = False
+                        break
+
+            elif alarm['symbol'] == 4:
+                for v in values:
+                    if v.value <= alarm['limit']:
+                        is_alarm = True
+                    else:
+                        is_alarm = False
+                        break
+
+            else:
+                is_alarm = False
+
+        else:
+            is_alarm = False
+
+        if is_alarm:
+            alarm_data.append({
+                'variable_id': alarm['vairable_id'],
+                'is_alarm': is_alarm
+            })
+
+    print(alarm_variables)
+    return alarm_data
+
+
+def redis_add_alarm_variables():
+    session = Session()
+    alarm_models = session.query(AlarmInfo).all()
+    data = [
+        {
+            'variable_id': model.variable_id,
+            'type': model.type,
+            'bool': model.bool,
+            'symbol': model.symbol,
+            'limit': model.limit,
+            'delay': model.delay
+        }
+        for model in alarm_models
+    ]
+
+    return data

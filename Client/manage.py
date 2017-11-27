@@ -24,7 +24,7 @@ if args.config == 'prod':
 if args.url == 'server':
     os.environ['url'] = 'server'
 
-from app import first_running, database_reset, app
+from app import first_running, database_reset, app, get_config, before_running
 from param import cf, here
 
 python_path = cf.get(os.environ.get('env'), 'python')
@@ -34,6 +34,10 @@ if args.reset:
 
 if args.start:
     first_running()
+
+    get_config()
+
+    before_running()
 
     # 清空上次运行的残留数据
     if os.path.exists(here + '/celerybeat-schedule'):
