@@ -3,7 +3,7 @@ import redis  # redis数据库链接
 import pickle
 
 
-class Conn_db():
+class ConnDB(object):
     def __init__(self):
         # 创建对本机数据库的连接对象
         self.conn = redis.StrictRedis(host='127.0.0.1', port=6379, db=0)
@@ -19,7 +19,7 @@ class Conn_db():
     def get(self, key_):
         # 从数据库根据键（key）获取值
         value_ = self.conn.get(key_)
-        if value_ != None:
+        if value_ is not None:
             value_ = pickle.loads(value_)  # 加载bytes数据，还原为python对象
             return value_
         else:

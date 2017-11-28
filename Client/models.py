@@ -30,8 +30,10 @@ class VarGroups(Base):
     id = Column(Integer, primary_key=True)
     variable_id = Column(Integer, ForeignKey('yjvariableinfo.id'))
     group_id = Column(Integer, ForeignKey('yjgroupinfo.id'))
-    variable = relationship('YjVariableInfo', back_populates='groups', cascade="all, delete-orphan, delete", single_parent=True)
-    group = relationship('YjGroupInfo', back_populates='variables', cascade="all, delete-orphan, delete", single_parent=True)
+    variable = relationship('YjVariableInfo', back_populates='groups', cascade="all, delete-orphan, delete",
+                            single_parent=True)
+    group = relationship('YjGroupInfo', back_populates='variables', cascade="all, delete-orphan, delete",
+                         single_parent=True)
 
 
 class YjStationInfo(Base):
@@ -92,11 +94,7 @@ class YjGroupInfo(Base):
     item_id = Column(String(20))
     acquisition_cycle = Column(Integer)
     server_record_cycle = Column(Integer)
-    acquisition_time = Column(Integer)
-
     is_upload = Column(Boolean)
-    upload_time = Column(Integer)
-    uploading = Column(Boolean)
 
     plc_id = Column("plc_id", Integer, ForeignKey("yjplcinfo.id", ondelete='CASCADE', onupdate='CASCADE'))
     plc = relationship(
@@ -120,7 +118,6 @@ class YjVariableInfo(Base):
     address = Column(Float)
     data_type = Column(Integer)
     rw_type = Column(Integer)
-    is_upload = Column(Boolean)
     note = Column(String(50))
     ten_id = Column(String(200))
     item_id = Column(String(20))
@@ -153,15 +150,6 @@ class Value(Base):
         backref=backref("values", cascade="all, delete-orphan"),
         primaryjoin="YjVariableInfo.id==Value.variable_id"
     )
-
-
-class TransferLog(Base):
-    __tablename__ = 'transfer_logs'
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    trans_type = Column(String(20))
-    time = Column(Integer)
-    status = Column(String(20))
-    note = Column(String(200))
 
 
 class StationAlarm(Base):

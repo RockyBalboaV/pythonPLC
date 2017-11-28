@@ -3,42 +3,66 @@ from datetime import timedelta
 
 from kombu import Queue
 
+# 指定消息代理
+broker_url = 'pyamqp://pyplc:123456@localhost:5672/pyplc'
+# broker_url = 'pyamqp://yakumo17s:touhou@localhost:5672/pyplc'
+# 指定结果存储数据库
+result_backend = 'redis://localhost'
+# 序列化方案
+task_serializer = 'msgpack'
+# 任务结果读取格式
+result_serializer = 'json'
+# 任务过期时间
+result_expires = 60 * 60 * 24
+# 可接受的内容格式
+accept_content = ['json', 'msgpack']
+# 设置时区
+timezone = 'Asia/Shanghai'
+# worker并发数
+worker_concurrency = 2
+# 忽略任务执行状态
+task_ignore_result = True
+# Worker任务数
+worker_max_tasks_per_child = 40
 
-class Config(object):
-    # 设置终端信息
+CELERY_QUEUE = (
+    Queue('basic', routing_key='basic.#'),
+    Queue('check', routing_key='check.#'),
+)
+task_default_exchange = 'basic'
+task_default_exchange_type = 'topic'
+task_default_routing_key = 'basic.default'
 
-    # 指定消息代理
-    BROKER_URL = 'pyamqp://pyplc:123456@localhost:5672/pyplc'
-    # BROKER_URL = 'pyamqp://yakumo17s:touhou@localhost:5672/pyplc'
-    # 指定结果存储数据库
-    CELERY_RESULT_BACKEND = 'redis://localhost'
-    # 序列化方案
-    CELERY_TASK_SERIALIZER = 'msgpack'
-    # 任务结果读取格式
-    CELERY_RESULT_SERIALIZER = 'json'
-    # 任务过期时间
-    CELERY_TASK_RESULT_EXPIRES = 60 * 60 * 24
-    # 可接受的内容格式
-    CELERY_ACCEPT_CONTENT = ['json', 'msgpack']
-    # 设置时区
-    CELERY_TIMEZONE = 'Asia/Shanghai'
-    # worker并发数
-    CELERYD_CONCURRENCY = 2
-    # 忽略任务执行状态
-    CELERY_IGNORE_RESULT = True
-    # Worker任务数
-    CELERY_MAX_TASKS_PER_CHILD = 40
+task_routes = {
+    'app.tasks.ntpdate': {
+        'queue': 'basic',
+        'routing_key': 'basic.ntpdate'
+    },
+    'app.tasks.check_alarm': {
+        'queue': 'check',
+        'routing_key': 'check.check_alarm'
+    }
+}
 
-    CELERY_QUEUE = (
-        Queue('basic', routing_key='basic.#'),
-        Queue('check', routing_key='check.#'),
-    )
-    CELERY_DEFAULT_EXCHANGE = 'basic'
-    CELERY_DEFAULT_EXCHANGE_TYPE = 'topic'
-    CELERY_DEFAULT_ROUTING_KEY = 'basic.default'
+# 定时任务
+beat_schedule = {
+    'ntpdate': {
+        'task': 'app.ntpdate',
+        'schedule': timedelta(seconds=10)
+    },
+    'check_alarm': {
+        'task': 'app.check_alarm',
+        'schedule': timedelta(seconds=5)
+    }
+}
 
-    CELERY_ROUTES = {
-        'app.tasks.get_config': {
+# 任务速率
+task_annotations = {
+    'app.ntpdate': {'rate_limit': '6/m'}
+}
+
+"""
+    'app.tasks.get_config': {
             'queue': 'basic',
             'routing_key': 'basic.get_config',
         },
@@ -62,14 +86,7 @@ class Config(object):
             'queue': 'basic',
             'routing_key': 'basic.server_confirm'
         },
-        'app.tasks.ntpdate': {
-            'queue': 'basic',
-            'routing_key': 'basic.ntpdate'
-        }
-    }
-
-    # 定时任务
-    CELERYBEAT_SCHEDULE = {
+        
         'beats': {
             'task': 'app.beats',
             'schedule': timedelta(seconds=60),
@@ -86,38 +103,4 @@ class Config(object):
             'task': 'app.self_check',
             'schedule': timedelta(seconds=30)
         },
-        'ntpdate': {
-            'task': 'app.ntedate',
-            'schedule': timedelta(seconds=10)
-        }
-    }
-
-
-class DevConfig(Config):
-    HOSTNAME = '127.0.0.1'
-    DATABASE = 'pyplc_client'
-    USERNAME = 'client'
-    PASSWORD = 'pyplc_client'
-    DB_URI = 'mysql://{}:{}@{}/{}'.format(USERNAME, PASSWORD, HOSTNAME, DATABASE)
-
-    # 设置服务器连接地址地址
-
-    BEAT_URL = 'http://104.160.41.99:11000/client/beats'
-    CONFIG_URL = 'http://104.160.41.99:11000/client/config'
-    UPLOAD_URL = 'http://104.160.41.99:11000/client/upload'
-
-    # BEAT_URL = 'http://127.0.0.1:11000/client/beats'
-    # CONFIG_URL = 'http://127.0.0.1:11000/client/config'
-    # UPLOAD_URL = 'http://127.0.0.1:11000/client/upload'
-
-
-class ProdConfig(Config):
-    HOSTNAME = '127.0.0.1'
-    DATABASE = 'pyplc_client'
-    USERNAME = 'root'
-    PASSWORD = 'root'
-    DB_URI = 'mysql://{}:{}@{}/{}'.format(USERNAME, PASSWORD, HOSTNAME, DATABASE)
-
-    BEAT_URL = 'http://104.160.41.99:11000/client/beats'
-    CONFIG_URL = 'http://104.160.41.99:11000/client/config'
-    UPLOAD_URL = 'http://104.160.41.99:11000/client/upload'
+        """
