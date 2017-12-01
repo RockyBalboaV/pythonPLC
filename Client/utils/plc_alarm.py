@@ -26,19 +26,19 @@ def connect_plc_err(id_num, level=0, plc_id=None, note=None):
     return plc_err(id_num, plc_id, level, 1, note)
 
 
-def read_err(id_num, level=0, plc_id=None, plc_name=None, area=None, db_num=None, start=None, data_type=None):
+def read_err(id_num, level=0, plc_id=None, plc_name=None, area=None, db_num=None, address=None, data_type=None):
     """
-    读取到错误的地址
+    读取错误
     :param id_num: 
     :param level: 
     :param plc_id: 
     :param plc_name: 
     :param area: 
     :param db_num: 
-    :param start: 
+    :param address: 
     :param data_type: 
     :return: 
     """
-    note = '读取到错误的地址： "plc_id:{}, plc_name: {}, area:{}, db_num:{}, start:{}, data_type:{}".'.format(
-        plc_id, plc_name, area, db_num, start, data_type),
+    note = '读取错误： "plc_id:{}, plc_name: {}, area:{}, db_num:{}, address:{}, data_type:{}".'.format(
+        plc_id, plc_name, area, db_num, address, data_type),
     return plc_err(id_num, plc_id, level, 2, note)

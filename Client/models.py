@@ -2,7 +2,7 @@
 import os
 
 from sqlalchemy import Column, String, Integer, Float, Boolean, ForeignKey, create_engine, MetaData, Table, JSON, \
-    BigInteger
+    BigInteger, Text
 from sqlalchemy.orm import sessionmaker, relationship, backref, class_mapper
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -159,7 +159,7 @@ class StationAlarm(Base):
     id_num = Column(String(200))
     code = Column(Integer)
     time = Column(Integer)
-    note = Column(String(100))
+    note = Column(Text)
 
 
 class PLCAlarm(Base):
@@ -170,7 +170,7 @@ class PLCAlarm(Base):
     plc_id = Column(Integer)
     time = Column(Integer)
     code = Column(Integer)
-    note = Column(String(100))
+    note = Column(Text)
     level = Column(Integer)
 
 
@@ -182,7 +182,6 @@ class AlarmInfo(Base):
     note = Column(String(128))
     is_send_message = Column(Boolean)
     type = Column(Integer)  # 1 bool 2 data
-    bool = Column(Boolean)
     symbol = Column(Integer)  # 1 > 2 >= 3 < 4 <=
     limit = Column(Float)
     delay = Column(Integer)
@@ -193,3 +192,4 @@ class AlarmInfo(Base):
         backref=backref("alarm_info", cascade="all, delete-orphan"),
         primaryjoin="YjVariableInfo.id==AlarmInfo.variable_id"
     )
+

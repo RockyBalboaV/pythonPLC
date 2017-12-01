@@ -50,3 +50,7 @@ def db_commit_err(id_num, note=None):
     :return: 
     """
     return station_err(id_num, 4, note)
+
+
+def ntpdate_err(id_num, note):
+    return station_err(id_num, 5, note)

@@ -9,14 +9,14 @@ import shelve
 #     def test_connect(self):
 client = snap7.client.Client()
 try:
-    client.connect('192.168.18.18', 0, 2, 102)
+    client.connect('192.168.18.17', 0, 2, 102)
 except Snap7Exception as e:
     print(e)
-data = client.db_read(1, 0, 4)
+data = client.db_read(11, 502, 4)
 
-print(get_real(data, 0))
-set_real(data, 0, 1)
-client.db_write(1, 0, data)
-data = client.db_read(1, 0, 4)
+# print(get_real(data, 0))
+# set_real(data, 0, 1)
+# client.db_write(1, 0, data)
+# data = client.db_read(1, 0, 4)
 print(get_real(data, 0))
 # assert client.get_connected()

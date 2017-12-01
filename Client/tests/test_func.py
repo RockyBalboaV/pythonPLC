@@ -11,11 +11,12 @@ import pytest
 os.environ['env'] = 'dev'
 os.environ['url'] = 'dev-server'
 
-from app import r, server_confirm, get_config, beats, before_running, first_running, check_alarm, redis_add_alarm_variables,\
+from app import r, server_confirm, get_config, beats, before_running, boot, check_alarm, redis_alarm_variables, \
     ntpdate
-from utils.station_data import  station_info
+from utils.station_data import station_info
 from util import encryption_client, decryption_client
 from data_collection import analog2digital
+from param import CONFIRM_CONFIG_URL
 
 # class TestFunction():
 #     def test_get_config(self):
@@ -1354,6 +1355,12 @@ class TestFunc(object):
         print(r.get('group_upload'))
         print(r.get('group_read'))
         print(r.get('variable'))
+
+    def test_check_alarm(self):
+        check_alarm()
+
+    def test_confirm_config(self):
+        assert server_confirm(CONFIRM_CONFIG_URL)
 
 
 class TestTask(object):
