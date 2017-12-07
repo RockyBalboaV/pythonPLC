@@ -786,40 +786,45 @@ def read_multi(self, plc, variables, current_time, client=None):
 @app.task(bind=True, default_retry_delay=60, max_retries=3)
 def ntpdate(self):
     # todo 待测试 使用supervisor启动时用户为root 不需要sudo输入密码 不安全
-    pw = 'touhou'
+    try:
+        pw = 'touhou'
 
-    cmd2 = 'echo {} | sudo -S ntpdate {}'.format(pw, NTP_SERVER)
-    ntp = subprocess.Popen(
-        cmd2,
-        shell=True,
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
-    )
-    status = ntp.wait()
-    stdout, stderr = ntp.communicate()
-    if not status:  # 判断进程执行状态
-        note = '完成校时 :{}'.format(stdout.decode('utf-8'))
-        logging.info(note)
-    else:
-        note = '校时失败 :{}'.format(stderr.decode('utf-8'))
-        # print(len(note))
-        logging.error(note)
-        id_num = r.get('id_num')
-        alarm = ntpdate_err(
-            id_num=id_num,
-            note=note
+        cmd2 = 'echo {} | sudo -S ntpdate {}'.format(pw, NTP_SERVER)
+        ntp = subprocess.Popen(
+            cmd2,
+            shell=True,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
         )
-        # session = Session()
-        try:
+        status = ntp.wait()
+        stdout, stderr = ntp.communicate()
 
+        if not status:  # 判断进程执行状态
+            note = '完成校时 :{}'.format(stdout.decode('utf-8'))
+            logging.info(note)
+        else:
+            note = '校时失败 :{}'.format(stderr.decode('utf-8'))
+            # print(len(note))
+            logging.error(note)
+            id_num = r.get('id_num')
+            alarm = ntpdate_err(
+                id_num=id_num,
+                note=note
+            )
+            # session = Session()
             session.add(alarm)
-            session.commit()
-        except Exception as e:
-            logging.exception('ntpdate' + str(e))
-            session.rollback()
-        finally:
-            session.close()
+
+        current_time = int(time.time())
+        old_value_model = session.query(Value).filter(Value.time < current_time - 60 * 60 * 24).all()
+        session.remove(old_value_model)
+
+        session.commit()
+    except Exception as e:
+        logging.exception('ntpdate' + str(e))
+        session.rollback()
+    finally:
+        session.close()
 
 
 def server_confirm(url):
