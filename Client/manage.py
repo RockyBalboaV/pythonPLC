@@ -23,7 +23,6 @@ if args.url == 'server':
 
 from app import boot, database_reset, app, get_config, before_running
 from param import cf, here
-from models import Session
 
 python_path = cf.get(os.environ.get('env'), 'python')
 
@@ -35,9 +34,10 @@ if args.clean_beat:
 
 if args.start:
     # 清空上次运行的残留数据
+    # 清除已发布的任务
     subprocess.call('celery purge -A app -f', shell=True)
-
-    Session.close_all()
+    # 清除未关闭的celery
+    subprocess.call('pkill -9 -f "celery"', shell=True)
 
     if os.path.exists(here + '/celerybeat-schedule'):
         delete_schedule = subprocess.call('rm {}/celerybeat-schedule'.format(here), shell=True)
@@ -52,7 +52,7 @@ if args.start:
     flower = subprocess.Popen('{}flower --broker="{}"'.format(python_path, app.conf['broker_url']), shell=True)
 
     # 启动celery beat worker
-    celery = subprocess.call('{}celery -B -A app worker -l warn -E --autoscale=8,4'.format(python_path), shell=True)
+    celery = subprocess.call('{}celery -B -A app worker -l warn -E --autoscale=8,4 --concurrency=10 -n worker@%h'.format(python_path), shell=True)
 
     # 关闭flower
     flower.kill()

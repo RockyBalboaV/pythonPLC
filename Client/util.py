@@ -15,7 +15,7 @@ def encryption_client(dict_data):
     """
 
     str_data = json.dumps(dict_data).encode('utf-8')
-    zlib_data = zlib.compress(str_data)
+    zlib_data = zlib.compress(str_data, level=9)
 
     return zlib_data
 
@@ -51,9 +51,3 @@ def get_data_from_model(model):
     for c in model.__table__.columns:
         model_column[c.name] = getattr(model, c.name, None)
     return model_column
-
-
-def db_write(model):
-    session = Session()
-    session.add(model)
-    session.commit()

@@ -3,18 +3,20 @@ import os
 
 from sqlalchemy import Column, String, Integer, Float, Boolean, ForeignKey, create_engine, MetaData, Table, JSON, \
     BigInteger, Text
-from sqlalchemy.orm import sessionmaker, relationship, backref, class_mapper
+from sqlalchemy.orm import sessionmaker, relationship, backref, class_mapper, scoped_session
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.pool import SingletonThreadPool
 
 from param import DB_URI
 
 # 创建连接
-eng = create_engine(DB_URI + '?charset=utf8', pool_recycle=1, pool_size=20, max_overflow=0)
+eng = create_engine(DB_URI + '?charset=utf8', pool_recycle=60, pool_size=100,
+                    poolclass=SingletonThreadPool)
 # 创建基类
 Base = declarative_base()
 
 Session = sessionmaker(bind=eng)
-session = Session()
+session = scoped_session(Session)
 
 
 def serialize(model):
@@ -23,6 +25,10 @@ def serialize(model):
     columns = [c.key for c in class_mapper(model.__class__).columns]
     # then we return their values in a dict
     return dict((c, getattr(model, c)) for c in columns)
+
+
+def value_serialize(model):
+    return dict([('i', getattr(model, 'var_id')), ('t', getattr(model, 'time')), ('v', getattr(model, 'value'))])
 
 
 class VarGroups(Base):
@@ -142,13 +148,13 @@ class Value(Base):
     value = Column(Float)
     time = Column(Integer)
 
-    variable_id = Column("variable_id", Integer,
-                         ForeignKey("yjvariableinfo.id", ondelete='SET NULL', onupdate='CASCADE'))
+    var_id = Column("var_id", Integer,
+                    ForeignKey("yjvariableinfo.id", ondelete='CASCADE', onupdate='CASCADE'))
     variable = relationship(
         "YjVariableInfo",
-        foreign_keys="Value.variable_id",
+        foreign_keys="Value.var_id",
         backref=backref("values", cascade="all, delete-orphan"),
-        primaryjoin="YjVariableInfo.id==Value.variable_id"
+        primaryjoin="YjVariableInfo.id==Value.var_id"
     )
 
 
@@ -171,7 +177,6 @@ class PLCAlarm(Base):
     time = Column(Integer)
     code = Column(Integer)
     note = Column(Text)
-    level = Column(Integer)
 
 
 class AlarmInfo(Base):
@@ -192,4 +197,3 @@ class AlarmInfo(Base):
         backref=backref("alarm_info", cascade="all, delete-orphan"),
         primaryjoin="YjVariableInfo.id==AlarmInfo.variable_id"
     )
-

@@ -6,7 +6,8 @@ import pickle
 class ConnDB(object):
     def __init__(self):
         # 创建对本机数据库的连接对象
-        self.conn = redis.StrictRedis(host='127.0.0.1', port=6379, db=0)
+        pool = redis.ConnectionPool(host='127.0.0.1', port=6379, db=0)
+        self.conn = redis.StrictRedis(connection_pool=pool)
 
     # 存储
     def set(self, key_, value_):
@@ -24,3 +25,11 @@ class ConnDB(object):
             return value_
         else:
             return []  # 为None(值不存在)，返回空列表
+
+    # 添加
+    def append(self, key_, value_):
+        value_ = pickle.dumps(value_)
+        self.conn.append(key_, value_)
+
+    def get_all(self, key_):
+        self.conn.hegtall('')

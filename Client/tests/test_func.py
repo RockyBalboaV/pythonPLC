@@ -13,10 +13,11 @@ os.environ['url'] = 'dev-server'
 
 from app import r, server_confirm, get_config, beats, before_running, boot, check_alarm, redis_alarm_variables, \
     ntpdate
-from utils.station_data import station_info
+from utils.station_data import station_info, beats_data
 from util import encryption_client, decryption_client
 from data_collection import analog2digital
 from param import CONFIRM_CONFIG_URL
+from models import session
 
 # class TestFunction():
 #     def test_get_config(self):
@@ -1347,6 +1348,12 @@ class TestFunc(object):
 
     def test_beats(self):
         beats()
+
+    def test_beats_data(self):
+        id_num = r.get('id_num')
+        con_time = r.get('con_time')
+        current_time = int(time.time())
+        print(beats_data(id_num, session, con_time, current_time))
 
     def test_before_running(self):
         before_running()

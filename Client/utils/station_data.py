@@ -2,13 +2,29 @@ import psutil
 import time
 
 from utils.redis_middle_class import ConnDB
-from models import serialize, Session, StationAlarm, PLCAlarm, AlarmInfo
+from models import serialize, session, StationAlarm, PLCAlarm, AlarmInfo
 
 
 def beats_data(id_num, session, con_time, current_time):
+    """
+    
+    :param id_num: 
+    :param session: 
+    :param con_time: 
+    :param current_time: 
+    :return: data = {
+        'id_num': id_num,
+        'station_alarms': station_alarms,
+        'plc_alarms': plc_alarms,
+        'station_info': info,
+        'data_alarms': alarm_data
+    }
+    """
     r = ConnDB()
     # 获取心跳间隔时间内产生的报警
     alarm_data = r.get('alarm_info')
+    r.set('alarm_info', None)
+    # print(alarm_data)
 
     # 获取
     station_alarms = list()
@@ -19,7 +35,7 @@ def beats_data(id_num, session, con_time, current_time):
         for s in station:
             station_alarms.append(serialize(s))
 
-        plc = session.query(PLCAlarm).filter(PLCAlarm.level >= 2). \
+        plc = session.query(PLCAlarm). \
             filter(con_time <= PLCAlarm.time).filter(PLCAlarm.time < current_time).all()
         for p in plc:
             plc_alarms.append(serialize(p))
@@ -29,16 +45,32 @@ def beats_data(id_num, session, con_time, current_time):
 
     data = {
         'id_num': id_num,
-        'station_alarms': station_alarms,
-        'plc_alarms': plc_alarms,
-        'station_info': info,
-        'data_alarms': alarm_data
+        's_a': station_alarms,
+        'p_a': plc_alarms,
+        'info': info,
+        'd_a': alarm_data
     }
 
     return data
 
 
 def station_info():
+    """
+    
+    :return:  dict = {
+        'boot_time': boot_time,
+        'total_usage': total_usage,
+        'free_usage': free_usage,
+        'total_memory': total_memory,
+        'free_memory': free_memory,
+        'bytes_sent': bytes_sent,
+        'bytes_recv': bytes_recv,
+        'cpu_percent': cpu_percent,
+        'usage_percent': usage_percent,
+        'memory_percent': memory_percent
+    }
+
+    """
     # 开机时间
     boot_time = int(psutil.boot_time())
     # 硬盘总量
@@ -63,16 +95,16 @@ def station_info():
     cpu_percent = psutil.cpu_percent()
 
     info = {
-        'boot_time': boot_time,
-        'total_usage': total_usage,
-        'free_usage': free_usage,
-        'total_memory': total_memory,
-        'free_memory': free_memory,
-        'bytes_sent': bytes_sent,
-        'bytes_recv': bytes_recv,
-        'cpu_percent': cpu_percent,
-        'usage_percent': usage_percent,
-        'memory_percent': memory_percent
+        'b_t': boot_time,
+        't_u': total_usage,
+        'f_u': free_usage,
+        't_m': total_memory,
+        'f_m': free_memory,
+        'b_s': bytes_sent,
+        'b_r': bytes_recv,
+        'c_p': cpu_percent,
+        'u_p': usage_percent,
+        'm_p': memory_percent
     }
 
     return info
@@ -104,16 +136,16 @@ def plc_info(r, plcs):
 
 
 def redis_alarm_variables(r):
-    session = Session()
+    # session = Session()
     alarm_models = session.query(AlarmInfo).all()
     if alarm_models:
         data = [
             {
-                'variable_id': model.variable_id,
+                'var_id': model.variable_id,
                 'type': model.type,
                 'symbol': model.symbol,
                 'limit': model.limit,
-                'delay': model.delay
+                'delay': model.delay,
             }
             for model in alarm_models
         ]
@@ -130,7 +162,7 @@ def redis_group_upload_info(r, g, start_time):
     # 变量组参数
     upload_cycle = g.upload_cycle if isinstance(g.upload_cycle, int) else 30
     plc_id = g.plc_id
-    variable_id = [model.variable.id for model in g.variables]
+    var_id = [model.variable.id for model in g.variables]
     group_id = g.id
     server_record_cycle = g.server_record_cycle
     group_name = g.group_name
@@ -143,7 +175,7 @@ def redis_group_upload_info(r, g, start_time):
         'is_uploading': False,
         'upload_cycle': upload_cycle,
         'server_record_cycle': server_record_cycle,
-        'variable_id': variable_id,
+        'var_id': var_id,
         'group_name': group_name
     }
     group_upload_data = r.get('group_upload')
@@ -158,14 +190,14 @@ def redis_group_read_info(r, g, start_time):
     # 变量组参数
     acquisition_cycle = g.acquisition_cycle if isinstance(g.acquisition_cycle, int) else 30
     plc_id = g.plc_id
-    variable_id = [model.variable.id for model in g.variables]
+    var_id = [model.variable.id for model in g.variables]
     group_id = g.id
 
     # 设定变量组读取时间
     group_read_info = {
         'id': group_id,
         'plc_id': plc_id,
-        'variable_id': variable_id,
+        'var_id': var_id,
         'read_time': start_time + acquisition_cycle,
         'read_cycle': acquisition_cycle
     }

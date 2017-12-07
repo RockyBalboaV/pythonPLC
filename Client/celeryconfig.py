@@ -19,7 +19,7 @@ accept_content = ['json', 'msgpack']
 # 设置时区
 timezone = 'Asia/Shanghai'
 # worker并发数
-worker_concurrency = 2
+worker_concurrency = 4
 # 忽略任务执行状态
 task_ignore_result = True
 # Worker任务数
@@ -82,35 +82,35 @@ beat_schedule = {
     },
     'check_alarm': {
         'task': 'app.check_alarm',
-        'schedule': timedelta(seconds=2),
+        'schedule': timedelta(seconds=6),
         'options': {
             'queue': 'check'
         }
     },
     'beats': {
         'task': 'app.beats',
-        'schedule': timedelta(seconds=10),
+        'schedule': timedelta(seconds=6),
         'options': {
             'queue': 'check'
         }
     },
     'check_group_upload_time': {
         'task': 'app.check_group_upload_time',
-        'schedule': timedelta(seconds=5),
+        'schedule': timedelta(seconds=6),
         'options': {
             'queue': 'check'
         }
     },
     'check_variable_get_time': {
         'task': 'app.check_variable_get_time',
-        'schedule': timedelta(seconds=2),
+        'schedule': timedelta(seconds=1),
         'options': {
             'queue': 'check'
         }
     },
     'self_check': {
         'task': 'app.self_check',
-        'schedule': timedelta(seconds=60),
+        'schedule': timedelta(seconds=300),
         'options': {
             'queue': 'basic'
         }
@@ -120,9 +120,9 @@ beat_schedule = {
 # 任务消费速率
 task_annotations = {
     'app.ntpdate': {'rate_limit': '1/h'},
-    'app.check_group_upload_time': {'rate_limit': '20/m'},
+    'app.check_group_upload_time': {'rate_limit': '12/m'},
     'app.check_variable_get_time': {'rate_limit': '60/m'},
-    'app.check_alarm': {'rate_limit': '60/m'},
-    'app.self_check': {'rate_limit': '12/m'},
+    'app.check_alarm': {'rate_limit': '12/m'},
+    'app.self_check': {'rate_limit': '12/h'},
     'app.beats': {'rate_limit': '6/m'}
 }
