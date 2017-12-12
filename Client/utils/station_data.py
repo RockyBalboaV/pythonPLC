@@ -1,15 +1,15 @@
 import psutil
 import time
+import platform
 
 from utils.redis_middle_class import ConnDB
 from models import serialize, session, StationAlarm, PLCAlarm, AlarmInfo
 
 
-def beats_data(id_num, session, con_time, current_time):
+def beats_data(id_num, con_time, current_time):
     """
     
     :param id_num: 
-    :param session: 
     :param con_time: 
     :param current_time: 
     :return: data = {
@@ -73,24 +73,36 @@ def station_info():
     """
     # 开机时间
     boot_time = int(psutil.boot_time())
+
+    dist_info = psutil.disk_usage('/')
     # 硬盘总量
-    total_usage = int(psutil.disk_usage('/')[0] / 1024 / 1024)
+    total_usage = int(dist_info[0] / 1024 / 1024)
     # 空闲容量
-    free_usage = int(psutil.disk_usage('/')[2] / 1024 / 1024)
+    free_usage = int(dist_info[2] / 1024 / 1024)
     # 使用容量百分比
-    usage_percent = psutil.disk_usage('/')[3]
+    usage_percent = dist_info[3]
 
+    memory_info = psutil.virtual_memory()
     # 内存总量
-    total_memory = int(psutil.virtual_memory()[0] / 1024 / 1024)
+    total_memory = int(memory_info[0] / 1024 / 1024)
     # 空闲内存
-    free_memory = int(psutil.virtual_memory()[4] / 1024 / 1024)
+    free_memory = int(memory_info[4] / 1024 / 1024)
     # 使用内存百分比
-    memory_percent = psutil.virtual_memory()[2]
+    memory_percent = memory_info[2]
 
+    # 只记录wifi流量，不记录通过有线连接的流量
+    node_name = platform.node()
+    if node_name == 'raspberrypi':
+        net_info = psutil.net_io_counters(pernic=True, nowrap=True)['wlan0']
+    elif node_name == 'MacBook-Pro.local':
+        net_info = psutil.net_io_counters(pernic=True, nowrap=True)['en0']
+    else:
+        net_info = psutil.net_io_counters(nowrap=True)
     # 发送流量
-    bytes_sent = int(psutil.net_io_counters()[0] / 1024 / 1024)
+    bytes_sent = int(net_info[0] / 1024 / 1024)
     # 接收流量
-    bytes_recv = int(psutil.net_io_counters()[1] / 1024 / 1024)
+    bytes_recv = int(net_info[1] / 1024 / 1024)
+
     # cpu占用
     cpu_percent = psutil.cpu_percent()
 
@@ -146,6 +158,7 @@ def redis_alarm_variables(r):
                 'symbol': model.symbol,
                 'limit': model.limit,
                 'delay': model.delay,
+                'is_alarming': False
             }
             for model in alarm_models
         ]
