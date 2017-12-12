@@ -2,13 +2,21 @@
 import os
 import argparse
 import subprocess
+import psutil
 
 # 命令行选项
 parser = argparse.ArgumentParser()
+# 重置数据库
 parser.add_argument('--reset', action='store_true')
+# 运行
 parser.add_argument('--start', action='store_true')
+# 清空已发布任务
 parser.add_argument('--clean-beat', action='store_true')
+# 清空流量记录缓存
+parser.add_argument('--clean-net-cache', action='store_true')
+# 运行环境
 parser.add_argument('--config')
+# 服务器地址
 parser.add_argument('--url')
 args = parser.parse_args()
 
@@ -31,6 +39,9 @@ if args.reset:
 
 if args.clean_beat:
     subprocess.call('celery purge -A app -f', shell=True)
+
+if args.clean_net_cache:
+    psutil.net_io_counters.cache_clear()
 
 if args.start:
     # 清空上次运行的残留数据

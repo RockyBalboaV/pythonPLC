@@ -8,6 +8,7 @@ import subprocess
 import math
 import logging
 import datetime
+import json
 
 from requests.adapters import HTTPAdapter
 from requests.exceptions import ConnectionError
@@ -33,7 +34,7 @@ from utils.station_data import redis_alarm_variables, beats_data, plc_info, redi
     redis_group_upload_info, redis_variable_info
 from utils.plc_client import plc_client
 
-from data_collection_2 import readsuan
+# from data_collection_2 import readsuan
 
 # 获取当前目录位置
 here = os.path.abspath(os.path.dirname(__file__))
@@ -259,7 +260,7 @@ def beats(self):
         con_time = r.get('con_time')
 
         # 获取心跳时上传的数据
-        data = beats_data(id_num, session, con_time, current_time)
+        data = beats_data(id_num, con_time, current_time)
         # print(data)
         data = encryption_client(data)
 
@@ -318,12 +319,12 @@ def get_config(self):
         post_data = {
             'id_num': id_num
         }
-
+        post_data = json.dumps(post_data)
         # logging.info('获取配置，发送请求：' + str(post_data))
 
         # 连接服务器
         try:
-            rv = req_s.post(CONFIG_URL, json=post_data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
+            rv = req_s.post(CONFIG_URL, data=post_data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
 
         # 连接失败
         except ConnectionError as e:
@@ -815,6 +816,7 @@ def ntpdate(self):
             # session = Session()
             session.add(alarm)
 
+        # 删除一天前的采集数据
         current_time = int(time.time())
         old_value_model = session.query(Value).filter(Value.time < current_time - 60 * 60 * 24).all()
         session.remove(old_value_model)
@@ -840,9 +842,10 @@ def server_confirm(url):
         'id_num': id_num
     }
 
+    post_data = json.dumps(post_data)
     # session = Session()
     try:
-        rp = req_s.post(url, json=post_data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
+        rp = req_s.post(url, data=post_data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
     except ConnectionError as e:
         logging.warning('确认请求发送失败: ' + str(e))
         alarm = connect_server_err(id_num, str(url))
@@ -1016,25 +1019,20 @@ def check_alarm(self):
             else:
                 is_alarm = False
 
-            alarm_data.append({
-                'i': alarm['var_id'],
-                'a': is_alarm
-            })
-        #
-        #     if is_alarm and not alarm['is_alarming']:
-        #         alarm_data.append({
-        #             'variable_id': alarm['variable_id'],
-        #             'is_alarm': is_alarm
-        #         })
-        #         alarm['is_alarming'] = True
-        #     elif not is_alarm and alarm['is_alarming']:
-        #         alarm_data.append({
-        #             'variable_id': alarm['variable_id'],
-        #             'is_alarm': is_alarm
-        #         })
-        #         alarm['is_alarming'] = False
-        #
-        # r.set('alarm_variables', alarm_variables)
+            if is_alarm and not alarm['is_alarming']:
+                alarm_data.append({
+                    'i': alarm['var_id'],
+                    'a': is_alarm
+                })
+                alarm['is_alarming'] = True
+            elif not is_alarm and alarm['is_alarming']:
+                alarm_data.append({
+                    'i': alarm['var_id'],
+                    'a': is_alarm
+                })
+                alarm['is_alarming'] = False
+
+        r.set('alarm_variables', alarm_variables)
 
         if alarm_data:
             alarm_info = {'time': current_time, 'data': alarm_data}
@@ -1047,7 +1045,7 @@ def check_alarm(self):
                 r.set('alarm_info', [alarm_info])
 
                 # print(alarm_info)
-                # print(alarm_variables)
+        # print(alarm_variables)
     except Exception as e:
         logging.exception('check_alarm' + str(e))
         session.rollback()
