@@ -126,8 +126,8 @@ beat_schedule = {
 
 # 任务消费速率
 task_annotations = {
-    'app.ntpdate': {'rate_limit': '1/d'},
-    'app.db_clean': {'rate_limit' '1/d'},
+    'app.ntpdate': {'rate_limit': '1/h'},
+    'app.db_clean': {'rate_limit': '1/h'},
     'app.check_group_upload_time': {'rate_limit': '12/m'},
     'app.check_variable_get_time': {'rate_limit': '60/m'},
     'app.check_alarm': {'rate_limit': '12/m'},

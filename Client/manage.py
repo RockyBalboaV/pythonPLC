@@ -3,6 +3,7 @@ import os
 import argparse
 import subprocess
 import psutil
+import sys
 
 # 命令行选项
 parser = argparse.ArgumentParser()
@@ -32,7 +33,7 @@ if args.url == 'server':
 from app import boot, database_reset, app, get_config, before_running
 from param import cf, here
 
-python_path = psutil.Process().exe()
+python_path = sys.executable
 
 if args.reset:
     database_reset()
@@ -47,7 +48,8 @@ if args.start:
     # 清空上次运行的残留数据
     # 清除已发布的任务
     # subprocess.call('celery purge -A app -f', shell=True)
-    subprocess.call(['celery', 'purge', '-A', 'app', '-f'])
+    subprocess.call([python_path, '-m', 'celery', 'purge', '-A', 'app', '-f'])
+
     # 清除未关闭的celery
     subprocess.call('pkill -9 -f "celery"', shell=True)
 
@@ -61,7 +63,7 @@ if args.start:
     before_running()
 
     # 启动flower
-    flower = subprocess.Popen(['{}'.format(python_path), '-m', 'flower', '--broker="{}"'.format(app.conf['broker_url'])])
+    flower = subprocess.Popen([python_path, '-m', 'flower', '--broker=', app.conf['broker_url']])
 
     # 启动celery beat worker
     celery = subprocess.call('{} -m celery -B -A app worker -l warn -E --autoscale=4,2 --concurrency=5 -n worker@%h'.format(python_path), shell=True)
