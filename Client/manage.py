@@ -32,13 +32,13 @@ if args.url == 'server':
 from app import boot, database_reset, app, get_config, before_running
 from param import cf, here
 
-python_path = cf.get(os.environ.get('env'), 'python')
+python_path = psutil.Process().exe()
 
 if args.reset:
     database_reset()
 
 if args.clean_beat:
-    subprocess.call('celery purge -A app -f', shell=True)
+    subprocess.call('{} -m celery purge -A app -f'.format(python_path), shell=True)
 
 if args.clean_net_cache:
     psutil.net_io_counters.cache_clear()
@@ -46,7 +46,8 @@ if args.clean_net_cache:
 if args.start:
     # 清空上次运行的残留数据
     # 清除已发布的任务
-    subprocess.call('celery purge -A app -f', shell=True)
+    # subprocess.call('celery purge -A app -f', shell=True)
+    subprocess.call(['celery', 'purge', '-A', 'app', '-f'])
     # 清除未关闭的celery
     subprocess.call('pkill -9 -f "celery"', shell=True)
 
@@ -60,10 +61,10 @@ if args.start:
     before_running()
 
     # 启动flower
-    flower = subprocess.Popen('{}flower --broker="{}"'.format(python_path, app.conf['broker_url']), shell=True)
+    flower = subprocess.Popen(['{}'.format(python_path), '-m', 'flower', '--broker="{}"'.format(app.conf['broker_url'])])
 
     # 启动celery beat worker
-    celery = subprocess.call('{}celery -B -A app worker -l warn -E --autoscale=8,4 --concurrency=10 -n worker@%h'.format(python_path), shell=True)
+    celery = subprocess.call('{} -m celery -B -A app worker -l warn -E --autoscale=4,2 --concurrency=5 -n worker@%h'.format(python_path), shell=True)
 
     # 关闭flower
     flower.kill()

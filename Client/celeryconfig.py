@@ -39,6 +39,10 @@ task_routes = {
         'queue': 'basic',
         'routing_key': 'basic.ntpdate'
     },
+    'app.tasks.db_clean': {
+        'queue': 'basic',
+        'routing_key': 'basic.db_clean'
+    },
     'app.tasks.check_alarm': {
         'queue': 'check',
         'routing_key': 'check.alarm'
@@ -63,10 +67,6 @@ task_routes = {
         'queue': 'check',
         'routing_key': 'check.self_check',
     },
-    # 'app.tasks.server_confirm': {
-    #     'queue': 'basic',
-    #     'routing_key': 'basic.server_confirm'
-    # }
 }
 
 # 定时任务
@@ -76,6 +76,13 @@ beat_schedule = {
         # 每天凌晨执行
         'schedule': crontab(minute=0, hour=0),
         # 'schedule': timedelta(seconds=10),
+        'options': {
+            'queue': 'basic'
+        }
+    },
+    'db_clean': {
+        'task': 'app.db_clean',
+        'schedule': crontab(minute=0, hour=0),
         'options': {
             'queue': 'basic'
         }
@@ -119,7 +126,8 @@ beat_schedule = {
 
 # 任务消费速率
 task_annotations = {
-    'app.ntpdate': {'rate_limit': '1/h'},
+    'app.ntpdate': {'rate_limit': '1/d'},
+    'app.db_clean': {'rate_limit' '1/d'},
     'app.check_group_upload_time': {'rate_limit': '12/m'},
     'app.check_variable_get_time': {'rate_limit': '60/m'},
     'app.check_alarm': {'rate_limit': '12/m'},

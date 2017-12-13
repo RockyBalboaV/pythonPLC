@@ -17,13 +17,12 @@ from celery.exceptions import MaxRetriesExceededError
 from sqlalchemy.orm.exc import UnmappedClassError
 from sqlalchemy.exc import IntegrityError
 from snap7.client import Client
-from snap7.common import load_library
 from snap7.snap7exceptions import Snap7Exception
 from snap7.snap7types import S7DataItem, S7WLByte
 
 from models import eng, Base, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, \
     Value, VarGroups, AlarmInfo, value_serialize, session
-from data_collection import variable_size, variable_area, read_value, write_value, snap7_path, analog2digital
+from data_collection import variable_size, variable_area, read_value, write_value, load_snap7, analog2digital
 from utils.station_alarm import check_time_err, connect_server_err, server_return_err, db_commit_err, ntpdate_err
 from utils.plc_alarm import connect_plc_err, read_err
 from util import encryption_client, decryption_client
@@ -51,10 +50,9 @@ logging.basicConfig(level=logging.WARN)
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 # 读取snap7 C库
-lib_path = snap7_path()
+load_snap7()
 
-load_library(here + lib_path)
-
+# redis连接
 r = ConnDB()
 
 # 初始化requests
@@ -786,7 +784,7 @@ def read_multi(self, plc, variables, current_time, client=None):
 
 @app.task(bind=True, default_retry_delay=60, max_retries=3)
 def ntpdate(self):
-    # todo 待测试 使用supervisor启动时用户为root 不需要sudo输入密码 不安全
+    # 使用supervisor启动时用户为root 不需要sudo输入密码 不安全
     try:
         pw = 'touhou'
 
@@ -806,25 +804,29 @@ def ntpdate(self):
             logging.info(note)
         else:
             note = '校时失败 :{}'.format(stderr.decode('utf-8'))
-            # print(len(note))
             logging.error(note)
             id_num = r.get('id_num')
             alarm = ntpdate_err(
                 id_num=id_num,
                 note=note
             )
-            # session = Session()
             session.add(alarm)
-
-        # 删除一天前的采集数据
-        current_time = int(time.time())
-        old_value_model = session.query(Value).filter(Value.time < current_time - 60 * 60 * 24).all()
-        session.remove(old_value_model)
-
-        session.commit()
+            session.commit()
     except Exception as e:
         logging.exception('ntpdate' + str(e))
         session.rollback()
+    finally:
+        session.close()
+
+
+@app.task(bind=True)
+def db_clean(self):
+    # 删除一天前的采集数据
+    current_time = int(time.time())
+    try:
+        old_value_model = session.query(Value).filter(Value.time < current_time - 60 * 60 * 24).all()
+        session.remove(old_value_model)
+        session.commit()
     finally:
         session.close()
 
@@ -844,6 +846,7 @@ def server_confirm(url):
 
     post_data = json.dumps(post_data)
     # session = Session()
+    print(post_data)
     try:
         rp = req_s.post(url, data=post_data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
     except ConnectionError as e:

@@ -1,32 +1,40 @@
 # coding=utf-8
+import os
 import struct
 import platform
 
+from snap7.common import load_library
 from snap7.snap7types import S7AreaDB, S7AreaMK, S7AreaPA, S7AreaPE
 from snap7.util import get_bool, set_bool, get_real, get_dword, get_int, set_dword, set_int, set_real
 
 
 def snap7_path():
     system_str = platform.system()
-    lib_path = '/plc_connect_lib/snap7'
+    here = os.path.abspath(os.path.dirname(__file__))
+    lib_path_dir = here + '/plc_connect_lib/snap7'
 
     # Mac os
     if system_str == 'Darwin':
-        lib_path += '/Mac_OS/libsnap7.dylib'
+        lib_path = lib_path_dir + '/Mac_OS/libsnap7.dylib'
 
     elif system_str == 'Linux':
         # raspberry
         if platform.node() == 'raspberrypi':
-            lib_path += '/Raspberry_Pi/libsnap7.so'
+            lib_path = lib_path_dir + '/Raspberry_Pi/libsnap7.so'
 
         # ubuntu
         elif platform.machine() == 'x86_64':
-            lib_path += '/Ubuntu/libsnap7.so'
+            lib_path = lib_path_dir + '/Ubuntu/libsnap7.so'
 
     else:
-        lib_path += '/Win64/snap7.dll'
+        lib_path = lib_path_dir + '/Win64/snap7.dll'
 
     return lib_path
+
+
+def load_snap7():
+    lib_path = snap7_path()
+    load_library(lib_path)
 
 
 def variable_size(data_type):
