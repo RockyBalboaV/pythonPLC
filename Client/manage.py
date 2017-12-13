@@ -50,8 +50,9 @@ if args.start:
     # subprocess.call('celery purge -A app -f', shell=True)
     subprocess.call([python_path, '-m', 'celery', 'purge', '-A', 'app', '-f'])
 
-    # 清除未关闭的celery
-    subprocess.call('pkill -9 -f "celery"', shell=True)
+    # 清除未关闭的进程
+    subprocess.call('pkill -9 -f celery', shell=True)
+    subprocess.call(['pkill', '-9', '-f', 'flower'])
 
     if os.path.exists(here + '/celerybeat-schedule'):
         delete_schedule = subprocess.call('rm {}/celerybeat-schedule'.format(here), shell=True)
