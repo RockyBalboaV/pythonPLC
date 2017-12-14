@@ -8,6 +8,7 @@ sys.path.append(here)
 
 # 根据环境变量选择配置,或者启动时添加参数
 os.environ['pythonoptimize'] = '1'
+sys.path.append(here)
 
 # 获取配置信息
 cf = configparser.ConfigParser()

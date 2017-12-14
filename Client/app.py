@@ -13,7 +13,7 @@ import json
 from requests.adapters import HTTPAdapter
 from requests.exceptions import ConnectionError
 from celery import Celery
-from celery.exceptions import MaxRetriesExceededError
+from celery.exceptions import MaxRetriesExceededError, SoftTimeLimitExceeded
 from sqlalchemy.orm.exc import UnmappedClassError
 from sqlalchemy.exc import IntegrityError
 from snap7.client import Client
@@ -21,7 +21,7 @@ from snap7.snap7exceptions import Snap7Exception
 from snap7.snap7types import S7DataItem, S7WLByte
 
 from models import eng, Base, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, \
-    Value, VarGroups, AlarmInfo, value_serialize, session
+    Value, VarGroups, AlarmInfo, value_serialize, session, Session
 from data_collection import variable_size, variable_area, read_value, write_value, load_snap7, analog2digital
 from utils.station_alarm import check_time_err, connect_server_err, server_return_err, db_commit_err, ntpdate_err
 from utils.plc_alarm import connect_plc_err, read_err
@@ -142,7 +142,8 @@ def before_running():
 
                 # 设定变量组信息
                 for g in groups:
-                    redis_group_upload_info(r, g, start_time)
+                    if g.is_upload:
+                        redis_group_upload_info(r, g, start_time)
                     redis_group_read_info(r, g, start_time)
                     redis_variable_info(r, g)
                     # print(r.get('group_upload'))
@@ -243,10 +244,10 @@ def beats(self):
     :param : 
     :return: 
     """
-
+    time1 = time.time()
     logging.debug('心跳连接')
 
-    # session = Session()
+    session = Session()
     try:
 
         current_time = int(time.time())
@@ -295,6 +296,8 @@ def beats(self):
         session.rollback()
     finally:
         session.close()
+        time2 = time.time()
+        print('beats', time2 - time1)
 
 
 @app.task(bind=True, default_retry_delay=3, max_retries=3)
@@ -304,12 +307,13 @@ def get_config(self):
     
     :return: 
     """
+    time1 = int(time.time())
     logging.debug('连接服务器,获取数据')
 
     # session = Session()
     try:
 
-        current_time = int(time.time())
+        current_time = time.time()
 
         # 获取本机信息
         id_num = r.get('id_num')
@@ -392,7 +396,8 @@ def get_config(self):
         session.rollback()
     finally:
         session.close()
-
+        time2 = time.time()
+        print('get_config', time2 - time1)
 
 def upload_data(group, current_time):
     """
@@ -405,7 +410,7 @@ def upload_data(group, current_time):
 
     logging.debug('上传数据打包')
 
-    variable_list = list()
+    value_list = list()
 
     # session = Session()
     try:
@@ -419,8 +424,12 @@ def upload_data(group, current_time):
         for variable in variables:
 
             # 获取上次传输时间,没有上次时间就往前推一个上传周期
-            get_time = current_time - group['upload_cycle']
+            if group['last_time'] is not None:
+                get_time = group['last_time']
+            else:
+                get_time = current_time - group['upload_cycle']
 
+            time1 = time.time()
             # 读取需要上传的值,所有时间大于上次上传的值
             all_values = session.query(Value).filter_by(var_id=variable).filter(
                 get_time <= Value.time).filter(Value.time < current_time)
@@ -428,17 +437,19 @@ def upload_data(group, current_time):
             # 循环从上次读取时间开始计算，每个一个记录周期提取一个数值
             while get_time < current_time:
                 upload_value = all_values.filter(
-                    get_time + server_record_cycle > Value.time).filter(Value.time >= get_time).first()
+                    get_time + server_record_cycle > Value.time).filter(Value.time >= get_time).order_by(Value.time.desc()).first()
+                # print('get_time', get_time)
                 # 当上传时间小于采集时间时，会出现取值时间节点后无采集数据，得到None，使得后续语句报错。
-                try:
-                    if upload_value:
-                        value_dict = value_serialize(upload_value)
-                        variable_list.append(value_dict)
-                except UnmappedClassError:
-                    pass
+                if upload_value:
+                    # print('数据时间', upload_value.time)
+                    value_dict = value_serialize(upload_value)
+                    value_list.append(value_dict)
 
                 get_time += server_record_cycle
 
+            time2 = time.time()
+            # print('采样时间', time2 - time1)
+        # print(value_list)
         session.commit()
     except Exception as e:
         logging.exception('upload_data' + str(e))
@@ -446,7 +457,7 @@ def upload_data(group, current_time):
     finally:
         session.close()
 
-    return variable_list
+    return value_list
 
 
 def upload(variable_list, group_id):
@@ -514,7 +525,7 @@ def check_group_upload_time(self):
     
     :return: 
     """
-    # upload_time1 = time.time()
+    upload_time1 = time.time()
     logging.debug('检查变量组上传时间')
     # print('上传')
 
@@ -531,10 +542,12 @@ def check_group_upload_time(self):
         value_list = list()
         for g in group_upload_data:
             if current_time >= g['upload_time']:
-                group_id.append(g['id'])
-                g['upload_time'] = current_time + g['upload_cycle']
-                g['is_uploading'] = True
                 value_list += upload_data(g, current_time)
+                group_id.append(g['id'])
+                g['last_time'] = g['upload_time']
+                g['upload_time'] = current_time + g['upload_cycle']
+                # g['is_uploading'] = True
+
                 # print('下次上传时间', datetime.datetime.fromtimestamp(g['upload_time']))
 
         r.set('group_upload', group_upload_data)
@@ -545,33 +558,22 @@ def check_group_upload_time(self):
         upload(value_list, group_id)
 
         # 设置为不在上传的状态
-        group_data = r.get('group_upload')
-        for g in group_data:
-            if g['id'] in group_id:
-                g['is_uploading'] = False
-        r.set('group_upload', group_data)
+        # group_data = r.get('group_upload')
+        # for g in group_data:
+        #     if g['id'] in group_id:
+        #         g['is_uploading'] = False
+        # r.set('group_upload', group_data)
 
-        try:
-            session.commit()
-        except IntegrityError as e:
-            session.rollback()
-            logging.error('提交数据库修改出错: ' + str(e))
-            id_num = r.get('id_num')
-            alarm = db_commit_err(id_num, 'check_group')
-            session.add(alarm)
-            session.commit()
-        else:
-            session.flush()
     except Exception as e:
         logging.exception('check_group' + str(e))
         session.rollback()
     finally:
         session.close()
-        # upload_time2 = time.time()
-        # print('上传时间', upload_time2 - upload_time1)
+        upload_time2 = time.time()
+        print('上传时间', upload_time2 - upload_time1)
 
 
-@app.task(bind=True, default_retry_delay=1, max_retries=3)
+@app.task(bind=True, default_retry_delay=1, max_retries=3, time_limit=30)
 def check_variable_get_time(self):
     """
     检查变量采集时间，采集满足条件的变量值
@@ -579,7 +581,7 @@ def check_variable_get_time(self):
     :return: 
     """
 
-    # time1 = time.time()
+    time1 = time.time()
     logging.debug('检查变量采集时间')
 
     current_time = int(time.time())
@@ -638,7 +640,7 @@ def check_variable_get_time(self):
                         # client.disconnect()
                         # client.destroy()
 
-        # time2 = time.time()
+        time2 = time.time()
         # print('采集时间' + str(time2 - time1))
         r.set('plc', plcs)
 
@@ -700,7 +702,8 @@ def read_multi(self, plc, variables, current_time, client=None):
             except Snap7Exception as e:
                 logging.warning('PLC连接失败 ip：{} rack：{} slot:{}'.format(plc['ip'], plc['rack'], plc['slot']) + str(e))
                 logging.info('重试连接plc')
-                raise self.retry(e)
+                raise
+                # raise self.retry(e)
 
         # time1 = time.time()
         result, data_items = client.read_multi_vars(data_items)
@@ -731,7 +734,8 @@ def read_multi(self, plc, variables, current_time, client=None):
                 )
                 session.add(alarm)
                 session.commit()
-                raise self.retry(e)
+                raise
+                # raise self.retry(e)
             else:
                 # 数模转换
                 if variables[num]['is_analog']:
@@ -770,11 +774,11 @@ def read_multi(self, plc, variables, current_time, client=None):
             session.add(alarm)
             session.commit()
 
-    except Exception as e:
+    except (Exception, SoftTimeLimitExceeded) as e:
         logging.exception('read_multi' + str(e))
         session.rollback()
     finally:
-        # session.close()
+        session.close()
         pass
 
         # time2 = time.time()

@@ -185,6 +185,7 @@ def redis_group_upload_info(r, g, start_time):
         'id': group_id,
         'plc_id': plc_id,
         'upload_time': start_time + upload_cycle,
+        'last_time': None,
         'is_uploading': False,
         'upload_cycle': upload_cycle,
         'server_record_cycle': server_record_cycle,
