@@ -532,25 +532,35 @@ def check_group_upload_time(self):
     current_time = int(time.time())
 
     # session = Session()
+
+    # 在redis中查询需要上传的变量组id
+    group_upload_data = r.get('group_upload')
+
+    # print(group_upload_data)
+
+    for g in group_upload_data:
+        if current_time >= g['upload_time']:
+            g['is_uploading'] = True
+    r.set('group_upload', group_upload_data)
     try:
 
-        # 在redis中查询需要上传的变量组id
-        group_upload_data = r.get('group_upload')
 
-        # print(group_upload_data)
+
         group_id = []
         value_list = list()
+
+
         for g in group_upload_data:
             if current_time >= g['upload_time']:
                 value_list += upload_data(g, current_time)
                 group_id.append(g['id'])
                 g['last_time'] = g['upload_time']
                 g['upload_time'] = current_time + g['upload_cycle']
-                # g['is_uploading'] = True
+                g['is_uploading'] = False
 
                 # print('下次上传时间', datetime.datetime.fromtimestamp(g['upload_time']))
 
-        r.set('group_upload', group_upload_data)
+
 
         # print(group_id)
 
@@ -562,18 +572,23 @@ def check_group_upload_time(self):
         # for g in group_data:
         #     if g['id'] in group_id:
         #         g['is_uploading'] = False
-        # r.set('group_upload', group_data)
+        r.set('group_upload', group_upload_data)
 
     except Exception as e:
         logging.exception('check_group' + str(e))
-        session.rollback()
+
+        for g in group_upload_data:
+            if current_time >= g['upload_time']:
+                g['is_uploading'] = False
+        r.set('group_upload', group_upload_data)
+
     finally:
         session.close()
         upload_time2 = time.time()
         print('上传时间', upload_time2 - upload_time1)
 
 
-@app.task(bind=True, default_retry_delay=1, max_retries=3, time_limit=30)
+@app.task(bind=True, default_retry_delay=1, max_retries=3)
 def check_variable_get_time(self):
     """
     检查变量采集时间，采集满足条件的变量值

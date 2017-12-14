@@ -4,6 +4,7 @@ import snap7
 from snap7.snap7exceptions import Snap7Exception
 from app import logging
 
+
 @contextmanager
 def plc_client(ip, rack, slot):
     """

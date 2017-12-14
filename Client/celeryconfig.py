@@ -24,10 +24,14 @@ worker_concurrency = 4
 task_ignore_result = True
 # Worker任务数
 worker_max_tasks_per_child = 20
+# 任务默认执行速度
+task_default_rate_limit = '1/s'
+# worker_disable_rate_limits = True
 
 task_queues = (
     Queue('basic', Exchange('basic', type='topic'), routing_key='basic.#'),
     Queue('check', Exchange('check', type='direct'), routing_key='check.#'),
+    Queue('var', Exchange('var', type='direct'), routing_key='var')
 )
 
 task_default_exchange = 'basic'
@@ -60,8 +64,8 @@ task_routes = {
         'routing_key': 'check.check_group_upload_time',
     },
     'app.tasks.check_variable_get_time': {
-        'queue': 'check',
-        'routing_key': 'check.check_variable_get_time',
+        'queue': 'var',
+        'routing_key': 'var',
     },
     'app.tasks.self_check': {
         'queue': 'check',

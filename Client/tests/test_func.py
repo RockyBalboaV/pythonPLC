@@ -21,7 +21,8 @@ from param import CONFIRM_CONFIG_URL
 from models import session
 from tests.test_data import post_data
 
-
+import sys
+print(sys.path)
 class TestFunc:
     @pytest.mark.skip
     def ntpdate(self):

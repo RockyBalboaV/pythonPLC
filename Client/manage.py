@@ -64,7 +64,7 @@ if args.start:
     before_running()
 
     # 启动flower
-    flower = subprocess.Popen([python_path, '-m', 'flower', '--broker=', app.conf['broker_url']])
+    flower = subprocess.Popen([python_path, '-m', 'flower', '--broker', app.conf['broker_url']])
 
     # 启动celery beat worker
     celery = subprocess.call('{} -m celery -B -A app worker -l warn -E --autoscale=4,2 --concurrency=5 -n worker@%h'.format(python_path), shell=True)
