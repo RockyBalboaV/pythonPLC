@@ -10,8 +10,8 @@ sys.path.append(here)
 python_path = sys.executable
 
 # 根据环境变量选择配置,或者启动时添加参数
-os.environ['env'] = 'dev'
-os.environ['url'] = 'dev-server'
+# os.environ['env'] = 'dev'
+# os.environ['url'] = 'dev-server'
 os.environ['pythonoptimize'] = '1'
 sys.path.append(here)
 

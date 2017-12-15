@@ -10,8 +10,9 @@ import logging
 import datetime
 import json
 
+from eventlet import monkey_patch, Timeout
 from requests.adapters import HTTPAdapter
-from requests.exceptions import ConnectionError
+from requests.exceptions import RequestException
 from celery import Celery
 from celery.exceptions import MaxRetriesExceededError, SoftTimeLimitExceeded
 from sqlalchemy.orm.exc import UnmappedClassError
@@ -21,7 +22,7 @@ from snap7.snap7exceptions import Snap7Exception
 from snap7.snap7types import S7DataItem, S7WLByte
 
 from models import eng, Base, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, \
-    Value, VarGroups, AlarmInfo, value_serialize, session, Session
+    Value, VarGroups, AlarmInfo, value_serialize, Session
 from data_collection import variable_size, variable_area, read_value, write_value, load_snap7, analog2digital
 from utils.station_alarm import check_time_err, connect_server_err, server_return_err, db_commit_err, ntpdate_err
 from utils.plc_alarm import connect_plc_err, read_err
@@ -35,14 +36,16 @@ from utils.plc_client import plc_client
 
 # from data_collection_2 import readsuan
 
-# 获取当前目录位置
-here = os.path.abspath(os.path.dirname(__file__))
+import snap7
+snap7_client = list()
 
 # 初始化celery
 app = Celery(
     'test_celery'
 )
 app.config_from_object('celeryconfig', force=True)
+
+monkey_patch(MySQLdb=True)
 
 # 日志
 logging.basicConfig(level=logging.WARN)
@@ -103,7 +106,7 @@ def before_running():
     r.set('plc', None)
     r.set('con_time', None)
 
-    # session = Session()
+    session = Session()
     try:
         # 设定服务开始运行时间
         current_time = int(time.time())
@@ -119,6 +122,9 @@ def before_running():
         plc_data = plc_info(r, plc_models)
         logging.info('PLC配置信息： ' + str(plc_data))
 
+        global snap7_client
+        snap7_client = list()
+
         for plc in plc_models:
 
             # 获得该PLC的信息
@@ -133,7 +139,9 @@ def before_running():
             #     client.connect(ip, rack, slot)
             # except Snap7Exception as e:
             #     logging.error('PLC无法连接，请查看PLC状态' + str(e))
-
+            client = snap7.client.Client()
+            client.connect(ip, rack, slot)
+            snap7_client.append({'ip': ip, 'client': client})
             with plc_client(ip, rack, slot) as client:
                 # print(client.get_connected())
                 # 获取该PLC下所有组信息
@@ -162,14 +170,14 @@ def before_running():
         # 数据库写入操作后，关闭数据库连接
         session.commit()
 
-    except Exception as e:
-        logging.exception('before_running' + str(e))
-        session.rollback()
+    # except Exception as e:
+    #     logging.exception('before_running' + str(e))
+    #     session.rollback()
     finally:
         session.close()
 
 
-@app.task(bind=True, default_retry_delay=10, max_retries=3)
+@app.task(bind=True, ignore_result=True, default_retry_delay=10, max_retries=3)
 def self_check(self):
     """
     celery任务
@@ -182,7 +190,7 @@ def self_check(self):
 
     current_time = int(time.time())
 
-    # session = Session()
+    session = Session()
     try:
         # 获取站点配置信息
         id_num = r.get('id_num')
@@ -227,14 +235,14 @@ def self_check(self):
 
         # 数据库写入，关闭连接
         session.commit()
-    except Exception as e:
-        logging.exception('self_check' + str(e))
-        session.rollback()
+    # except Exception as e:
+    #     logging.exception('self_check' + str(e))
+    #     session.rollback()
     finally:
         session.close()
 
 
-@app.task(bind=True, default_retry_delay=5, max_retries=3)
+@app.task(bind=True, ignore_result=True, default_retry_delay=5, max_retries=3)
 def beats(self):
     """
     celery任务
@@ -258,7 +266,7 @@ def beats(self):
         con_time = r.get('con_time')
 
         # 获取心跳时上传的数据
-        data = beats_data(id_num, con_time, current_time)
+        data = beats_data(id_num, con_time, session, current_time)
         # print(data)
         data = encryption_client(data)
 
@@ -267,7 +275,7 @@ def beats(self):
             rv = req_s.post(BEAT_URL, data=data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
 
         # 连接服务器失败
-        except (ConnectionError, MaxRetriesExceededError) as e:
+        except (RequestException, MaxRetriesExceededError) as e:
             logging.warning('心跳连接错误：' + str(e))
             log = connect_server_err(id_num)
             session.add(log)
@@ -290,16 +298,16 @@ def beats(self):
         finally:
             session.commit()
 
-    except Exception as e:
-        logging.exception('beats' + str(e))
-        session.rollback()
+    # except Exception as e:
+    #     logging.exception('beats' + str(e))
+    #     session.rollback()
     finally:
         session.close()
         time2 = time.time()
         print('beats', time2 - time1)
 
 
-@app.task(bind=True, default_retry_delay=3, max_retries=3)
+@app.task(bind=True, ignore_result=True, default_retry_delay=3, max_retries=3)
 def get_config(self):
     """
     连接服务器接口，获取本机变量信息
@@ -309,7 +317,7 @@ def get_config(self):
     time1 = int(time.time())
     logging.debug('连接服务器,获取数据')
 
-    # session = Session()
+    session = Session()
     try:
 
         current_time = time.time()
@@ -325,10 +333,12 @@ def get_config(self):
 
         # 连接服务器
         try:
+            time_c1 = time.time()
             rv = req_s.post(CONFIG_URL, data=post_data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
-
+            time_c2 = time.time()
+            print('连接服务器获取配置', time_c2 - time_c1)
         # 连接失败
-        except ConnectionError as e:
+        except RequestException as e:
             logging.warning('获取配置错误：' + str(e))
 
             log = connect_server_err(id_num)
@@ -336,7 +346,7 @@ def get_config(self):
 
             # try:
             #     raise self.retry(exc=e)
-            # except ConnectionError:
+            # except RequestException:
             #     pass
             # return 1
         # 连接成功
@@ -353,6 +363,7 @@ def get_config(self):
                 # print(data)
 
                 # 配置更新，删除现有表
+                time11 = time.time()
                 try:
                     session.query(VarGroups).delete()
                     session.query(AlarmInfo).delete()
@@ -377,8 +388,15 @@ def get_config(self):
                 session.bulk_insert_mappings(VarGroups, data['variables_groups'])
                 session.bulk_insert_mappings(AlarmInfo, data['alarm'])
 
+                time12 = time.time()
+                print('清空添加配置', time12 - time11)
+
                 logging.debug('发送配置完成确认信息')
+                time21 = time.time()
                 result = server_confirm(CONFIRM_CONFIG_URL)
+                time22 = time.time()
+                print('确认配置获取', time22 - time21)
+
                 if result:
                     logging.info('配置获取完成')
                 else:
@@ -390,13 +408,14 @@ def get_config(self):
         finally:
             session.commit()
 
-    except Exception as e:
-        logging.exception('get_config' + str(e))
-        session.rollback()
+    # except Exception as e:
+    #     logging.exception('get_config' + str(e))
+    #     session.rollback()
     finally:
         session.close()
         time2 = time.time()
         print('get_config', time2 - time1)
+
 
 def upload_data(group, current_time):
     """
@@ -411,7 +430,7 @@ def upload_data(group, current_time):
 
     value_list = list()
 
-    # session = Session()
+    session = Session()
     try:
         # 获取该组信息
         # print(group)
@@ -436,7 +455,8 @@ def upload_data(group, current_time):
             # 循环从上次读取时间开始计算，每个一个记录周期提取一个数值
             while get_time < current_time:
                 upload_value = all_values.filter(
-                    get_time + server_record_cycle > Value.time).filter(Value.time >= get_time).order_by(Value.time.desc()).first()
+                    get_time + server_record_cycle > Value.time).filter(Value.time >= get_time).order_by(
+                    Value.time.desc()).first()
                 # print('get_time', get_time)
                 # 当上传时间小于采集时间时，会出现取值时间节点后无采集数据，得到None，使得后续语句报错。
                 if upload_value:
@@ -450,9 +470,9 @@ def upload_data(group, current_time):
             # print('采样时间', time2 - time1)
         # print(value_list)
         session.commit()
-    except Exception as e:
-        logging.exception('upload_data' + str(e))
-        session.rollback()
+    # except Exception as e:
+    #     logging.exception('upload_data' + str(e))
+    #     session.rollback()
     finally:
         session.close()
 
@@ -469,7 +489,7 @@ def upload(variable_list, group_id):
 
     logging.debug('上传数据')
 
-    # session = Session()
+    session = Session()
     try:
         # 获取本机信息
         id_num = r.get('id_num')
@@ -490,7 +510,7 @@ def upload(variable_list, group_id):
         # 连接服务器，准备上传数据
         try:
             rv = req_s.post(UPLOAD_URL, data=data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
-        except ConnectionError as e:
+        except RequestException as e:
             logging.warning('上传数据错误：' + str(e))
 
             alarm = connect_server_err(id_num)
@@ -510,14 +530,14 @@ def upload(variable_list, group_id):
 
         session.commit()
 
-    except Exception as e:
-        logging.exception('upload' + str(e))
-        session.rollback()
+    # except Exception as e:
+    #     logging.exception('upload' + str(e))
+    #     session.rollback()
     finally:
         session.close()
 
 
-@app.task(bind=True, default_retry_delay=3, max_retries=3)
+@app.task(bind=True, ignore_result=True, default_retry_delay=3, max_retries=3)
 def check_group_upload_time(self):
     """
     检查变量组上传时间，将满足条件的变量组数据打包上传
@@ -530,7 +550,7 @@ def check_group_upload_time(self):
 
     current_time = int(time.time())
 
-    # session = Session()
+    session = Session()
 
     # 在redis中查询需要上传的变量组id
     group_upload_data = r.get('group_upload')
@@ -543,11 +563,8 @@ def check_group_upload_time(self):
     r.set('group_upload', group_upload_data)
     try:
 
-
-
         group_id = []
         value_list = list()
-
 
         for g in group_upload_data:
             if current_time >= g['upload_time']:
@@ -558,8 +575,6 @@ def check_group_upload_time(self):
                 g['is_uploading'] = False
 
                 # print('下次上传时间', datetime.datetime.fromtimestamp(g['upload_time']))
-
-
 
         # print(group_id)
 
@@ -573,8 +588,8 @@ def check_group_upload_time(self):
         #         g['is_uploading'] = False
         r.set('group_upload', group_upload_data)
 
-    except Exception as e:
-        logging.exception('check_group' + str(e))
+    # except Exception as e:
+    #     logging.exception('check_group' + str(e))
 
         for g in group_upload_data:
             if current_time >= g['upload_time']:
@@ -587,7 +602,7 @@ def check_group_upload_time(self):
         print('上传时间', upload_time2 - upload_time1)
 
 
-@app.task(bind=True, default_retry_delay=1, max_retries=3)
+@app.task(bind=True,  ignore_result=True, default_retry_delay=1, max_retries=3, task_time_limit=10)
 def check_variable_get_time(self):
     """
     检查变量采集时间，采集满足条件的变量值
@@ -600,7 +615,7 @@ def check_variable_get_time(self):
 
     current_time = int(time.time())
 
-    # session = Session()
+    session = Session()
     try:
         plcs = r.get('plc')
         # print(plc_client)
@@ -625,51 +640,51 @@ def check_variable_get_time(self):
                          ]
 
             # print(variables)
-            # print('采集数量', len(variables))
+            print('采集数量', len(variables))
 
             # client = plc_connect(plc)
-            with plc_client(plc['ip'], plc['rack'], plc['slot']) as client:
-                if client.get_connected():
-                    plc['time'] = current_time
+            with Timeout(3, False):
+                with plc_client(plc['ip'], plc['rack'], plc['slot']) as client:
+                    if client.get_connected():
+                        plc['time'] = current_time
 
-                if variables:
+                    if variables:
+                
+                        # readsuan(variables)
+                        # variables = variables[0:2]
+                        # print('variables', len(variables))
 
-                    # readsuan(variables)
-                    # variables = variables[0:2]
-                    # print('variables', len(variables))
+                        while len(variables) > 0:
+                            variable_group = variables[:18]
+                            variables = variables[18:]
 
-                    while len(variables) > 0:
-                        variable_group = variables[:18]
-                        variables = variables[18:]
+                            # print(len(variables))
+                            # print(plc)
+                            read_multi(
+                                plc=plc,
+                                variables=variable_group,
+                                current_time=current_time,
+                                client=client
+                            )
 
-                        # print(len(variables))
-                        # print(plc)
-                        read_multi(
-                            plc=plc,
-                            variables=variable_group,
-                            current_time=current_time,
-                            client=client
-                        )
-
-                        # client.disconnect()
-                        # client.destroy()
+                            # client.disconnect()
+                            # client.destroy()
 
         time2 = time.time()
-        # print('采集时间' + str(time2 - time1))
+        print('采集时间' + str(time2 - time1))
         r.set('plc', plcs)
 
-    except Exception as e:
-        logging.exception('check_var' + str(e))
-        session.rollback()
+    # except Exception as e:
+    #     logging.excexcept Excepeption('check_var' + str(e))
+    #     session.rollback()
     finally:
         session.close()
 
 
-@app.task(bind=True, default_retry_delay=1, max_retries=3)
-def read_multi(self, plc, variables, current_time, client=None):
+def read_multi(plc, variables, current_time, client=None):
     # time1 = time.time()
     # print('采集')
-    # session = Session()
+    session = Session()
     try:
         value_list = list()
 
@@ -781,16 +796,16 @@ def read_multi(self, plc, variables, current_time, client=None):
         try:
             session.commit()
         except IntegrityError as e:
-            session.rollback()
+            # session.rollback()
             logging.error('提交数据库修改出错: ' + str(e))
             id_num = r.get('id_num')
             alarm = db_commit_err(id_num, 'read_multi')
             session.add(alarm)
             session.commit()
 
-    except (Exception, SoftTimeLimitExceeded) as e:
-        logging.exception('read_multi' + str(e))
-        session.rollback()
+    # except (Exception, SoftTimeLimitExceeded) as e:
+    #     logging.exception('read_multi' + str(e))
+    #     session.rollback()
     finally:
         session.close()
         pass
@@ -800,9 +815,10 @@ def read_multi(self, plc, variables, current_time, client=None):
         # print('单次采集时间', time2 - time1)
 
 
-@app.task(bind=True, default_retry_delay=60, max_retries=3)
+@app.task(bind=True, ignore_result=True, default_retry_delay=60, max_retries=3)
 def ntpdate(self):
     # 使用supervisor启动时用户为root 不需要sudo输入密码 不安全
+    session = Session()
     try:
         pw = 'touhou'
 
@@ -830,19 +846,20 @@ def ntpdate(self):
             )
             session.add(alarm)
             session.commit()
-    except Exception as e:
-        logging.exception('ntpdate' + str(e))
-        session.rollback()
+    # except Exception as e:
+    #     logging.exception('ntpdate' + str(e))
+    #     session.rollback()
     finally:
         session.close()
 
 
-@app.task(bind=True)
+@app.task(bind=True, ignore_result=True)
 def db_clean(self):
     # 删除一天前的采集数据
     current_time = int(time.time())
+    session = Session()
     try:
-        old_value_model = session.query(Value).filter(Value.time < current_time - 60 * 60 * 24).delete(synchronize_session=False)
+        session.query(Value).filter(Value.time < current_time - 60 * 60 * 24).delete(synchronize_session=False)
         session.commit()
     finally:
         session.close()
@@ -862,19 +879,19 @@ def server_confirm(url):
     }
 
     post_data = json.dumps(post_data)
-    # session = Session()
+    session = Session()
     print(post_data)
     try:
         rp = req_s.post(url, data=post_data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
-    except ConnectionError as e:
+    except RequestException as e:
         logging.warning('确认请求发送失败: ' + str(e))
         alarm = connect_server_err(id_num, str(url))
         try:
             session.add(alarm)
             session.commit()
-        except Exception as e:
-            logging.exception('server_confirm' + str(e))
-            session.rollback()
+        # except Exception as e:
+        #     logging.exception('server_confirm' + str(e))
+        #     session.rollback()
         finally:
             session.close()
         return False
@@ -922,7 +939,7 @@ def plc_write(variable_model, plc_cli, plc_model):
                 address=address,
                 data_type=data_type
             )
-            # session = Session()
+            session = Session()
             try:
                 session.add(alarm)
                 session.commit()
@@ -951,7 +968,7 @@ def plc_write(variable_model, plc_cli, plc_model):
             )
 
 
-@app.task(bind=True, default_retry_delay=3, max_retries=3)
+@app.task(bind=True, ignore_result=True, default_retry_delay=3, max_retries=3)
 def check_alarm(self):
     # r.set('alarm_info', None)
     logging.debug('check alarm')
@@ -972,7 +989,7 @@ def check_alarm(self):
     current_time = int(time.time())
     alarm_data = list()
 
-    # session = Session()
+    session = Session()
     try:
 
         for alarm in alarm_variables:
@@ -1065,10 +1082,10 @@ def check_alarm(self):
                 r.set('alarm_info', [alarm_info])
 
                 # print(alarm_info)
-        # print(alarm_variables)
-    except Exception as e:
-        logging.exception('check_alarm' + str(e))
-        session.rollback()
+                # print(alarm_variables)
+    # except Exception as e:
+    #     logging.exception('check_alarm' + str(e))
+    #     session.rollback()
     finally:
         session.close()
 
@@ -1090,13 +1107,13 @@ def plc_connect(plc):
             id_num,
             plc_id=plc['id'],
         )
-        # session = Session()
+        session = Session()
         try:
             session.add(plc_alarm)
             session.commit()
-        except Exception as e:
-            logging.exception('plc_connect' + str(e))
-            session.rollback()
+        # except Exception as e:
+        #     logging.exception('plc_connect' + str(e))
+        #     session.rollback()
         finally:
             session.close()
 

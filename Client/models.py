@@ -10,13 +10,13 @@ from sqlalchemy.pool import SingletonThreadPool
 from param import DB_URI
 
 # 创建连接
-eng = create_engine(DB_URI + '?charset=utf8', pool_recycle=60, pool_size=100,
-                    poolclass=SingletonThreadPool)
+eng = create_engine(DB_URI + '?charset=utf8', pool_recycle=10, pool_size=20)
+                    # poolclass=SingletonThreadPool)
 # 创建基类
 Base = declarative_base()
 
 Session = sessionmaker(bind=eng)
-session = scoped_session(Session)
+# session = scoped_session(Session)
 
 
 def serialize(model):

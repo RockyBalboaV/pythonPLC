@@ -12,7 +12,7 @@ task_serializer = 'msgpack'
 # 任务结果读取格式
 result_serializer = 'json'
 # 任务过期时间
-result_expires = 60
+result_expires = 10
 # 可接受的内容格式
 accept_content = ['json', 'msgpack']
 # 设置时区
@@ -22,10 +22,11 @@ worker_concurrency = 4
 # 忽略任务执行状态
 task_ignore_result = True
 # Worker任务数
-worker_max_tasks_per_child = 20
+# worker_max_tasks_per_child = 10
 # 任务默认执行速度
 task_default_rate_limit = '1/s'
 # worker_disable_rate_limits = True
+broker_pool_limit = 0
 
 task_queues = (
     Queue('basic', Exchange('basic', type='topic'), routing_key='basic.#'),
@@ -114,7 +115,7 @@ beat_schedule = {
     },
     'check_variable_get_time': {
         'task': 'task.check_variable_get_time',
-        'schedule': timedelta(seconds=1),
+        'schedule': timedelta(seconds=2),
         'options': {
             'queue': 'var'
         }

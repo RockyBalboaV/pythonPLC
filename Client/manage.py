@@ -1,16 +1,20 @@
 # coding=utf-8
 import os
+import sys
 import argparse
 import subprocess
 import psutil
 
-import task
-import param
+os.environ['env'] = 'dev'
+os.environ['url'] = 'dev-server'
+
+here = os.getcwd()
+python_path = sys.executable
 
 
 def clean_up():
     # 清除已发布的任务
-    purge_task = [param.python_path, '-m', 'celery', 'purge', '-A', 'task', '-f']
+    purge_task = [python_path, '-m', 'celery', 'purge', '-A', 'task', '-f']
     # 清除未关闭的worker和beat
     close_celery = ['pkill', '-9', '-f', 'celery']
     # 清除未关闭的flower
@@ -21,8 +25,8 @@ def clean_up():
         subprocess.call(process)
 
     # 删除临时文件
-    schedule_file = os.path.join(param.here, 'celerybeat-schedule')
-    beat_file = os.path.join(param.here, 'celerybeat.pid')
+    schedule_file = os.path.join(here, 'celerybeat-schedule')
+    beat_file = os.path.join(here, 'celerybeat.pid')
     file_list = [schedule_file, beat_file, schedule_file]
 
     for file in file_list:
@@ -54,6 +58,8 @@ if args.env == 'prod':
 if args.server == 'server':
     os.environ['url'] = 'server'
 
+import task
+
 if args.reset:
     task.database_reset()
 
@@ -65,7 +71,7 @@ if args.clean_net_cache:
 
 if args.flower:
     # 启动flower
-    flower = subprocess.Popen([param.python_path, '-m', 'flower'])
+    flower = subprocess.Popen([python_path, '-m', 'flower'])
 
 if args.run:
     task.boot()
@@ -75,11 +81,13 @@ if args.run:
     # 启动celery beat worker
     try:
         worker = subprocess.Popen(
-            '{} -m celery -A task worker -P eventlet -l warn -E --concurrency 4 -n worker@%h'.format(param.python_path),
+            '{} -m celery -A task worker -P eventlet -c 1000 -l warn -E --concurrency 10 -n worker@%h'.format(
+                python_path),
             shell=True)
-        beat = subprocess.call([param.python_path, '-m', 'celery', 'beat'])
+        beat = subprocess.call([python_path, '-m', 'celery', 'beat', '-A', 'task'])
 
     except KeyboardInterrupt:
         print('Interrupted')
     finally:
+        # close_celery = ['pkill', '-9', '-f', 'celery']
         clean_up()

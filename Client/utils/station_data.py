@@ -3,10 +3,10 @@ import time
 import platform
 
 from utils.redis_middle_class import ConnDB
-from models import serialize, session, StationAlarm, PLCAlarm, AlarmInfo
+from models import serialize, StationAlarm, PLCAlarm, AlarmInfo, Session
 
 
-def beats_data(id_num, con_time, current_time):
+def beats_data(id_num, con_time, session, current_time):
     """
     
     :param id_num: 
@@ -148,26 +148,28 @@ def plc_info(r, plcs):
 
 
 def redis_alarm_variables(r):
-    # session = Session()
-    alarm_models = session.query(AlarmInfo).all()
-    if alarm_models:
-        data = [
-            {
-                'var_id': model.variable_id,
-                'type': model.type,
-                'symbol': model.symbol,
-                'limit': model.limit,
-                'delay': model.delay,
-                'is_alarming': False
-            }
-            for model in alarm_models
-        ]
+    session = Session()
+    try:
+        alarm_models = session.query(AlarmInfo).all()
+        if alarm_models:
+            data = [
+                {
+                    'var_id': model.variable_id,
+                    'type': model.type,
+                    'symbol': model.symbol,
+                    'limit': model.limit,
+                    'delay': model.delay,
+                    'is_alarming': False
+                }
+                for model in alarm_models
+            ]
 
-        r.set('alarm_variables', data)
-        r.set('is_no_alarm', False)
-    else:
-        r.set('is_no_alarm', True)
-
+            r.set('alarm_variables', data)
+            r.set('is_no_alarm', False)
+        else:
+            r.set('is_no_alarm', True)
+    finally:
+        session.close()
     return True
 
 
