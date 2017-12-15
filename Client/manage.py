@@ -3,71 +3,83 @@ import os
 import argparse
 import subprocess
 import psutil
-import sys
+
+import task
+import param
+
+
+def clean_up():
+    # 清除已发布的任务
+    purge_task = [param.python_path, '-m', 'celery', 'purge', '-A', 'task', '-f']
+    # 清除未关闭的worker和beat
+    close_celery = ['pkill', '-9', '-f', 'celery']
+    # 清除未关闭的flower
+    close_flower = ['pkill', '-9', '-f', 'flower']
+    process_list = [purge_task, close_celery, close_flower]
+
+    for process in process_list:
+        subprocess.call(process)
+
+    # 删除临时文件
+    schedule_file = os.path.join(param.here, 'celerybeat-schedule')
+    beat_file = os.path.join(param.here, 'celerybeat.pid')
+    file_list = [schedule_file, beat_file, schedule_file]
+
+    for file in file_list:
+        if os.path.exists(file):
+            subprocess.call(['rm', file])
+
 
 # 命令行选项
 parser = argparse.ArgumentParser()
 # 重置数据库
 parser.add_argument('--reset', action='store_true')
 # 运行
-parser.add_argument('--start', action='store_true')
+parser.add_argument('-r', '--run', action='store_true')
 # 清空已发布任务
-parser.add_argument('--clean-beat', action='store_true')
+parser.add_argument('-c', '--clean', action='store_true')
 # 清空流量记录缓存
-parser.add_argument('--clean-net-cache', action='store_true')
+parser.add_argument('-n', '--clean-net-cache', action='store_true')
+# 开启flower调试
+parser.add_argument('-f', '--flower', action='store_true')
 # 运行环境
-parser.add_argument('--config')
+parser.add_argument('-e', '--env')
 # 服务器地址
-parser.add_argument('--url')
+parser.add_argument('-s', '--server')
 args = parser.parse_args()
 
-os.environ['env'] = 'dev'
-os.environ['url'] = 'dev-server'
-
-if args.config == 'prod':
+if args.env == 'prod':
     os.environ['env'] = 'prod'
 
-if args.url == 'server':
+if args.server == 'server':
     os.environ['url'] = 'server'
 
-from app import boot, database_reset, app, get_config, before_running
-from param import cf, here
-
-python_path = sys.executable
-
 if args.reset:
-    database_reset()
+    task.database_reset()
 
-if args.clean_beat:
-    subprocess.call('{} -m celery purge -A app -f'.format(python_path), shell=True)
+if args.clean:
+    clean_up()
 
 if args.clean_net_cache:
     psutil.net_io_counters.cache_clear()
 
-if args.start:
-    # 清空上次运行的残留数据
-    # 清除已发布的任务
-    # subprocess.call('celery purge -A app -f', shell=True)
-    subprocess.call([python_path, '-m', 'celery', 'purge', '-A', 'app', '-f'])
-
-    # 清除未关闭的进程
-    subprocess.call('pkill -9 -f celery', shell=True)
-    subprocess.call(['pkill', '-9', '-f', 'flower'])
-
-    if os.path.exists(here + '/celerybeat-schedule'):
-        delete_schedule = subprocess.call('rm {}/celerybeat-schedule'.format(here), shell=True)
-
-    boot()
-
-    get_config()
-
-    before_running()
-
+if args.flower:
     # 启动flower
-    flower = subprocess.Popen([python_path, '-m', 'flower', '--broker', app.conf['broker_url']])
+    flower = subprocess.Popen([param.python_path, '-m', 'flower'])
+
+if args.run:
+    task.boot()
+    task.get_config()
+    task.before_running()
 
     # 启动celery beat worker
-    celery = subprocess.call('{} -m celery -B -A app worker -l warn -E --autoscale=4,2 --concurrency=5 -n worker@%h'.format(python_path), shell=True)
+    try:
+        worker = subprocess.Popen(
+            '{} -m celery -A task worker -P eventlet -l warn -E --concurrency 4 -n worker@%h'.format(param.python_path),
+            shell=True)
+        beat = subprocess.call([param.python_path, '-m', 'celery', 'beat'])
 
-    # 关闭flower
-    flower.kill()
+    except KeyboardInterrupt:
+        print('Interrupted')
+    finally:
+        clean_up()

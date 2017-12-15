@@ -95,7 +95,6 @@ def before_running():
     logging.debug('运行前初始化')
 
     # 清除上次运行数据
-    # todo
     r.set('group_upload', None)
     r.set('group_read', None)
     r.set('variable', None)
@@ -843,8 +842,7 @@ def db_clean(self):
     # 删除一天前的采集数据
     current_time = int(time.time())
     try:
-        old_value_model = session.query(Value).filter(Value.time < current_time - 60 * 60 * 24).all()
-        session.remove(old_value_model)
+        old_value_model = session.query(Value).filter(Value.time < current_time - 60 * 60 * 24).delete(synchronize_session=False)
         session.commit()
     finally:
         session.close()

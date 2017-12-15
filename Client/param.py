@@ -6,9 +6,15 @@ import configparser
 here = os.path.abspath(os.path.dirname(__file__))
 sys.path.append(here)
 
+# 获取系统信息
+python_path = sys.executable
+
 # 根据环境变量选择配置,或者启动时添加参数
+os.environ['env'] = 'dev'
+os.environ['url'] = 'dev-server'
 os.environ['pythonoptimize'] = '1'
 sys.path.append(here)
+
 
 # 获取配置信息
 cf = configparser.ConfigParser()

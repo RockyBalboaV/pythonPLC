@@ -4,8 +4,7 @@ from celery.schedules import crontab
 from kombu import Queue, Exchange
 
 # 指定消息代理
-broker_url = 'pyamqp://pyplc:123456@localhost:5672/pyplc'
-# broker_url = 'pyamqp://yakumo17s:touhou@localhost:5672/pyplc'
+broker_url = 'pyamqp://yakumo17s:touhou@localhost:5672/pyplc'
 # 指定结果存储数据库
 result_backend = 'redis://localhost'
 # 序列化方案
@@ -31,7 +30,8 @@ task_default_rate_limit = '1/s'
 task_queues = (
     Queue('basic', Exchange('basic', type='topic'), routing_key='basic.#'),
     Queue('check', Exchange('check', type='direct'), routing_key='check.#'),
-    Queue('var', Exchange('var', type='direct'), routing_key='var')
+    Queue('var', Exchange('var', type='direct'), routing_key='var'),
+    Queue('upload', Exchange('upload', type='direct'), routing_key='upload')
 )
 
 task_default_exchange = 'basic'
@@ -60,8 +60,8 @@ task_routes = {
         'routing_key': 'check.beats',
     },
     'app.tasks.check_group_upload_time': {
-        'queue': 'check',
-        'routing_key': 'check.check_group_upload_time',
+        'queue': 'upload',
+        'routing_key': 'upload',
     },
     'app.tasks.check_variable_get_time': {
         'queue': 'var',
@@ -76,7 +76,7 @@ task_routes = {
 # 定时任务
 beat_schedule = {
     'ntpdate': {
-        'task': 'app.ntpdate',
+        'task': 'task.ntpdate',
         # 每天凌晨执行
         'schedule': crontab(minute=0, hour=0),
         # 'schedule': timedelta(seconds=10),
@@ -85,42 +85,42 @@ beat_schedule = {
         }
     },
     'db_clean': {
-        'task': 'app.db_clean',
+        'task': 'task.db_clean',
         'schedule': crontab(minute=0, hour=0),
         'options': {
             'queue': 'basic'
         }
     },
     'check_alarm': {
-        'task': 'app.check_alarm',
+        'task': 'task.check_alarm',
         'schedule': timedelta(seconds=6),
         'options': {
             'queue': 'check'
         }
     },
     'beats': {
-        'task': 'app.beats',
+        'task': 'task.beats',
         'schedule': timedelta(seconds=6),
         'options': {
             'queue': 'check'
         }
     },
     'check_group_upload_time': {
-        'task': 'app.check_group_upload_time',
-        'schedule': timedelta(seconds=6),
+        'task': 'task.check_group_upload_time',
+        'schedule': timedelta(seconds=5),
         'options': {
-            'queue': 'check'
+            'queue': 'upload'
         }
     },
     'check_variable_get_time': {
-        'task': 'app.check_variable_get_time',
+        'task': 'task.check_variable_get_time',
         'schedule': timedelta(seconds=1),
         'options': {
-            'queue': 'check'
+            'queue': 'var'
         }
     },
     'self_check': {
-        'task': 'app.self_check',
+        'task': 'task.self_check',
         'schedule': timedelta(seconds=300),
         'options': {
             'queue': 'basic'
@@ -130,11 +130,11 @@ beat_schedule = {
 
 # 任务消费速率
 task_annotations = {
-    'app.ntpdate': {'rate_limit': '1/h'},
-    'app.db_clean': {'rate_limit': '1/h'},
-    'app.check_group_upload_time': {'rate_limit': '12/m'},
-    'app.check_variable_get_time': {'rate_limit': '60/m'},
-    'app.check_alarm': {'rate_limit': '12/m'},
-    'app.self_check': {'rate_limit': '12/h'},
-    'app.beats': {'rate_limit': '6/m'}
+    'task.ntpdate': {'rate_limit': '1/h'},
+    'task.db_clean': {'rate_limit': '1/h'},
+    'task.check_group_upload_time': {'rate_limit': '12/m'},
+    'task.check_variable_get_time': {'rate_limit': '60/m'},
+    'task.check_alarm': {'rate_limit': '12/m'},
+    'task.self_check': {'rate_limit': '12/h'},
+    'task.beats': {'rate_limit': '6/m'}
 }

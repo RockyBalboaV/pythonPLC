@@ -12,8 +12,8 @@ os.environ['env'] = 'dev'
 os.environ['url'] = 'server'
 # os.environ['url'] = 'dev-server'
 
-from app import r, server_confirm, get_config, beats, before_running, boot, check_alarm, redis_alarm_variables, \
-    ntpdate
+from task import r, server_confirm, get_config, beats, before_running, boot, check_alarm, redis_alarm_variables, \
+    ntpdate, db_clean
 from utils.station_data import station_info, beats_data
 from util import encryption_client, decryption_client
 from data_collection import analog2digital
@@ -22,7 +22,8 @@ from models import session
 from tests.test_data import post_data
 
 import sys
-print(sys.path)
+# print(sys.path)
+
 class TestFunc:
     @pytest.mark.skip
     def ntpdate(self):
@@ -107,6 +108,9 @@ class TestFunc:
 
     def test_confirm_config(self):
         assert server_confirm(CONFIRM_CONFIG_URL)
+
+    def test_db_clean(self):
+        db_clean()
 
 
 class TestTask(object):
