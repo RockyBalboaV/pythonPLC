@@ -1,5 +1,4 @@
 # coding=utf-8
-from datetime import timedelta
 from celery.schedules import crontab
 from kombu import Queue, Exchange
 
@@ -31,7 +30,7 @@ broker_pool_limit = 0
 task_queues = (
     Queue('basic', Exchange('basic', type='topic'), routing_key='basic.#'),
     Queue('check', Exchange('check', type='direct'), routing_key='check.#'),
-    Queue('var', Exchange('var', type='direct'), routing_key='var'),
+    Queue('gather', Exchange('var', type='direct'), routing_key='gather'),
     Queue('upload', Exchange('upload', type='direct'), routing_key='upload')
 )
 
@@ -60,13 +59,13 @@ task_routes = {
         'queue': 'check',
         'routing_key': 'check.beats',
     },
-    'app.tasks.check_group_upload_time': {
+    'app.tasks.check_upload': {
         'queue': 'upload',
         'routing_key': 'upload',
     },
-    'app.tasks.check_variable_get_time': {
-        'queue': 'var',
-        'routing_key': 'var',
+    'app.tasks.check_gather': {
+        'queue': 'gather',
+        'routing_key': 'gather',
     },
     'app.tasks.self_check': {
         'queue': 'check',
@@ -76,11 +75,17 @@ task_routes = {
 
 # 定时任务
 beat_schedule = {
+    'check_gather': {
+        'task': 'task.check_gather',
+        'schedule': 1,
+        'options': {
+            'queue': 'gather'
+        }
+    },
     'ntpdate': {
         'task': 'task.ntpdate',
         # 每天凌晨执行
         'schedule': crontab(minute=0, hour=0),
-        # 'schedule': timedelta(seconds=10),
         'options': {
             'queue': 'basic'
         }
@@ -94,35 +99,28 @@ beat_schedule = {
     },
     'check_alarm': {
         'task': 'task.check_alarm',
-        'schedule': timedelta(seconds=6),
+        'schedule': 5,
         'options': {
             'queue': 'check'
         }
     },
     'beats': {
         'task': 'task.beats',
-        'schedule': timedelta(seconds=6),
+        'schedule': 10,
         'options': {
             'queue': 'check'
         }
     },
-    'check_group_upload_time': {
-        'task': 'task.check_group_upload_time',
-        'schedule': timedelta(seconds=5),
+    'check_upload': {
+        'task': 'task.check_upload',
+        'schedule': 5,
         'options': {
             'queue': 'upload'
         }
     },
-    'check_variable_get_time': {
-        'task': 'task.check_variable_get_time',
-        'schedule': timedelta(seconds=2),
-        'options': {
-            'queue': 'var'
-        }
-    },
     'self_check': {
         'task': 'task.self_check',
-        'schedule': timedelta(seconds=300),
+        'schedule': 300,
         'options': {
             'queue': 'basic'
         }
@@ -131,10 +129,10 @@ beat_schedule = {
 
 # 任务消费速率
 task_annotations = {
+    'task.check_gather': {'rate_limit': '60/m'},
     'task.ntpdate': {'rate_limit': '1/h'},
     'task.db_clean': {'rate_limit': '1/h'},
-    'task.check_group_upload_time': {'rate_limit': '12/m'},
-    'task.check_variable_get_time': {'rate_limit': '60/m'},
+    'task.check_upload': {'rate_limit': '12/m'},
     'task.check_alarm': {'rate_limit': '12/m'},
     'task.self_check': {'rate_limit': '12/h'},
     'task.beats': {'rate_limit': '6/m'}

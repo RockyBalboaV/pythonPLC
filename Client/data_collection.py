@@ -26,6 +26,8 @@ def snap7_path():
         elif platform.machine() == 'x86_64':
             lib_path = lib_path_dir + '/Ubuntu/libsnap7.so'
 
+        else:
+            lib_path = lib_path_dir + '/Ubuntu/libsnap7.so'
     else:
         lib_path = lib_path_dir + '/Win64/snap7.dll'
 

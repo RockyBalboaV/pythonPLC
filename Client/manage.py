@@ -13,13 +13,14 @@ python_path = sys.executable
 
 
 def clean_up():
-    # 清除已发布的任务
-    purge_task = [python_path, '-m', 'celery', 'purge', '-A', 'task', '-f']
     # 清除未关闭的worker和beat
     close_celery = ['pkill', '-9', '-f', 'celery']
     # 清除未关闭的flower
     close_flower = ['pkill', '-9', '-f', 'flower']
-    process_list = [purge_task, close_celery, close_flower]
+    # 清除已发布的任务
+    purge_task = [python_path, '-m', 'celery', 'purge', '-A', 'task', '-f']
+
+    process_list = [close_celery, close_flower, purge_task]
 
     for process in process_list:
         subprocess.call(process)
@@ -27,6 +28,7 @@ def clean_up():
     # 删除临时文件
     schedule_file = os.path.join(here, 'celerybeat-schedule')
     beat_file = os.path.join(here, 'celerybeat.pid')
+
     file_list = [schedule_file, beat_file, schedule_file]
 
     for file in file_list:
@@ -58,13 +60,13 @@ if args.env == 'prod':
 if args.server == 'server':
     os.environ['url'] = 'server'
 
-import task
-
-if args.reset:
-    task.database_reset()
+import tasks
 
 if args.clean:
     clean_up()
+
+if args.reset:
+    tasks.database_reset()
 
 if args.clean_net_cache:
     psutil.net_io_counters.cache_clear()
@@ -74,14 +76,14 @@ if args.flower:
     flower = subprocess.Popen([python_path, '-m', 'flower'])
 
 if args.run:
-    task.boot()
-    task.get_config()
-    task.before_running()
+    tasks.boot()
+    tasks.get_config()
+    tasks.before_running()
 
     # 启动celery beat worker
     try:
         worker = subprocess.Popen(
-            '{} -m celery -A task worker -P eventlet -c 1000 -l warn -E --concurrency 10 -n worker@%h'.format(
+            '{} -m celery -A task worker -P eventlet -c 10 -l warn -E  -n worker@%h'.format(
                 python_path),
             shell=True)
         beat = subprocess.call([python_path, '-m', 'celery', 'beat', '-A', 'task'])

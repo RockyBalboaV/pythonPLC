@@ -33,3 +33,6 @@ class ConnDB(object):
 
     def get_all(self, key_):
         self.conn.hegtall('')
+
+
+r = ConnDB()

@@ -5,6 +5,7 @@ import requests
 import time
 import json
 import psutil
+import sys
 
 import pytest
 
@@ -12,16 +13,18 @@ os.environ['env'] = 'dev'
 os.environ['url'] = 'server'
 # os.environ['url'] = 'dev-server'
 
-from task import r, server_confirm, get_config, beats, before_running, boot, check_alarm, redis_alarm_variables, \
+from tasks import beats, before_running, boot, check_alarm, redis_alarm_variables, \
     ntpdate, db_clean
+from utils.server_connect import server_confirm, get_config
+from utils.redis_middle_class import r
 from utils.station_data import station_info, beats_data
 from util import encryption_client, decryption_client
 from data_collection import analog2digital
 from param import CONFIRM_CONFIG_URL
-from models import session
+from models import Session
 from tests.test_data import post_data
 
-import sys
+
 # print(sys.path)
 
 class TestFunc:
@@ -116,5 +119,3 @@ class TestFunc:
 class TestTask(object):
     def test_get_config(self):
         get_config()
-
-
