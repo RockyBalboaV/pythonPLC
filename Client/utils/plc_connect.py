@@ -156,12 +156,12 @@ def read_multi(plc, variables, current_time, client=None):
             session.add(alarm)
             session.commit()
 
-    # except (Exception, SoftTimeLimitExceeded) as e:
-    #     logging.exception('read_multi' + str(e))
+    except Exception as e:
+        logging.exception('read_multi' + str(e))
+        raise
     #     session.rollback()
     finally:
         session.close()
-        pass
 
         # time2 = time.time()
 

@@ -10,7 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from models import (Session, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, VarGroups, AlarmInfo, Value,
                     value_serialize)
 from param import UPLOAD_URL, REQUEST_TIMEOUT, CONNECT_TIMEOUT, CONFIG_URL, CONFIRM_CONFIG_URL, MAX_RETRIES
-from util import decryption_client, encryption_client
+from utils.station_func import decryption_client, encryption_client
 from utils.redis_middle_class import r
 from utils.station_alarm import connect_server_err, db_commit_err, server_return_err
 

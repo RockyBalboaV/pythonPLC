@@ -1,5 +1,5 @@
 import time
-from models import (StationAlarm)
+from models import StationAlarm
 
 
 def station_err(id_num, code, note):

@@ -6,32 +6,25 @@ import logging
 from contextlib import contextmanager
 
 from eventlet import monkey_patch, Timeout
-
 from requests.exceptions import RequestException
 from celery import Celery
 from celery.five import monotonic
 from celery.utils.log import get_task_logger
 from celery.exceptions import MaxRetriesExceededError, SoftTimeLimitExceeded
-from sqlalchemy.orm.exc import UnmappedClassError
 
-from models import eng, Base, YjPLCInfo, Value, Session
+from models import YjPLCInfo, Value, Session
 from data_collection import load_snap7
 from utils.station_alarm import check_time_err, connect_server_err, server_return_err, db_commit_err, ntpdate_err
 from utils.plc_alarm import connect_plc_err, read_err
-from util import encryption_client, decryption_client
 from param import (ID_NUM, BEAT_URL, CONNECT_TIMEOUT, REQUEST_TIMEOUT, CHECK_DELAY, SERVER_TIMEOUT, PLC_TIMEOUT,
-                   START_TIMEDELTA, NTP_SERVER)
+                   NTP_SERVER)
 from utils.redis_middle_class import r
-from utils.station_data import (redis_alarm_variables, beats_data, plc_info, redis_group_read_info,
-                                redis_group_upload_info, redis_variable_info)
+from utils.station_data import (redis_alarm_variables, beats_data, plc_info)
 from utils.plc_connect import plc_client
 from utils.mc import mc as cache
 from utils.server_connect import upload, upload_data, get_config, req_s
+from utils.station_func import before_running, encryption_client, decryption_client
 from utils.plc_connect import read_multi
-
-import snap7
-
-snap7_client = list()
 
 # 初始化celery
 app = Celery(
@@ -43,7 +36,6 @@ monkey_patch(MySQLdb=True)
 
 # 日志
 logging.basicConfig(level=logging.WARN)
-# logging.basicConfig(filename='logger.log', level=logging.INFO)
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 # 读取snap7 C库
@@ -69,120 +61,7 @@ def memcache_lock(lock_id, oid):
             cache.delete(lock_id)
 
 
-def database_reset():
-    """
-    初始化数据库
-    
-    :return: 
-    """
-
-    Base.metadata.drop_all(bind=eng)
-    Base.metadata.create_all(bind=eng)
-
-
-def boot():
-    """
-    开机初次运行
-    
-    :return: 
-    """
-
-    logging.debug('boot ruuning')
-
-    Base.metadata.create_all(bind=eng)
-
-    r.set('id_num', ID_NUM)
-
-
-def before_running():
-    """
-    运行前设置
-    
-    :return: 
-    """
-    logging.debug('运行前初始化')
-
-    # 清除上次运行数据
-    r.set('group_upload', None)
-    r.set('group_read', None)
-    r.set('variable', None)
-    r.set('alarm_info', None)
-    r.set('check_time', None)
-    r.set('plc', None)
-    r.set('con_time', None)
-
-    session = Session()
-    try:
-        # 设定服务开始运行时间
-        current_time = int(time.time())
-        start_time = current_time + START_TIMEDELTA
-
-        # 设定报警信息
-        redis_alarm_variables(r)
-
-        # 获取该终端所有PLC信息
-        plc_models = session.query(YjPLCInfo).all()
-
-        # 缓存PLC信息
-        plc_data = plc_info(r, plc_models)
-        logging.info('PLC配置信息： ' + str(plc_data))
-
-        global snap7_client
-        snap7_client = list()
-
-        for plc in plc_models:
-
-            # 获得该PLC的信息
-            ip = plc.ip
-            rack = plc.rack
-            slot = plc.slot
-
-            # client = snap7.client.Client()
-            #
-            # try:
-            #     logging.debug('plc连接尝试 ip:{} rack:{} slot:{}'.format(ip, rack, slot))
-            #     client.connect(ip, rack, slot)
-            # except Snap7Exception as e:
-            #     logging.error('PLC无法连接，请查看PLC状态' + str(e))
-            client = snap7.client.Client()
-            client.connect(ip, rack, slot)
-            snap7_client.append({'ip': ip, 'client': client})
-            with plc_client(ip, rack, slot) as client:
-                # print(client.get_connected())
-                # 获取该PLC下所有组信息
-                groups = plc.groups
-
-                # 设定变量组信息
-                for g in groups:
-                    if g.is_upload:
-                        redis_group_upload_info(r, g, start_time)
-                    redis_group_read_info(r, g, start_time)
-                    redis_variable_info(r, g)
-                    # print(r.get('group_upload'))
-                    # print(r.get('group_read'))
-                    # print(r.get('variable'))
-
-                    # 变量写入
-                    # 获取该变量组下所有变量信息
-                    # variables = g.variables
-
-                    # if variables:
-                    #     for v in variables:
-                    #         plc_write(v, plc_cli, plc)
-
-                    # client.disconnect()
-                    # client.destroy()
-        # 数据库写入操作后，关闭数据库连接
-        session.commit()
-
-    # except Exception as e:
-    #     logging.exception('before_running' + str(e))
-    #     session.rollback()
-    finally:
-        session.close()
-
-
-@app.task(bind=True, ignore_result=True, default_retry_delay=10, max_retries=3, soft_time_limit=10)
+@app.task(bind=True, ignore_result=True, default_retry_delay=10, max_retries=3, time_limit=10)
 def self_check(self):
     """
     celery任务
@@ -356,6 +235,7 @@ def check_upload(self):
                         group_id.append(g['id'])
                         g['last_time'] = g['upload_time']
                         g['upload_time'] = current_time + g['upload_cycle']
+                        # 设置为不在上传的状态
                         g['is_uploading'] = False
 
                         # print('下次上传时间', datetime.datetime.fromtimestamp(g['upload_time']))
@@ -365,11 +245,6 @@ def check_upload(self):
                 # print('上传数据', len(value_list), value_list)
                 upload(value_list, group_id)
 
-                # 设置为不在上传的状态
-                # group_data = r.get('group_upload')
-                # for g in group_data:
-                #     if g['id'] in group_id:
-                #         g['is_uploading'] = False
                 r.set('group_upload', group_upload_data)
 
                 # except Exception as e:
@@ -406,11 +281,9 @@ def check_gather(self):
             session = Session()
             try:
                 plcs = r.get('plc')
-                # print(plc_client)
 
                 group_read_data = r.get('group_read')
 
-                # print(plcs)
                 for plc in plcs:
                     # todo 循环内部 使用并发
 
@@ -450,14 +323,17 @@ def check_gather(self):
                                     # print(len(variables))
                                     # print(plc)
                                     try:
-                                        read_multi(
-                                            plc=plc,
-                                            variables=variable_group,
-                                            current_time=current_time,
-                                            client=client
-                                        )
-                                    except:
-                                        print('跳过一次采集')
+                                        with Timeout(2, False):
+                                            read_multi(
+                                                plc=plc,
+                                                variables=variable_group,
+                                                current_time=current_time,
+                                                client=client
+                                            )
+                                    except SoftTimeLimitExceeded:
+                                        raise
+                                        # except Exception:
+                                        #     print('跳过一次采集')
 
                                         # client.disconnect()
                                         # client.destroy()
@@ -483,7 +359,7 @@ def ntpdate(self):
             try:
                 pw = 'touhou'
 
-                cmd2 = 'echo {} | sudo -S ntpdate {}'.format(pw, NTP_SERVER)
+                cmd2 = 'echo {0} | sudo -S ntpdate {1}'.format(pw, NTP_SERVER)
                 ntp = subprocess.Popen(
                     cmd2,
                     shell=True,
@@ -495,10 +371,10 @@ def ntpdate(self):
                 stdout, stderr = ntp.communicate()
 
                 if not status:  # 判断进程执行状态
-                    note = '完成校时 :{}'.format(stdout.decode('utf-8'))
+                    note = '完成校时 :{0}'.format(stdout.decode('utf-8'))
                     logging.info(note)
                 else:
-                    note = '校时失败 :{}'.format(stderr.decode('utf-8'))
+                    note = '校时失败 :{0}'.format(stderr.decode('utf-8'))
                     logging.error(note)
                     id_num = r.get('id_num')
                     alarm = ntpdate_err(
@@ -529,7 +405,7 @@ def db_clean(self):
                 session.close()
 
 
-@app.task(bind=True, ignore_result=True, soft_time_limit=10)
+@app.task(bind=True, ignore_result=True, time_limit=10)
 def check_alarm(self):
     lock_id = '{0}-lock'.format(self.name)
     with memcache_lock(lock_id, self.app.oid) as acquired:

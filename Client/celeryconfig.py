@@ -76,14 +76,17 @@ task_routes = {
 # 定时任务
 beat_schedule = {
     'check_gather': {
-        'task': 'task.check_gather',
+        'task': 'tasks.check_gather',
         'schedule': 1,
+        'relative': True,
+        # options可用参数基于apply_async()
         'options': {
             'queue': 'gather'
+            # 'expires': 5
         }
     },
     'ntpdate': {
-        'task': 'task.ntpdate',
+        'task': 'tasks.ntpdate',
         # 每天凌晨执行
         'schedule': crontab(minute=0, hour=0),
         'options': {
@@ -91,35 +94,36 @@ beat_schedule = {
         }
     },
     'db_clean': {
-        'task': 'task.db_clean',
+        'task': 'tasks.db_clean',
         'schedule': crontab(minute=0, hour=0),
         'options': {
             'queue': 'basic'
         }
     },
     'check_alarm': {
-        'task': 'task.check_alarm',
+        'task': 'tasks.check_alarm',
         'schedule': 5,
         'options': {
             'queue': 'check'
         }
     },
     'beats': {
-        'task': 'task.beats',
+        'task': 'tasks.beats',
         'schedule': 10,
         'options': {
             'queue': 'check'
         }
     },
     'check_upload': {
-        'task': 'task.check_upload',
+        'task': 'tasks.check_upload',
         'schedule': 5,
         'options': {
             'queue': 'upload'
+            # 'expires': 15
         }
     },
     'self_check': {
-        'task': 'task.self_check',
+        'task': 'tasks.self_check',
         'schedule': 300,
         'options': {
             'queue': 'basic'
@@ -129,11 +133,11 @@ beat_schedule = {
 
 # 任务消费速率
 task_annotations = {
-    'task.check_gather': {'rate_limit': '60/m'},
-    'task.ntpdate': {'rate_limit': '1/h'},
-    'task.db_clean': {'rate_limit': '1/h'},
-    'task.check_upload': {'rate_limit': '12/m'},
-    'task.check_alarm': {'rate_limit': '12/m'},
-    'task.self_check': {'rate_limit': '12/h'},
-    'task.beats': {'rate_limit': '6/m'}
+    'tasks.check_gather': {'rate_limit': '60/m'},
+    'tasks.ntpdate': {'rate_limit': '1/h'},
+    'tasks.db_clean': {'rate_limit': '1/h'},
+    'tasks.check_upload': {'rate_limit': '12/m'},
+    'tasks.check_alarm': {'rate_limit': '12/m'},
+    'tasks.self_check': {'rate_limit': '12/h'},
+    'tasks.beats': {'rate_limit': '6/m'}
 }

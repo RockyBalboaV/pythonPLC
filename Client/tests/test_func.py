@@ -13,12 +13,11 @@ os.environ['env'] = 'dev'
 os.environ['url'] = 'server'
 # os.environ['url'] = 'dev-server'
 
-from tasks import beats, before_running, boot, check_alarm, redis_alarm_variables, \
-    ntpdate, db_clean
+from tasks import beats,  check_alarm, ntpdate, db_clean
 from utils.server_connect import server_confirm, get_config
 from utils.redis_middle_class import r
 from utils.station_data import station_info, beats_data
-from util import encryption_client, decryption_client
+from utils.station_func import encryption_client, decryption_client, before_running
 from data_collection import analog2digital
 from param import CONFIRM_CONFIG_URL
 from models import Session

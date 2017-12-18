@@ -5,6 +5,7 @@ import argparse
 import subprocess
 import psutil
 
+
 os.environ['env'] = 'dev'
 os.environ['url'] = 'dev-server'
 
@@ -18,7 +19,7 @@ def clean_up():
     # 清除未关闭的flower
     close_flower = ['pkill', '-9', '-f', 'flower']
     # 清除已发布的任务
-    purge_task = [python_path, '-m', 'celery', 'purge', '-A', 'task', '-f']
+    purge_task = [python_path, '-m', 'celery', 'purge', '-A', 'tasks', '-f']
 
     process_list = [close_celery, close_flower, purge_task]
 
@@ -60,13 +61,16 @@ if args.env == 'prod':
 if args.server == 'server':
     os.environ['url'] = 'server'
 
-import tasks
+# import tasks
+from utils.station_func import boot, before_running, database_reset
+from utils.server_connect import get_config
+
 
 if args.clean:
     clean_up()
 
 if args.reset:
-    tasks.database_reset()
+    database_reset()
 
 if args.clean_net_cache:
     psutil.net_io_counters.cache_clear()
@@ -76,17 +80,17 @@ if args.flower:
     flower = subprocess.Popen([python_path, '-m', 'flower'])
 
 if args.run:
-    tasks.boot()
-    tasks.get_config()
-    tasks.before_running()
+    boot()
+    get_config()
+    before_running()
 
     # 启动celery beat worker
     try:
         worker = subprocess.Popen(
-            '{} -m celery -A task worker -P eventlet -c 10 -l warn -E  -n worker@%h'.format(
+            '{0} -m celery -A tasks worker -P eventlet -c 10 -l warn -E  -n worker@%h'.format(
                 python_path),
             shell=True)
-        beat = subprocess.call([python_path, '-m', 'celery', 'beat', '-A', 'task'])
+        beat = subprocess.call([python_path, '-m', 'celery', 'beat', '-A', 'tasks'])
 
     except KeyboardInterrupt:
         print('Interrupted')
