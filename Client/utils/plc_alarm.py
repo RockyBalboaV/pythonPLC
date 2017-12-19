@@ -1,5 +1,16 @@
 import time
+
+from snap7.snap7exceptions import Snap7Exception
+
 from models import PLCAlarm
+
+
+class Snap7ConnectException(Snap7Exception):
+    pass
+
+
+class Snap7ReadException(Snap7Exception):
+    pass
 
 
 def plc_err(id_num, plc_id, code, note):

@@ -17,6 +17,7 @@ from utils.redis_middle_class import r
 # 读取snap7 C库
 load_snap7()
 
+
 @contextmanager
 def plc_client(ip, rack, slot):
     """
@@ -39,135 +40,112 @@ def plc_client(ip, rack, slot):
 def read_multi(plc, variables, current_time, client=None):
     # time1 = time.time()
     # print('采集')
-    session = Session()
-    try:
-        value_list = list()
+    value_list = list()
+    var_num = len(variables)
+    # print('采集数量：{}'.format(var_num))
+    bool_indexes = list()
+    data_items = (S7DataItem * var_num)()
 
-        var_num = len(variables)
-        # print('采集数量：{}'.format(var_num))
-        bool_indexes = list()
-        data_items = (S7DataItem * var_num)()
+    for num in range(var_num):
+        area = variable_area(variables[num]['area'])
+        db_number = variables[num]['db_num']
+        size = variable_size(variables[num]['data_type'])
+        address = int(math.modf(variables[num]['address'])[1])
+        bool_index = round(math.modf(variables[num]['address'])[0] * 10)
+        bool_indexes.append(bool_index)
 
-        for num in range(var_num):
-            area = variable_area(variables[num]['area'])
-            db_number = variables[num]['db_num']
-            size = variable_size(variables[num]['data_type'])
-            address = int(math.modf(variables[num]['address'])[1])
-            bool_index = round(math.modf(variables[num]['address'])[0] * 10)
-            bool_indexes.append(bool_index)
+        data_items[num].Area = ctypes.c_int32(area)
+        data_items[num].WordLen = ctypes.c_int32(S7WLByte)
+        data_items[num].Result = ctypes.c_int32(0)
+        data_items[num].DBNumber = ctypes.c_int32(db_number)
+        data_items[num].Start = ctypes.c_int32(address)
+        data_items[num].Amount = ctypes.c_int32(size)  # reading a REAL, 4 bytes
 
-            data_items[num].Area = ctypes.c_int32(area)
-            data_items[num].WordLen = ctypes.c_int32(S7WLByte)
-            data_items[num].Result = ctypes.c_int32(0)
-            data_items[num].DBNumber = ctypes.c_int32(db_number)
-            data_items[num].Start = ctypes.c_int32(address)
-            data_items[num].Amount = ctypes.c_int32(size)  # reading a REAL, 4 bytes
+    for di in data_items:
+        # create the buffer
+        buffer = ctypes.create_string_buffer(di.Amount)
 
-        for di in data_items:
-            # create the buffer
-            buffer = ctypes.create_string_buffer(di.Amount)
+        # cast the pointer to the buffer to the required type
+        pBuffer = ctypes.cast(
+            ctypes.pointer(buffer),
+            ctypes.POINTER(ctypes.c_uint8)
+        )
+        di.pData = pBuffer
 
-            # cast the pointer to the buffer to the required type
-            pBuffer = ctypes.cast(
-                ctypes.pointer(buffer),
-                ctypes.POINTER(ctypes.c_uint8)
-            )
-            di.pData = pBuffer
-
-        if not client.get_connected():
-
-            try:
-                # client = snap7.client.Client()
-                client.connect(
-                    address=plc['ip'],
-                    rack=plc['rack'],
-                    slot=plc['slot'],
-                )
-            except Snap7Exception as e:
-                logging.warning('PLC连接失败 ip：{} rack：{} slot:{}'.format(plc['ip'], plc['rack'], plc['slot']) + str(e))
-                logging.info('重试连接plc')
-                raise
-                # raise self.retry(e)
-
-        # time1 = time.time()
-        result, data_items = client.read_multi_vars(data_items)
-        # time2 = time.time()
-        # print('读取时间', time2 - time1)
-
-        for num in range(0, var_num):
-            di = data_items[num]
-
-            try:
-                raw_value = read_value(
-                    variables[num]['data_type'],
-                    di.pData,
-                    bool_index=bool_indexes[num]
-                )
-                # print(raw_value)
-            except Snap7Exception as e:
-                logging.error('plc读取数据错误' + str(e))
-                id_num = r.get('id_num')
-                alarm = read_err(
-                    id_num=id_num,
-                    plc_id=plc['id'],
-                    plc_name=plc['name'],
-                    area=variables[num]['area'],
-                    db_num=variables[num]['db_num'],
-                    address=variables[num]['address'],
-                    data_type=variables[num]['data_type']
-                )
-                session.add(alarm)
-                session.commit()
-                raise
-                # raise self.retry(e)
-            else:
-                # 数模转换
-                if variables[num]['is_analog']:
-                    raw_value = analog2digital(
-                        raw_value,
-                        variables[num]['analog_low_range'],
-                        variables[num]['analog_high_range'],
-                        variables[num]['digital_low_range'],
-                        variables[num]['digital_high_range']
-                    )
-                    # 数据量修改
-                    offset = variables[num]['offset'] if isinstance(variables[num]['offset'], float) else 0
-                    raw_value += + offset
-
-                # 限制小数位数
-                value = round(raw_value, 2)
-                # print(str(variables[num]['id']) + '--' + str(value))
-
-                value_model = {
-                    'var_id': variables[num]['id'],
-                    'time': current_time,
-                    'value': value
-                }
-                # print(value_model)
-                value_list.append(value_model)
-        # print('采集数据', len(value_list), value_list)
-        session.bulk_insert_mappings(Value, value_list)
+    if not client.get_connected():
 
         try:
-            session.commit()
-        except IntegrityError as e:
-            # session.rollback()
-            logging.error('提交数据库修改出错: ' + str(e))
-            id_num = r.get('id_num')
-            alarm = db_commit_err(id_num, 'read_multi')
-            session.add(alarm)
-            session.commit()
+            # client = snap7.client.Client()
+            client.connect(
+                address=plc['ip'],
+                rack=plc['rack'],
+                slot=plc['slot'],
+            )
+        except Snap7Exception as e:
+            logging.warning('PLC连接失败 ip：{} rack：{} slot:{}'.format(plc['ip'], plc['rack'], plc['slot']) + str(e))
+            # raise Snap7Exception
+            # raise self.retry(e)
+
+    # time1 = time.time()
+    result, data_items = client.read_multi_vars(data_items)
+    # time2 = time.time()
+    # print('读取时间', time2 - time1)
+
+    for num in range(0, var_num):
+        di = data_items[num]
+
+        try:
+            raw_value = read_value(
+                variables[num]['data_type'],
+                di.pData,
+                bool_index=bool_indexes[num]
+            )
+            # print(raw_value)
+        except Snap7Exception as e:
+            logging.error('plc读取数据错误' + str(e))
+            raise Snap7Exception(
+                variables[num]['area'],
+                variables[num]['db_num'],
+                variables[num]['address'],
+                variables[num]['data_type']
+            )
+        else:
+            # 数模转换
+            if variables[num]['is_analog']:
+                raw_value = analog2digital(
+                    raw_value,
+                    variables[num]['analog_low_range'],
+                    variables[num]['analog_high_range'],
+                    variables[num]['digital_low_range'],
+                    variables[num]['digital_high_range']
+                )
+                # 数据量修改
+                offset = variables[num]['offset'] if isinstance(variables[num]['offset'], float) else 0
+                raw_value += + offset
+
+            # 限制小数位数
+            value = round(raw_value, 2)
+            # print(str(variables[num]['id']) + '--' + str(value))
+
+            value_info = {
+                'var_id': variables[num]['id'],
+                'time': current_time,
+                'value': value
+            }
+            # print(value_model)
+            value_list.append(value_info)
+
+    return value_list
+    # print('采集数据', len(value_list), value_list)
 
     # except Exception as e:
     #     logging.exception('read_multi' + str(e))
     #     raise
     #     session.rollback()
-    finally:
-        session.close()
 
-        # time2 = time.time()
+    # time2 = time.time()
 
-        # print('单次采集时间', time2 - time1)
+    # print('单次采集时间', time2 - time1)
 
 
 def plc_write(variable_model, plc_cli, plc_model):

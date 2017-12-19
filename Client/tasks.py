@@ -12,7 +12,7 @@ from celery.exceptions import MaxRetriesExceededError, SoftTimeLimitExceeded
 
 from models import YjPLCInfo, Value, Session
 from utils.station_alarm import check_time_err, connect_server_err, server_return_err, db_commit_err, ntpdate_err
-from utils.plc_alarm import connect_plc_err, read_err
+from utils.plc_alarm import connect_plc_err, read_err, Snap7ConnectException, Snap7ReadException
 from param import (ID_NUM, BEAT_URL, CONNECT_TIMEOUT, REQUEST_TIMEOUT, CHECK_DELAY, SERVER_TIMEOUT, PLC_TIMEOUT,
                    NTP_SERVER)
 from utils.redis_middle_class import r, redis_lock
@@ -181,53 +181,54 @@ def check_upload(self):
     lock_id = '{0}-lock'.format(self.name)
     with redis_lock(lock_id, self.app.oid) as acquired:
         if acquired:
-            upload_time1 = time.time()
-            logging.debug('检查变量组上传时间')
-            # print('上传')
+            with Timeout(10):
+                upload_time1 = time.time()
+                logging.debug('检查变量组上传时间')
+                # print('上传')
 
-            current_time = int(time.time())
+                current_time = int(time.time())
 
-            session = Session()
+                session = Session()
 
-            # 在redis中查询需要上传的变量组id
-            group_upload_data = r.get('group_upload')
+                # 在redis中查询需要上传的变量组id
+                group_upload_data = r.get('group_upload')
 
-            # print(group_upload_data)
-
-            for g in group_upload_data:
-                if current_time >= g['upload_time']:
-                    g['is_uploading'] = True
-            r.set('group_upload', group_upload_data)
-            try:
-
-                group_id = []
-                value_list = list()
+                # print(group_upload_data)
 
                 for g in group_upload_data:
                     if current_time >= g['upload_time']:
-                        value_list += upload_data(g, current_time)
-                        group_id.append(g['id'])
-                        g['last_time'] = g['upload_time']
-                        g['upload_time'] = current_time + g['upload_cycle']
-                        # 设置为不在上传的状态
-                        g['is_uploading'] = False
-
-                        # print('下次上传时间', datetime.datetime.fromtimestamp(g['upload_time']))
-
-                # print(group_id)
-
-                # print('上传数据', len(value_list), value_list)
-                upload(value_list, group_id)
-
+                        g['is_uploading'] = True
                 r.set('group_upload', group_upload_data)
+                try:
 
-                # except Exception as e:
-                #     logging.exception('check_group' + str(e))
+                    group_id = []
+                    value_list = list()
 
-            finally:
-                session.close()
-                upload_time2 = time.time()
-                print('上传时间', upload_time2 - upload_time1)
+                    for g in group_upload_data:
+                        if current_time >= g['upload_time']:
+                            value_list += upload_data(g, current_time)
+                            group_id.append(g['id'])
+                            g['last_time'] = g['upload_time']
+                            g['upload_time'] = current_time + g['upload_cycle']
+                            # 设置为不在上传的状态
+                            g['is_uploading'] = False
+
+                            # print('下次上传时间', datetime.datetime.fromtimestamp(g['upload_time']))
+
+                    # print(group_id)
+
+                    # print('上传数据', len(value_list), value_list)
+                    upload(value_list, group_id)
+
+                    r.set('group_upload', group_upload_data)
+
+                    # except Exception as e:
+                    #     logging.exception('check_group' + str(e))
+
+                finally:
+                    session.close()
+                    upload_time2 = time.time()
+                    print('上传时间', upload_time2 - upload_time1)
 
 
 @app.task(bind=True, ignore_result=True, soft_time_limit=2)
@@ -248,7 +249,7 @@ def check_gather(self):
             logging.debug('检查变量采集时间')
 
             current_time = int(time.time())
-
+            value_list = list()
             session = Session()
             try:
                 plcs = r.get('plc')
@@ -275,8 +276,8 @@ def check_gather(self):
                     print('采集数量', len(variables))
 
                     # client = plc_connect(plc)
-                    # with Timeout(3, False):
-                    if True:
+                    with Timeout(3, False):
+                    # if True:
                         with plc_client(plc['ip'], plc['rack'], plc['slot']) as client:
                             if client.get_connected():
                                 plc['time'] = current_time
@@ -295,7 +296,7 @@ def check_gather(self):
                                     # print(plc)
                                     try:
                                         with Timeout(2, False):
-                                            read_multi(
+                                            value_info = read_multi(
                                                 plc=plc,
                                                 variables=variable_group,
                                                 current_time=current_time,
@@ -303,12 +304,30 @@ def check_gather(self):
                                             )
                                     except SoftTimeLimitExceeded:
                                         raise
+                                    except Snap7ReadException as e:
+                                        id_num = r.get('id_num')
+                                        area, db_num, addr, data_type = e.args
+                                        alarm = read_err(
+                                            id_num=id_num,
+                                            plc_id=plc['id'],
+                                            plc_name=plc['name'],
+                                            area=area,
+                                            db_num=db_num,
+                                            address=addr,
+                                            data_type=data_type
+                                        )
+                                        session.add(alarm)
+
+                                    else:
+                                        value_list += value_info
+
                                         # except Exception:
                                         #     print('跳过一次采集')
 
                                         # client.disconnect()
                                         # client.destroy()
-
+                session.bulk_insert_mappings(Value, value_list)
+                session.commit()
                 time2 = time.time()
                 print('采集时间' + str(time2 - time1))
                 r.set('plc', plcs)
