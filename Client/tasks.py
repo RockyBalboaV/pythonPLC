@@ -28,7 +28,7 @@ app = Celery(
 )
 app.config_from_object('celeryconfig', force=True)
 
-monkey_patch(MySQLdb=True)
+# monkey_patch(MySQLdb=True)
 
 # 日志
 logging.basicConfig(level=logging.WARN)

@@ -20,12 +20,15 @@ timezone = 'Asia/Shanghai'
 worker_concurrency = 4
 # 忽略任务执行状态
 task_ignore_result = True
-# Worker任务数
-# worker_max_tasks_per_child = 10
+# Worker最大累积任务数
+worker_max_tasks_per_child = 5
 # 任务默认执行速度
 task_default_rate_limit = '1/s'
+task_time_limit = 30
+task_soft_time_limit = 20
 # worker_disable_rate_limits = True
-broker_pool_limit = 0
+# broker最大连接数
+broker_pool_limit = 100
 
 task_queues = (
     Queue('basic', Exchange('basic', type='topic'), routing_key='basic.#'),
