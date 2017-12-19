@@ -11,9 +11,11 @@ from sqlalchemy.exc import IntegrityError
 from models import Session, Value
 from utils.station_alarm import db_commit_err
 from utils.plc_alarm import read_err, connect_plc_err
-from data_collection import variable_size, variable_area, read_value, analog2digital, write_value
+from data_collection import variable_size, variable_area, read_value, analog2digital, write_value, load_snap7
 from utils.redis_middle_class import r
 
+# 读取snap7 C库
+load_snap7()
 
 @contextmanager
 def plc_client(ip, rack, slot):
@@ -156,9 +158,9 @@ def read_multi(plc, variables, current_time, client=None):
             session.add(alarm)
             session.commit()
 
-    except Exception as e:
-        logging.exception('read_multi' + str(e))
-        raise
+    # except Exception as e:
+    #     logging.exception('read_multi' + str(e))
+    #     raise
     #     session.rollback()
     finally:
         session.close()
@@ -193,7 +195,7 @@ def plc_write(variable_model, plc_cli, plc_model):
                 start=address,
                 size=size
             )
-        except Exception as e:
+        except Snap7Exception as e:
             logging.error('plc_read', str(e))
             alarm = read_err(
                 id_num=id_num,
@@ -208,7 +210,7 @@ def plc_write(variable_model, plc_cli, plc_model):
             try:
                 session.add(alarm)
                 session.commit()
-            except Exception as e:
+            except IntegrityError as e:
                 logging.warning('plc_write' + str(e))
                 session.rollback()
             finally:

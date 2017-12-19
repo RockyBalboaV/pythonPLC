@@ -1,6 +1,9 @@
 # -*- coding:utf-8 -*-
-import redis  # redis数据库链接
+import redis
 import pickle
+from contextlib import contextmanager
+
+from celery.five import monotonic
 
 
 class ConnDB(object):
@@ -33,6 +36,23 @@ class ConnDB(object):
 
     def get_all(self, key_):
         self.conn.hegtall('')
+
+
+pool = redis.ConnectionPool(host='127.0.0.1', port=6379, db=0)
+redis_conn = redis.StrictRedis(connection_pool=pool)
+LOCK_EXPIRE = 60 * 10  # Lock expires in 10 minutes
+
+
+@contextmanager
+def redis_lock(lock_id, oid):
+    # 模仿celery文档中提供的memcached进程锁，改用redis，速度慢上好几倍
+    timeout_at = monotonic() + LOCK_EXPIRE - 3
+    status = redis_conn.setex(lock_id, LOCK_EXPIRE, oid)
+    try:
+        yield status
+    finally:
+        if monotonic() < timeout_at:
+            redis_conn.delete(lock_id)
 
 
 r = ConnDB()

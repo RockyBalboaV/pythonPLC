@@ -3,25 +3,21 @@
 import time
 import subprocess
 import logging
-from contextlib import contextmanager
 
 from eventlet import monkey_patch, Timeout
 from requests.exceptions import RequestException
 from celery import Celery
-from celery.five import monotonic
 from celery.utils.log import get_task_logger
 from celery.exceptions import MaxRetriesExceededError, SoftTimeLimitExceeded
 
 from models import YjPLCInfo, Value, Session
-from data_collection import load_snap7
 from utils.station_alarm import check_time_err, connect_server_err, server_return_err, db_commit_err, ntpdate_err
 from utils.plc_alarm import connect_plc_err, read_err
 from param import (ID_NUM, BEAT_URL, CONNECT_TIMEOUT, REQUEST_TIMEOUT, CHECK_DELAY, SERVER_TIMEOUT, PLC_TIMEOUT,
                    NTP_SERVER)
-from utils.redis_middle_class import r
+from utils.redis_middle_class import r, redis_lock
 from utils.station_data import (redis_alarm_variables, beats_data, plc_info)
 from utils.plc_connect import plc_client
-from utils.mc import mc as cache
 from utils.server_connect import upload, upload_data, get_config, req_s
 from utils.station_func import before_running, encryption_client, decryption_client
 from utils.plc_connect import read_multi
@@ -38,28 +34,6 @@ monkey_patch(MySQLdb=True)
 logging.basicConfig(level=logging.WARN)
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
-# 读取snap7 C库
-load_snap7()
-
-LOCK_EXPIRE = 60 * 10  # Lock expires in 10 minutes
-
-
-@contextmanager
-def memcache_lock(lock_id, oid):
-    timeout_at = monotonic() + LOCK_EXPIRE - 3
-    # cache.add fails if the key already exists
-    status = cache.add(lock_id, oid, LOCK_EXPIRE)
-    try:
-        yield status
-    finally:
-        # memcache delete is very slow, but we have to use it to take
-        # advantage of using add() for atomic locking
-        if monotonic() < timeout_at:
-            # don't release the lock if we exceeded the timeout
-            # to lessen the chance of releasing an expired lock
-            # owned by someone else.
-            cache.delete(lock_id)
-
 
 @app.task(bind=True, ignore_result=True, default_retry_delay=10, max_retries=3, time_limit=10)
 def self_check(self):
@@ -71,7 +45,7 @@ def self_check(self):
     """
 
     lock_id = '{0}-lock'.format(self.name)
-    with memcache_lock(lock_id, self.app.oid) as acquired:
+    with redis_lock(lock_id, self.app.oid) as acquired:
         if acquired:
             logging.debug('自检')
 
@@ -139,7 +113,7 @@ def beats(self):
     :return: 
     """
     lock_id = '{0}-lock'.format(self.name)
-    with memcache_lock(lock_id, self.app.oid) as acquired:
+    with redis_lock(lock_id, self.app.oid) as acquired:
         if acquired:
             time1 = time.time()
             logging.debug('心跳连接')
@@ -205,7 +179,7 @@ def check_upload(self):
     :return: 
     """
     lock_id = '{0}-lock'.format(self.name)
-    with memcache_lock(lock_id, self.app.oid) as acquired:
+    with redis_lock(lock_id, self.app.oid) as acquired:
         if acquired:
             upload_time1 = time.time()
             logging.debug('检查变量组上传时间')
@@ -250,11 +224,6 @@ def check_upload(self):
                 # except Exception as e:
                 #     logging.exception('check_group' + str(e))
 
-                for g in group_upload_data:
-                    if current_time >= g['upload_time']:
-                        g['is_uploading'] = False
-                r.set('group_upload', group_upload_data)
-
             finally:
                 session.close()
                 upload_time2 = time.time()
@@ -268,11 +237,13 @@ def check_gather(self):
 
     :return: 
     """
-
+    lock_time1 = time.time()
     lock_id = '{0}-lock'.format(self.name)
 
-    with memcache_lock(lock_id, self.app.oid) as acquired:
+    with redis_lock(lock_id, self.app.oid) as acquired:
         if acquired:
+            lock_time2 = time.time()
+            print('lock_time', lock_time2 - lock_time1)
             time1 = time.time()
             logging.debug('检查变量采集时间')
 
@@ -352,7 +323,7 @@ def check_gather(self):
 @app.task(bind=True, ignore_result=True, default_retry_delay=60, max_retries=3)
 def ntpdate(self):
     lock_id = '{0}-lock'.format(self.name)
-    with memcache_lock(lock_id, self.app.oid) as acquired:
+    with redis_lock(lock_id, self.app.oid) as acquired:
         if acquired:
             # 使用supervisor启动时用户为root 不需要sudo输入密码 不安全
             session = Session()
@@ -393,7 +364,7 @@ def ntpdate(self):
 @app.task(bind=True, ignore_result=True)
 def db_clean(self):
     lock_id = '{0}-lock'.format(self.name)
-    with memcache_lock(lock_id, self.app.oid) as acquired:
+    with redis_lock(lock_id, self.app.oid) as acquired:
         if acquired:
             # 删除一天前的采集数据
             current_time = int(time.time())
@@ -408,7 +379,7 @@ def db_clean(self):
 @app.task(bind=True, ignore_result=True, time_limit=10)
 def check_alarm(self):
     lock_id = '{0}-lock'.format(self.name)
-    with memcache_lock(lock_id, self.app.oid) as acquired:
+    with redis_lock(lock_id, self.app.oid) as acquired:
         if acquired:
             # r.set('alarm_info', None)
             logging.debug('check alarm')
