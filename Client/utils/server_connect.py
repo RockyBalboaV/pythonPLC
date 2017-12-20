@@ -6,6 +6,7 @@ from requests import Session as ReqSession
 from requests.adapters import HTTPAdapter
 from requests.exceptions import RequestException
 from sqlalchemy.exc import IntegrityError
+from pymysql import connect
 
 from models import (Session, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, VarGroups, AlarmInfo, Value,
                     value_serialize)
@@ -56,11 +57,6 @@ def get_config():
             log = connect_server_err(id_num)
             session.add(log)
 
-            # try:
-            #     raise self.retry(exc=e)
-            # except RequestException:
-            #     pass
-            # return 1
         # 连接成功
         else:
             # 记录本次服务器通讯时间
@@ -73,35 +69,65 @@ def get_config():
                 data = decryption_client(rp['data'])
 
                 # print(data)
-
                 # 配置更新，删除现有表
                 time11 = time.time()
+                db = connect(host='localhost', port=3306, user='client', passwd='pyplc_client', db='pyplc_client',
+                             charset='utf8')
+                cur = db.cursor()
                 try:
-                    session.query(VarGroups).delete()
-                    session.query(AlarmInfo).delete()
-                    session.query(YjVariableInfo).delete()
-                    session.query(YjStationInfo).delete()
-                    session.query(YjPLCInfo).delete()
-                    session.query(YjGroupInfo).delete()
+                    cur.execute('SET foreign_key_checks = 0')
+                    cur.execute('truncate table `variables_groups`')
+                    cur.execute('truncate table alarm_info')
+                    cur.execute('truncate table `values`')
+                    cur.execute('truncate table yjvariableinfo')
+                    cur.execute('truncate table yjgroupinfo')
+                    cur.execute('truncate table yjplcinfo')
+                    cur.execute('truncate table yjstationinfo')
+                    cur.execute('SET foreign_key_checks = 1')
+                    # session.query(VarGroups).delete()
+                    # session.query(AlarmInfo).delete()
+                    # session.query(YjVariableInfo).delete()
+                    # session.query(YjStationInfo).delete()
+                    # session.query(YjPLCInfo).delete()
+                    # session.query(YjGroupInfo).delete()
 
                 except IntegrityError as e:
                     logging.error('更新配置时，删除旧表出错: ' + str(e))
-                    session.rollback()
+                    db.rollback()
+                    # session.rollback()
                     alarm = db_commit_err(id_num, 'get_config')
                     session.add(alarm)
                 else:
-                    session.flush()
-
-                # 添加'sqlalchemy' class数据
-                session.bulk_insert_mappings(YjStationInfo, [data['stations']])
-                session.bulk_insert_mappings(YjPLCInfo, data['plcs'])
-                session.bulk_insert_mappings(YjGroupInfo, data['groups'])
-                session.bulk_insert_mappings(YjVariableInfo, data['variables'])
-                session.bulk_insert_mappings(VarGroups, data['variables_groups'])
-                session.bulk_insert_mappings(AlarmInfo, data['alarm'])
-
-                time12 = time.time()
-                print('清空添加配置', time12 - time11)
+                    # 添加'sqlalchemy' class数据
+                    
+                    station_sql = '''insert into `yjstationinfo`
+                                (id, station_name, mac, ip, note, id_num, plc_count, ten_id, item_id)
+                                 values (%(id)s, %(station_name)s, %(mac)s, %(ip)s, %(note)s, %(id_num)s,
+                                  %(plc_count)s, %(ten_id)s, %(item_id)s)'''
+                    cur.execute(station_sql, data['stations'])
+                    plc_sql = 'insert into `yjplcinfo`(id, plc_name, note, ip, mpi, type, plc_type, ten_id, item_id, rack, slot, tcp_port) values (%(id)s, %(plc_name)s, %(note)s, %(ip)s, %(mpi)s, %(type)s, %(plc_type)s, %(ten_id)s, %(item_id)s, %(rack)s, %(slot)s, %(tcp_port)s)'
+                    cur.executemany(plc_sql, data['plcs'])
+                    group_sql = 'insert into `yjgroupinfo`(id, group_name, note, upload_cycle, acquisition_cycle, server_record_cycle, is_upload, ten_id, item_id) values (%(id)s, %(group_name)s, %(note)s, %(upload_cycle)s, %(acquisition_cycle)s, %(server_record_cycle)s, %(is_upload)s, %(ten_id)s, %(item_id)s)'
+                    cur.executemany(group_sql, data['groups'])
+                    var_sql = 'insert into `yjvariableinfo`(id, variable_name, note, db_num, address, data_type, rw_type, ten_id, item_id, write_value, area, is_analog, analog_low_range, analog_high_range, digital_low_range, digital_high_range) values (%(id)s, %(variable_name)s, %(note)s, %(db_num)s, %(address)s, %(data_type)s, %(rw_type)s, %(ten_id)s, %(item_id)s, %(write_value)s, %(area)s, %(is_analog)s, %(analog_low_range)s, %(analog_high_range)s, %(digital_low_range)s, %(digital_high_range)s)'
+                    cur.executemany(var_sql, data['variables'])
+                    relation_sql = 'insert into `variables_groups`(id, variable_id, group_id) values (%(id)s, %(variable_id)s, %(group_id)s)'
+                    cur.executemany(relation_sql, data['variables_groups'])
+                    alarm_sql = 'insert into `alarm_info`(id, variable_id, alarm_type, note, type, symbol, limit, delay) values (%(id)s, %(variable_id)s, %(alarm_type)s, %(note)s, %(type)s, %(symbol)s, %(limit)s, %(delay)s)'
+                    cur.executemany(alarm_sql, data['alarm'])
+                    db.commit()
+                    
+                    # session.bulk_insert_mappings(YjStationInfo, [data['stations']])
+                    # session.bulk_insert_mappings(YjPLCInfo, data['plcs'])
+                    # session.bulk_insert_mappings(YjGroupInfo, data['groups'])
+                    # session.bulk_insert_mappings(YjVariableInfo, data['variables'])
+                    # session.bulk_insert_mappings(VarGroups, data['variables_groups'])
+                    # session.bulk_insert_mappings(AlarmInfo, data['alarm'])
+                finally:
+                    cur.close()
+                    db.close()
+                    time12 = time.time()
+                    print('清空添加配置', time12 - time11)
 
                 logging.debug('发送配置完成确认信息')
                 time21 = time.time()
@@ -117,13 +143,13 @@ def get_config():
             else:
                 log = server_return_err(id_num, 'get_config')
                 session.add(log)
-        finally:
-            session.commit()
+        session.commit()
 
     # except Exception as e:
     #     logging.exception('get_config' + str(e))
     #     session.rollback()
     finally:
+
         session.close()
         time2 = time.time()
         print('get_config', time2 - time1)
@@ -179,7 +205,7 @@ def upload_data(group, current_time):
                 get_time += server_record_cycle
 
             time2 = time.time()
-            # print('采样时间', time2 - time1)
+            print('采样时间', time2 - time1)
         # print(value_list)
         session.commit()
     # except Exception as e:

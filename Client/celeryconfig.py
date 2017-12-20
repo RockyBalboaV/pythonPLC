@@ -21,11 +21,11 @@ worker_concurrency = 4
 # 忽略任务执行状态
 task_ignore_result = True
 # Worker最大累积任务数
-worker_max_tasks_per_child = 5
+# worker_max_tasks_per_child = 5
 # 任务默认执行速度
 task_default_rate_limit = '1/s'
-task_time_limit = 30
-task_soft_time_limit = 20
+# task_time_limit = 30
+# task_soft_time_limit = 20
 # worker_disable_rate_limits = True
 # broker最大连接数
 broker_pool_limit = 100

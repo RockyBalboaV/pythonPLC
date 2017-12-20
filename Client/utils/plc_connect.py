@@ -14,6 +14,7 @@ from utils.plc_alarm import read_err, connect_plc_err
 from data_collection import variable_size, variable_area, read_value, analog2digital, write_value, load_snap7
 from utils.redis_middle_class import r
 
+import time
 # 读取snap7 C库
 load_snap7()
 
@@ -38,7 +39,7 @@ def plc_client(ip, rack, slot):
 
 
 def read_multi(plc, variables, current_time, client=None):
-    # time1 = time.time()
+    time1 = time.time()
     # print('采集')
     value_list = list()
     var_num = len(variables)
@@ -86,10 +87,10 @@ def read_multi(plc, variables, current_time, client=None):
             # raise Snap7Exception
             # raise self.retry(e)
 
-    # time1 = time.time()
+    time1 = time.time()
     result, data_items = client.read_multi_vars(data_items)
-    # time2 = time.time()
-    # print('读取时间', time2 - time1)
+    time2 = time.time()
+    print('读取时间', time2 - time1)
 
     for num in range(0, var_num):
         di = data_items[num]
@@ -127,12 +128,13 @@ def read_multi(plc, variables, current_time, client=None):
             value = round(raw_value, 2)
             # print(str(variables[num]['id']) + '--' + str(value))
 
-            value_info = {
-                'var_id': variables[num]['id'],
-                'time': current_time,
-                'value': value
-            }
+            # value_info = {
+            #     'var_id': variables[num]['id'],
+            #     'time': current_time,
+            #     'value': value
+            # }
             # print(value_model)
+            value_info = (variables[num]['id'], value, current_time)
             value_list.append(value_info)
 
     return value_list
@@ -143,9 +145,9 @@ def read_multi(plc, variables, current_time, client=None):
     #     raise
     #     session.rollback()
 
-    # time2 = time.time()
+    time2 = time.time()
 
-    # print('单次采集时间', time2 - time1)
+    print('单次采集时间', time2 - time1)
 
 
 def plc_write(variable_model, plc_cli, plc_model):

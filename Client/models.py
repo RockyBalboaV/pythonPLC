@@ -185,7 +185,6 @@ class AlarmInfo(Base):
     variable_id = Column(Integer, ForeignKey('yjvariableinfo.id'))
     alarm_type = Column(Integer)
     note = Column(String(128))
-    is_send_message = Column(Boolean)
     type = Column(Integer)  # 1 bool 2 data
     symbol = Column(Integer)  # 1 > 2 >= 3 < 4 <=
     limit = Column(Float)

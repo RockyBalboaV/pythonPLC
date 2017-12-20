@@ -114,6 +114,9 @@ class TestFunc:
     def test_db_clean(self):
         db_clean()
 
+    def test_get_config(self):
+        get_config()
+
 
 class TestTask(object):
     def test_get_config(self):
