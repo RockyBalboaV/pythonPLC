@@ -87,28 +87,28 @@ def before_running():
             # except Snap7Exception as e:
             #     logging.error('PLC无法连接，请查看PLC状态' + str(e))
 
+            # 获取该PLC下所有组信息
+            groups = plc.groups
+            # 设定变量组信息
+            for g in groups:
+                if g.is_upload:
+                    redis_group_upload_info(r, g, start_time)
+                redis_group_read_info(r, g, start_time)
+                redis_variable_info(r, g)
+                # print(r.get('group_upload'))
+                # print(r.get('group_read'))
+                # print(r.get('variable'))
+
             with plc_client(ip, rack, slot) as client:
-                # print(client.get_connected())
-                # 获取该PLC下所有组信息
-                groups = plc.groups
+                print(client.get_connected())
 
-                # 设定变量组信息
-                for g in groups:
-                    if g.is_upload:
-                        redis_group_upload_info(r, g, start_time)
-                    redis_group_read_info(r, g, start_time)
-                    redis_variable_info(r, g)
-                    # print(r.get('group_upload'))
-                    # print(r.get('group_read'))
-                    # print(r.get('variable'))
+                # 变量写入
+                # 获取该变量组下所有变量信息
+                # variables = g.variables
 
-                    # 变量写入
-                    # 获取该变量组下所有变量信息
-                    # variables = g.variables
-
-                    # if variables:
-                    #     for v in variables:
-                    #         plc_write(v, plc_cli, plc)
+                # if variables:
+                #     for v in variables:
+                #         plc_write(v, plc_cli, plc)
 
         # 数据库写入操作后，关闭数据库连接
         session.commit()

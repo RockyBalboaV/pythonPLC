@@ -105,9 +105,9 @@ def get_config():
                                  values (%(id)s, %(station_name)s, %(mac)s, %(ip)s, %(note)s, %(id_num)s,
                                   %(plc_count)s, %(ten_id)s, %(item_id)s)'''
                     cur.execute(station_sql, data['stations'])
-                    plc_sql = 'insert into `yjplcinfo`(id, plc_name, note, ip, mpi, type, plc_type, ten_id, item_id, rack, slot, tcp_port) values (%(id)s, %(plc_name)s, %(note)s, %(ip)s, %(mpi)s, %(type)s, %(plc_type)s, %(ten_id)s, %(item_id)s, %(rack)s, %(slot)s, %(tcp_port)s)'
+                    plc_sql = 'insert into `yjplcinfo`(id, station_id, plc_name, note, ip, mpi, type, plc_type, ten_id, item_id, rack, slot, tcp_port) values (%(id)s, %(station_id)s, %(plc_name)s, %(note)s, %(ip)s, %(mpi)s, %(type)s, %(plc_type)s, %(ten_id)s, %(item_id)s, %(rack)s, %(slot)s, %(tcp_port)s)'
                     cur.executemany(plc_sql, data['plcs'])
-                    group_sql = 'insert into `yjgroupinfo`(id, group_name, note, upload_cycle, acquisition_cycle, server_record_cycle, is_upload, ten_id, item_id) values (%(id)s, %(group_name)s, %(note)s, %(upload_cycle)s, %(acquisition_cycle)s, %(server_record_cycle)s, %(is_upload)s, %(ten_id)s, %(item_id)s)'
+                    group_sql = 'insert into `yjgroupinfo`(id, group_name, note, upload_cycle, acquisition_cycle, server_record_cycle, is_upload, ten_id, item_id, plc_id) values (%(id)s, %(group_name)s, %(note)s, %(upload_cycle)s, %(acquisition_cycle)s, %(server_record_cycle)s, %(is_upload)s, %(ten_id)s, %(item_id)s, %(plc_id)s)'
                     cur.executemany(group_sql, data['groups'])
                     var_sql = 'insert into `yjvariableinfo`(id, variable_name, note, db_num, address, data_type, rw_type, ten_id, item_id, write_value, area, is_analog, analog_low_range, analog_high_range, digital_low_range, digital_high_range) values (%(id)s, %(variable_name)s, %(note)s, %(db_num)s, %(address)s, %(data_type)s, %(rw_type)s, %(ten_id)s, %(item_id)s, %(write_value)s, %(area)s, %(is_analog)s, %(analog_low_range)s, %(analog_high_range)s, %(digital_low_range)s, %(digital_high_range)s)'
                     cur.executemany(var_sql, data['variables'])

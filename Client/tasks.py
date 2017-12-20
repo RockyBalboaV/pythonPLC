@@ -333,14 +333,16 @@ def check_gather(self):
                 # session.bulk_insert_mappings(Value, value_list)
                 # session.commit()
                 ctime1 = time.time()
-                for value in value_list:
-                    sql += ' ({0}, {1}, {2}),'.format(*value)
+                if value_list:
+                    for value in value_list:
+                        sql += ' ({0}, {1}, {2}),'.format(*value)
 
-                # cur.executemany(sql, value_list)
-                cur.execute(sql[:-1])
-                db.commit()
-                ctime2 = time.time()
-                print('commit', ctime2 - ctime1)
+                    # cur.executemany(sql, value_list)
+                    sql = sql[:-1]
+                    cur.execute(sql)
+                    db.commit()
+                    ctime2 = time.time()
+                    print('commit', ctime2 - ctime1)
 
                 r.set('plc', plcs)
             # except Exception as e:
