@@ -245,7 +245,6 @@ def check_gather(self):
     """
     lock_time1 = time.time()
     lock_id = '{0}-lock'.format(self.name)
-    sql = "insert into `values`(var_id, value, time) values"
     with memcache_lock(lock_id, self.app.oid) as acquired:
         if acquired:
 
@@ -334,16 +333,17 @@ def check_gather(self):
                     # session.bulk_insert_mappings(Value, value_list)
                     # session.commit()
                     ctime1 = time.time()
+                    value_insert_sql = "insert into `values`(var_id, value, time) values "
                     if value_list:
-                        for value in value_list:
-                            sql += ' ({0}, {1}, {2}),'.format(*value)
+                        v = map(str, value_list)
 
-                        # cur.executemany(sql, value_list)
-                        sql = sql[:-1]
-                        cur.execute(sql)
+                        value_insert_sql = value_insert_sql + ','.join(v)
+
+                        cur.execute(value_insert_sql)
                         db.commit()
-                        ctime2 = time.time()
-                        print('commit', ctime2 - ctime1)
+
+                    ctime2 = time.time()
+                    print('commit', ctime2 - ctime1)
 
                     r.set('plc', plcs)
                 # except Exception as e:

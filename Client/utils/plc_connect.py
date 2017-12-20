@@ -90,7 +90,7 @@ def read_multi(plc, variables, current_time, client=None):
     time1 = time.time()
     result, data_items = client.read_multi_vars(data_items)
     time2 = time.time()
-    print('读取时间', time2 - time1)
+    # print('读取时间', time2 - time1)
 
     for num in range(0, var_num):
         di = data_items[num]

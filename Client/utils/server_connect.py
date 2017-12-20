@@ -163,56 +163,46 @@ def upload_data(group, current_time):
     :param current_time: 当前时间
     :return: 变量值列表
     """
+    time1 = time.time()
 
     logging.debug('上传数据打包')
 
-    value_list = list()
-
-    session = Session()
-    try:
-        # 获取该组信息
-        # print(group)
-        server_record_cycle = group['server_record_cycle']
-
-        # 准备本次上传的数据
-        variables = group['var_id']
-
-        for variable in variables:
-
+    # 获取该组信息
+    server_record_cycle = group['server_record_cycle']
+    with ConnMySQL() as db:
+        cur = db.cursor()
+        try:
+            # 上传的组
+            variables = tuple(group['var_id'])
             # 获取上次传输时间,没有上次时间就往前推一个上传周期
             if group['last_time'] is not None:
                 get_time = group['last_time']
             else:
                 get_time = current_time - group['upload_cycle']
 
-            time1 = time.time()
-            # 读取需要上传的值,所有时间大于上次上传的值
-            all_values = session.query(Value).filter_by(var_id=variable).filter(
-                get_time <= Value.time).filter(Value.time < current_time)
+            # 保存数据的空列表
+            value_list = list()
 
             # 循环从上次读取时间开始计算，每个一个记录周期提取一个数值
             while get_time < current_time:
-                upload_value = all_values.filter(
-                    get_time + server_record_cycle > Value.time).filter(Value.time >= get_time).order_by(
-                    Value.time.desc()).first()
-                # print('get_time', get_time)
+                next_time = get_time + server_record_cycle
+                sql = '''select var_id, value, time from `values` 
+                        where var_id in {variables} and {next_time} > time and time >= {get_time} and
+                         time = ( select max(time) from `values` where {next_time} > time and time >= {get_time} )'''\
+                        .format(get_time=get_time, next_time=next_time, variables=variables)
+                cur.execute(sql)
+                upload_value = cur.fetchall()
                 # 当上传时间小于采集时间时，会出现取值时间节点后无采集数据，得到None，使得后续语句报错。
+                # todo 一次查询时间只存一份
                 if upload_value:
-                    # print('数据时间', upload_value.time)
-                    value_dict = value_serialize(upload_value)
-                    value_list.append(value_dict)
+                    value_dict = [{'i': v[0], 'v': v[1], 't': v[2]} for v in upload_value]
+                    value_list += value_dict
 
-                get_time += server_record_cycle
-
-            time2 = time.time()
-            print('采样时间', time2 - time1)
-        # print(value_list)
-        session.commit()
-    # except Exception as e:
-    #     logging.exception('upload_data' + str(e))
-    #     session.rollback()
-    finally:
-        session.close()
+                get_time = next_time
+        finally:
+            cur.close()
+        time2 = time.time()
+        print('采样时间 2', time2 - time1)
 
     return value_list
 
@@ -237,7 +227,7 @@ def upload(variable_list, group_id):
             'id_num': id_num,
             'value': variable_list
         }
-
+        print(len(variable_list))
         # print('上传数据数量', len(data['value']))
 
         data = encryption_client(data)

@@ -81,7 +81,7 @@ beat_schedule = {
     'check_gather': {
         'task': 'tasks.check_gather',
         'schedule': 1,
-        'relative': True,
+        # 'relative': True,
         # options可用参数基于apply_async()
         'options': {
             'queue': 'gather'

@@ -47,7 +47,7 @@ LOCK_EXPIRE = 60 * 10  # Lock expires in 10 minutes
 def redis_lock(lock_id, oid):
     # 模仿celery文档中提供的memcached进程锁，改用redis，速度慢上好几倍
     timeout_at = monotonic() + LOCK_EXPIRE - 3
-    status = redis_conn.setex(lock_id, LOCK_EXPIRE, oid)
+    status = redis_conn.set(lock_id, oid, ex=LOCK_EXPIRE, nx=True)
     try:
         yield status
     finally:
