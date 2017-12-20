@@ -35,3 +35,8 @@ SERVER_TIMEOUT = int(cf.get('client', 'server_timeout'))
 PLC_TIMEOUT = int(cf.get('client', 'plc_timeout'))
 START_TIMEDELTA = int(cf.get('client', 'START_TIMEDELTA'))
 NTP_SERVER = cf.get('client', 'NTP_SERVER')
+HOSTNAME = cf.get(os.environ.get('env'), 'hostname')
+DATABASE = cf.get(os.environ.get('env'), 'database')
+USERNAME = cf.get(os.environ.get('env'), 'username')
+PASSWORD = cf.get(os.environ.get('env'), 'password')
+
