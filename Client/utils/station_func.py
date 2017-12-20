@@ -48,13 +48,14 @@ def before_running():
     logging.debug('运行前初始化')
 
     # 清除上次运行数据
-    r.set('group_upload', None)
-    r.set('group_read', None)
-    r.set('variable', None)
-    r.set('alarm_info', None)
-    r.set('check_time', None)
-    r.set('plc', None)
-    r.set('con_time', None)
+    r.conn.delete('group_upload', None)
+    r.conn.delete('group_read', None)
+    r.conn.delete('variable', None)
+    r.conn.delete('alarm_info', None)
+    r.conn.delete('check_time', None)
+    r.conn.delete('plc', None)
+    r.conn.delete('con_time', None)
+    r.conn.delete('value')
 
     session = Session()
     try:

@@ -134,9 +134,11 @@ def read_multi(plc, variables, current_time, client=None):
             #     'value': value
             # }
             # print(value_model)
+            # value_info = (variables[num]['id'], value, current_time)
             value_info = (variables[num]['id'], value, current_time)
+            
             value_list.append(value_info)
-
+    # value_list = {'time': current_time, 'value': value_list}
     return value_list
     # print('采集数据', len(value_list), value_list)
 

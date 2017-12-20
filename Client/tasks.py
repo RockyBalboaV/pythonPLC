@@ -3,6 +3,8 @@
 import time
 import subprocess
 import logging
+import json
+import pickle
 
 from pymysql import connect
 from requests.exceptions import RequestException
@@ -19,7 +21,7 @@ from utils.mc import memcache_lock
 from utils.redis_middle_class import r
 from utils.station_data import (redis_alarm_variables, beats_data, plc_info)
 from utils.plc_connect import plc_client
-from utils.server_connect import upload, upload_data, get_config, req_s
+from utils.server_connect import upload, upload_data, get_config, req_s, upload_data_redis
 from utils.station_func import before_running, encryption_client, decryption_client
 from utils.plc_connect import read_multi
 from utils.mysql_middle import ConnMySQL
@@ -237,11 +239,142 @@ def check_upload(self):
 
 
 @app.task(bind=True, ignore_result=True, soft_time_limit=2)
-def check_gather(self):
+def check_gather_redis(self):
     """
     检查变量采集时间，采集满足条件的变量值
 
     :return: 
+    """
+    lock_time1 = time.time()
+    lock_id = '{0}-lock'.format(self.name)
+    with memcache_lock(lock_id, self.app.oid) as acquired:
+        if acquired:
+
+            with ConnMySQL() as db:
+                cur = db.cursor()
+                lock_time2 = time.time()
+                print('lock_time', lock_time2 - lock_time1)
+                time1 = time.time()
+                logging.debug('检查变量采集时间')
+
+                current_time = int(time.time())
+                value_list = list()
+                session = Session()
+                try:
+                    plcs = r.get('plc')
+
+                    group_read_data = r.get('group_read')
+
+                    for plc in plcs:
+                        # todo 循环内部 使用并发
+
+                        group_id = []
+                        for v in group_read_data:
+                            if v['plc_id'] == plc['id'] and current_time >= v['read_time']:
+                                group_id.append(v['id'])
+                                v['read_time'] = current_time + v['read_cycle']
+                        r.set('group_read', group_read_data)
+
+                        group_data = r.get('variable')
+                        variables = [variable
+                                     for group in group_data if group['group_id'] in group_id
+                                     for variable in group['variables']
+                                     ]
+
+                        # print(variables)
+                        print('采集数量', len(variables))
+
+                        # client = plc_connect(plc)
+                        with plc_client(plc['ip'], plc['rack'], plc['slot']) as client:
+                            if client.get_connected():
+                                plc['time'] = current_time
+
+                            if variables:
+
+                                # readsuan(variables)
+                                # variables = variables[0:2]
+                                # print('variables', len(variables))
+
+                                while len(variables) > 0:
+                                    variable_group = variables[:18]
+                                    variables = variables[18:]
+
+                                    # print(len(variables))
+                                    # print(plc)
+                                    try:
+                                        value_info = read_multi(
+                                            plc=plc,
+                                            variables=variable_group,
+                                            current_time=current_time,
+                                            client=client
+                                        )
+                                    except SoftTimeLimitExceeded:
+                                        raise
+                                    except Snap7ReadException as e:
+                                        id_num = r.get('id_num')
+                                        area, db_num, addr, data_type = e.args
+                                        alarm = read_err(
+                                            id_num=id_num,
+                                            plc_id=plc['id'],
+                                            plc_name=plc['name'],
+                                            area=area,
+                                            db_num=db_num,
+                                            address=addr,
+                                            data_type=data_type
+                                        )
+                                        session.add(alarm)
+
+                                    else:
+                                        value_list += value_info
+
+                                        # except Exception:
+                                        #     print('跳过一次采集')
+
+                                        # client.disconnect()
+                                        # client.destroy()
+                    # session.bulk_insert_mappings(Value, value_list)
+                    # session.commit()
+                    ctime1 = time.time()
+                    # value_insert_sql = "insert into `values`(var_id, value, time) values "
+                    # if value_list:
+                    #     v = map(str, value_list)
+                    #
+                    #     value_insert_sql = value_insert_sql + ','.join(v)
+                    #
+                    #     cur.execute(value_insert_sql)
+                    #     db.commit()
+                    redis_value = r.conn.hlen('value')
+                    print(redis_value)
+
+                    # value_data = {str(current_time): value_list}
+                    value_list = pickle.dumps(value_list)
+                    # if redis_value:
+                    r.conn.hset('value', str(current_time), value_list)
+                    # else:
+                    #     r.set('value', value_data)
+
+                    ctime2 = time.time()
+                    print('commit', ctime2 - ctime1)
+
+
+                    r.set('plc', plcs)
+                # except Exception as e:
+                #     logging.excexcept Excepeption('check_var' + str(e))
+                #     session.rollback()
+                finally:
+                    time2 = time.time()
+                    print('采集时间' + str(time2 - time1))
+
+                    cur.close()
+                    # session.close()
+
+
+@app.task(bind=True, ignore_result=True, soft_time_limit=2)
+def check_gather(self):
+    """
+    检查变量采集时间，采集满足条件的变量值
+
+    :return:
     """
     lock_time1 = time.time()
     lock_id = '{0}-lock'.format(self.name)
@@ -342,8 +475,14 @@ def check_gather(self):
                         cur.execute(value_insert_sql)
                         db.commit()
 
+                    # value_data = {str(current_time): value_list}
+                    # if redis_value:
+                    # else:
+                    #     r.set('value', value_data)
+
                     ctime2 = time.time()
                     print('commit', ctime2 - ctime1)
+
 
                     r.set('plc', plcs)
                 # except Exception as e:
