@@ -20,3 +20,6 @@ class ConnMySQL(object):
 
     def __exit__(self, *args):
         self.db.close()
+
+
+mysql_db = ConnMySQL().db

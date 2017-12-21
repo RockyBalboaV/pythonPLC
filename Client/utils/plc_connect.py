@@ -149,7 +149,7 @@ def read_multi(plc, variables, current_time, client=None):
 
     time2 = time.time()
 
-    print('单次采集时间', time2 - time1)
+    # print('单次采集时间', time2 - time1)
 
 
 def plc_write(variable_model, plc_cli, plc_model):

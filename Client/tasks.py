@@ -180,17 +180,19 @@ def check_upload(self):
     
     :return: 
     """
+    lock_time1 = time.time()
     lock_id = '{0}-lock'.format(self.name)
     with memcache_lock(lock_id, self.app.oid) as acquired:
+        print('lock', acquired)
         if acquired:
-
+            lock_time2 = time.time()
+            print('lock_time', lock_time2 - lock_time1)
             upload_time1 = time.time()
             logging.debug('检查变量组上传时间')
             # print('上传')
 
             current_time = int(time.time())
 
-            session = Session()
 
             # 在redis中查询需要上传的变量组id
             group_upload_data = r.get('group_upload')
@@ -201,41 +203,38 @@ def check_upload(self):
                 if current_time >= g['upload_time']:
                     g['is_uploading'] = True
             r.set('group_upload', group_upload_data)
-            try:
 
-                group_id = []
-                value_list = list()
+            group_id = []
+            value_list = list()
 
-                dtime1 = time.time()
-                for g in group_upload_data:
-                    if current_time >= g['upload_time']:
-                        value_list += upload_data(g, current_time)
-                        group_id.append(g['id'])
-                        g['last_time'] = g['upload_time']
-                        g['upload_time'] = current_time + g['upload_cycle']
-                        # 设置为不在上传的状态
-                        g['is_uploading'] = False
+            dtime1 = time.time()
+            for g in group_upload_data:
+                if current_time >= g['upload_time']:
+                    value_list += upload_data(g, current_time)
+                    group_id.append(g['id'])
+                    g['last_time'] = g['upload_time']
+                    g['upload_time'] = current_time + g['upload_cycle']
+                    # 设置为不在上传的状态
+                    g['is_uploading'] = False
 
-                        # print('下次上传时间', datetime.datetime.fromtimestamp(g['upload_time']))
-                dtime2 = time.time()
-                print('data', dtime2 - dtime1)
-                # print(group_id)
+                    # print('下次上传时间', datetime.datetime.fromtimestamp(g['upload_time']))
+            dtime2 = time.time()
+            print('data', dtime2 - dtime1)
+            # print(group_id)
 
-                # print('上传数据', len(value_list), value_list)
-                utime1 = time.time()
-                upload(value_list, group_id)
-                utime2 = time.time()
-                print('upload', utime2 - utime1)
+            # print('上传数据', len(value_list), value_list)
+            utime1 = time.time()
+            upload(value_list, group_id)
+            utime2 = time.time()
+            print('upload', utime2 - utime1)
 
-                r.set('group_upload', group_upload_data)
+            r.set('group_upload', group_upload_data)
 
-                # except Exception as e:
-                #     logging.exception('check_group' + str(e))
+            # except Exception as e:
+            #     logging.exception('check_group' + str(e))
 
-            finally:
-                session.close()
-                upload_time2 = time.time()
-                print('上传时间', upload_time2 - upload_time1)
+            upload_time2 = time.time()
+            print('上传时间', upload_time2 - upload_time1)
 
 
 @app.task(bind=True, ignore_result=True, soft_time_limit=2)
@@ -384,7 +383,7 @@ def check_gather(self):
             with ConnMySQL() as db:
                 cur = db.cursor()
                 lock_time2 = time.time()
-                print('lock_time', lock_time2 - lock_time1)
+                # print('lock_time', lock_time2 - lock_time1)
                 time1 = time.time()
                 logging.debug('检查变量采集时间')
 
@@ -413,7 +412,7 @@ def check_gather(self):
                                      ]
 
                         # print(variables)
-                        print('采集数量', len(variables))
+                        # print('采集数量', len(variables))
 
                         # client = plc_connect(plc)
                         with plc_client(plc['ip'], plc['rack'], plc['slot']) as client:
@@ -481,7 +480,7 @@ def check_gather(self):
                     #     r.set('value', value_data)
 
                     ctime2 = time.time()
-                    print('commit', ctime2 - ctime1)
+                    # print('commit', ctime2 - ctime1)
 
 
                     r.set('plc', plcs)
@@ -490,7 +489,7 @@ def check_gather(self):
                 #     session.rollback()
                 finally:
                     time2 = time.time()
-                    print('采集时间' + str(time2 - time1))
+                    # print('采集时间' + str(time2 - time1))
 
                     cur.close()
                     # session.close()

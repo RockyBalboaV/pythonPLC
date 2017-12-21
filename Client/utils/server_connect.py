@@ -14,7 +14,7 @@ from param import UPLOAD_URL, REQUEST_TIMEOUT, CONNECT_TIMEOUT, CONFIG_URL, CONF
 from utils.station_func import decryption_client, encryption_client
 from utils.redis_middle_class import r
 from utils.station_alarm import connect_server_err, db_commit_err, server_return_err
-from utils.mysql_middle import ConnMySQL
+from utils.mysql_middle import ConnMySQL, mysql_db
 
 # 初始化requests
 req_s = ReqSession()
@@ -72,7 +72,9 @@ def get_config():
                 # print(data)
                 time11 = time.time()
 
-                with ConnMySQL() as db:
+                # with ConnMySQL() as db:
+                if True:
+                    db = mysql_db
                     cur = db.cursor()
                     try:
                         # 配置更新，清空现有表
@@ -208,7 +210,9 @@ def upload_data(group, current_time):
 
     # 获取该组信息
     server_record_cycle = group['server_record_cycle']
-    with ConnMySQL() as db:
+    # with ConnMySQL() as db:
+    if True:
+        db = mysql_db
         cur = db.cursor()
         try:
             # 上传的组
