@@ -1,6 +1,7 @@
 import logging
 import time
 import json
+import pickle
 
 from requests import Session as ReqSession
 from requests.adapters import HTTPAdapter
@@ -158,6 +159,9 @@ def get_config():
         time2 = time.time()
         print('get_config', time2 - time1)
 
+def key_filter(str_time, get_time):
+    return int(str_time) >= int(get_time)
+
 def upload_data_redis(group, current_time):
     time1 = time.time()
 
@@ -165,31 +169,33 @@ def upload_data_redis(group, current_time):
 
     # 获取该组信息
     server_record_cycle = group['server_record_cycle']
-    try:
-        # 上传的组
-        variables = tuple(group['var_id'])
-        # 获取上次传输时间,没有上次时间就往前推一个上传周期
-        if group['last_time'] is not None:
-            get_time = group['last_time']
-        else:
-            get_time = current_time - group['upload_cycle']
+    # 上传的组
+    variables = tuple(group['var_id'])
+    # 获取上次传输时间,没有上次时间就往前推一个上传周期
+    if group['last_time'] is not None:
+        get_time = group['last_time']
+    else:
+        get_time = current_time - group['upload_cycle']
 
-        # 保存数据的空列表
-        value_list = list()
-        import pickle
-        # 循环从上次读取时间开始计算，每个一个记录周期提取一个数值
-        while get_time < current_time:
-            next_time = get_time + server_record_cycle
-            value_time = r.conn.hkeys('value')
-            for str_time in value_time:
-                int_time = int(str_time)
-                if next_time > int_time >= get_time:
-                    value_list.append({'time': int_time, 'value': pickle.loads(r.conn.hget('value', str_time))})
-
-            get_time = next_time
-        print(value_list)
-    finally:
-        pass
+    # 保存数据的空列表
+    value_list = list()
+    # 循环从上次读取时间开始计算，每个一个记录周期提取一个数值
+    value_time = r.conn.hkeys('value')
+    value_time = (str_time for str_time in value_time if int(str_time) >= int(get_time))
+    while get_time < current_time:
+        next_time = get_time + server_record_cycle
+        for str_time in value_time:
+            int_time = int(str_time)
+            value_info = list()
+            if next_time > int_time >= get_time:
+                value = pickle.loads(r.conn.hget('value', str_time))
+                for v in value:
+                    if v[0] in variables:
+                        value_info.append(v)
+                value_list.append({'time': int_time, 'value': value_info})
+                break
+        get_time = next_time
+    print(value_list)
     time2 = time.time()
     print('采样时间 2', time2 - time1)
 
@@ -216,7 +222,7 @@ def upload_data(group, current_time):
         cur = db.cursor()
         try:
             # 上传的组
-            variables = tuple(group['var_id'])
+            variables = group['var_id']
             # 获取上次传输时间,没有上次时间就往前推一个上传周期
             if group['last_time'] is not None:
                 get_time = group['last_time']
@@ -226,22 +232,20 @@ def upload_data(group, current_time):
             # 保存数据的空列表
             value_list = list()
 
-            # 循环从上次读取时间开始计算，每个一个记录周期提取一个数值
-            while get_time < current_time:
-                next_time = get_time + server_record_cycle
-                sql = '''select var_id, value, time from `values` 
-                        where var_id in {variables} and {next_time} > time and time >= {get_time} and
-                         time = ( select max(time) from `values` where {next_time} > time and time >= {get_time} )''' \
-                    .format(get_time=get_time, next_time=next_time, variables=variables)
-                cur.execute(sql)
-                upload_value = cur.fetchall()
-                # 当上传时间小于采集时间时，会出现取值时间节点后无采集数据，得到None，使得后续语句报错。
-                # todo 一次查询时间只存一份
-                if upload_value:
-                    value_dict = [{'i': v[0], 'v': v[1], 't': v[2]} for v in upload_value]
-                    value_list += value_dict
+            for variable in variables:
+                # 循环从上次读取时间开始计算，每个一个记录周期提取一个数值
+                while get_time < current_time:
+                    next_time = get_time + server_record_cycle
+                    sql = '''select var_id, value, time from `values` where var_id = %s and time > %s limit 1'''
+                    cur.execute(sql, (variable, get_time))
+                    upload_value = cur.fetchone()
+                    # 当上传时间小于采集时间时，会出现取值时间节点后无采集数据，得到None，使得后续语句报错。
+                    # todo 一次查询时间只存一份
+                    if upload_value:
+                        value_info = {'i': upload_value[0], 'v': upload_value[1], 't': upload_value[2]}
+                        value_list.append(value_info)
 
-                get_time = next_time
+                    get_time = next_time
         finally:
             cur.close()
         time2 = time.time()
