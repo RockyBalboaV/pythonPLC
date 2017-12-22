@@ -105,7 +105,7 @@ def self_check(self):
                 session.close()
 
 
-@app.task(bind=True, ignore_result=True, soft_time_limit=20)
+@app.task(bind=True, ignore_result=True, time_limit=30)
 def beats(self):
     """
     celery任务
@@ -117,7 +117,7 @@ def beats(self):
     lock_id = '{0}-lock'.format(self.name)
     with memcache_lock(lock_id, self.app.oid) as acquired:
         if acquired:
-            time1 = time.time()
+            # time1 = time.time()
             logging.debug('心跳连接')
 
             session = Session()
@@ -169,11 +169,11 @@ def beats(self):
             #     session.rollback()
             finally:
                 session.close()
-                time2 = time.time()
-                print('beats', time2 - time1)
+                # time2 = time.time()
+                # print('beats', time2 - time1)
 
 
-@app.task(bind=True, ignore_result=True, soft_time_limit=10)
+@app.task(bind=True, ignore_result=True, time_limit=20)
 def check_upload(self):
     """
     检查变量组上传时间，将满足条件的变量组数据打包上传
@@ -183,16 +183,15 @@ def check_upload(self):
     lock_time1 = time.time()
     lock_id = '{0}-lock'.format(self.name)
     with memcache_lock(lock_id, self.app.oid) as acquired:
-        print('lock', acquired)
+        # print('lock', acquired)
         if acquired:
             lock_time2 = time.time()
-            print('lock_time', lock_time2 - lock_time1)
+            # print('lock_time', lock_time2 - lock_time1)
             upload_time1 = time.time()
             logging.debug('检查变量组上传时间')
             # print('上传')
 
             current_time = int(time.time())
-
 
             # 在redis中查询需要上传的变量组id
             group_upload_data = r.get('group_upload')
@@ -219,14 +218,14 @@ def check_upload(self):
 
                     # print('下次上传时间', datetime.datetime.fromtimestamp(g['upload_time']))
             dtime2 = time.time()
-            print('data', dtime2 - dtime1)
+            # print('data', dtime2 - dtime1)
             # print(group_id)
 
             # print('上传数据', len(value_list), value_list)
             utime1 = time.time()
             upload(value_list, group_id)
             utime2 = time.time()
-            print('upload', utime2 - utime1)
+            # print('upload', utime2 - utime1)
 
             r.set('group_upload', group_upload_data)
 
@@ -234,10 +233,10 @@ def check_upload(self):
             #     logging.exception('check_group' + str(e))
 
             upload_time2 = time.time()
-            print('上传时间', upload_time2 - upload_time1)
+            # print('上传时间', upload_time2 - upload_time1)
 
 
-@app.task(bind=True, ignore_result=True, soft_time_limit=2)
+@app.task(bind=True)
 def check_gather_redis(self):
     """
     检查变量采集时间，采集满足条件的变量值
@@ -252,7 +251,7 @@ def check_gather_redis(self):
             with ConnMySQL() as db:
                 cur = db.cursor()
                 lock_time2 = time.time()
-                print('lock_time', lock_time2 - lock_time1)
+                # print('lock_time', lock_time2 - lock_time1)
                 time1 = time.time()
                 logging.debug('检查变量采集时间')
 
@@ -281,10 +280,10 @@ def check_gather_redis(self):
                                      ]
 
                         # print(variables)
-                        print('采集数量', len(variables))
+                        # print('采集数量', len(variables))
 
                         # client = plc_connect(plc)
-                        with plc_client(plc['ip'], plc['rack'], plc['slot']) as client:
+                        with plc_client(plc['ip'], plc['rack'], plc['slot'], plc['id']) as client:
                             if client.get_connected():
                                 plc['time'] = current_time
 
@@ -343,7 +342,7 @@ def check_gather_redis(self):
                     #     cur.execute(value_insert_sql)
                     #     db.commit()
                     redis_value = r.conn.hlen('value')
-                    print(redis_value)
+                    # print(redis_value)
 
                     # value_data = {str(current_time): value_list}
                     value_list = pickle.dumps(value_list)
@@ -353,22 +352,21 @@ def check_gather_redis(self):
                     #     r.set('value', value_data)
 
                     ctime2 = time.time()
-                    print('commit', ctime2 - ctime1)
-
+                    # print('commit', ctime2 - ctime1)
 
                     r.set('plc', plcs)
                 # except Exception as e:
                 #     logging.excexcept Excepeption('check_var' + str(e))
                 #     session.rollback()
                 finally:
-                    time2 = time.time()
-                    print('采集时间' + str(time2 - time1))
+                    # time2 = time.time()
+                    # print('采集时间' + str(time2 - time1))
 
                     cur.close()
                     # session.close()
 
 
-@app.task(bind=True, ignore_result=True, soft_time_limit=2)
+@app.task(bind=True, ignore_result=True, time_limit=5)
 def check_gather(self):
     """
     检查变量采集时间，采集满足条件的变量值
@@ -414,16 +412,11 @@ def check_gather(self):
                         # print(variables)
                         # print('采集数量', len(variables))
 
-                        # client = plc_connect(plc)
-                        with plc_client(plc['ip'], plc['rack'], plc['slot']) as client:
+                        with plc_client(plc['ip'], plc['rack'], plc['slot'], plc['id']) as client:
                             if client.get_connected():
                                 plc['time'] = current_time
 
                             if variables:
-
-                                # readsuan(variables)
-                                # variables = variables[0:2]
-                                # print('variables', len(variables))
 
                                 while len(variables) > 0:
                                     variable_group = variables[:18]
@@ -481,7 +474,6 @@ def check_gather(self):
 
                     ctime2 = time.time()
                     # print('commit', ctime2 - ctime1)
-
 
                     r.set('plc', plcs)
                 # except Exception as e:
@@ -541,11 +533,11 @@ def db_clean(self):
     lock_id = '{0}-lock'.format(self.name)
     with memcache_lock(lock_id, self.app.oid) as acquired:
         if acquired:
-            # 删除一天前的采集数据
+            # 删除一月前的采集数据
             current_time = int(time.time())
             session = Session()
             try:
-                session.query(Value).filter(Value.time < current_time - 60 * 60 * 24).delete(synchronize_session=False)
+                session.query(Value).filter(Value.time < current_time - 60 * 60 * 24 * 30).delete(synchronize_session=False)
                 session.commit()
             finally:
                 session.close()
@@ -553,6 +545,7 @@ def db_clean(self):
 
 @app.task(bind=True, ignore_result=True, time_limit=10)
 def check_alarm(self):
+    # time1 = time.time()
     lock_id = '{0}-lock'.format(self.name)
     with memcache_lock(lock_id, self.app.oid) as acquired:
         if acquired:
@@ -577,7 +570,7 @@ def check_alarm(self):
 
             session = Session()
             try:
-
+                # print(alarm_variables)
                 for alarm in alarm_variables:
                     # 获取需要判断的采集数据
                     if alarm['delay']:
@@ -586,10 +579,11 @@ def check_alarm(self):
                     else:
                         values = session.query(Value).filter_by(var_id=alarm['var_id']). \
                             order_by(Value.time.desc()).limit(1).all()
-
+                    # print(values[0].value)
                     is_alarm = False
                     if alarm['type'] == 1:
                         for v in values:
+                            # print(v.value, v.var_id)
                             if bool(v.value) == bool(alarm['limit']):
                                 is_alarm = True
                             else:
@@ -675,4 +669,5 @@ def check_alarm(self):
             finally:
                 session.close()
 
-            return
+            # time2 = time.time()
+            # print('alarm_time', time2 - time1)

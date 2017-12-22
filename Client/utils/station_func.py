@@ -43,18 +43,16 @@ def before_running():
 
     :return: 
     """
-    from utils.redis_middle_class import r
-
     logging.debug('运行前初始化')
 
     # 清除上次运行数据
-    r.conn.delete('group_upload', None)
-    r.conn.delete('group_read', None)
-    r.conn.delete('variable', None)
-    r.conn.delete('alarm_info', None)
-    r.conn.delete('check_time', None)
-    r.conn.delete('plc', None)
-    r.conn.delete('con_time', None)
+    r.conn.delete('group_upload')
+    r.conn.delete('group_read')
+    r.conn.delete('variable')
+    r.conn.delete('alarm_info')
+    r.conn.delete('check_time')
+    r.conn.delete('plc')
+    r.conn.delete('con_time')
     r.conn.delete('value')
 
     session = Session()
@@ -65,6 +63,7 @@ def before_running():
 
         # 设定报警信息
         redis_alarm_variables(r)
+        # print(r.get('alarm_variables'))
 
         # 获取该终端所有PLC信息
         plc_models = session.query(YjPLCInfo).all()
@@ -72,21 +71,13 @@ def before_running():
         # 缓存PLC信息
         plc_data = plc_info(r, plc_models)
         logging.info('PLC配置信息： ' + str(plc_data))
-
         for plc in plc_models:
 
             # 获得该PLC的信息
+            plc_id = plc.id
             ip = plc.ip
             rack = plc.rack
             slot = plc.slot
-
-            # client = snap7.client.Client()
-            #
-            # try:
-            #     logging.debug('plc连接尝试 ip:{} rack:{} slot:{}'.format(ip, rack, slot))
-            #     client.connect(ip, rack, slot)
-            # except Snap7Exception as e:
-            #     logging.error('PLC无法连接，请查看PLC状态' + str(e))
 
             # 获取该PLC下所有组信息
             groups = plc.groups
@@ -100,23 +91,17 @@ def before_running():
                 # print(r.get('group_read'))
                 # print(r.get('variable'))
 
-            with plc_client(ip, rack, slot) as client:
-                print(client.get_connected())
+            with plc_client(ip, rack, slot, plc_id) as client:
+                if not client.get_connected():
+                    logging.error('PLC无法连接，请查看PLC状态')
 
-                # 变量写入
-                # 获取该变量组下所有变量信息
-                # variables = g.variables
+            # 变量写入
+            # 获取该变量组下所有变量信息
+            # variables = g.variables
 
-                # if variables:
-                #     for v in variables:
-                #         plc_write(v, plc_cli, plc)
-
-        # 数据库写入操作后，关闭数据库连接
-        session.commit()
-
-    # except Exception as e:
-    #     logging.exception('before_running' + str(e))
-    #     session.rollback()
+            # if variables:
+            #     for v in variables:
+            #         plc_write(v, plc_cli, plc)
     finally:
         session.close()
 

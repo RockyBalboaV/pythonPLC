@@ -26,18 +26,28 @@ class TestPLC:
         self.client.disconnect()
 
     def test_db_read_bool(self):
-        byte_data = self.client.db_read(151, 156, 1)
+        byte_data = self.client.db_read(151, 164, 1)
         data = get_bool(byte_data, 0, 5)
         print(data)
 
-    def test_db_write(self):
-        byte_data = self.client.db_read(151, 156, 1)
-        data = get_bool(byte_data, 0, 5)
+    def test_db_write_bool(self):
+        byte_data = self.client.db_read(141, 164, 1)
+        data = get_bool(byte_data, 0, 1)
         print(data)
-        set_bool(byte_data, 0, 5, False)
-        self.client.db_write(151, 156, byte_data)
-        byte_data = self.client.db_read(151, 156, 1)
-        data = get_bool(byte_data, 0, 5)
+        set_bool(byte_data, 0, 1, 1)
+        self.client.db_write(141, 164, byte_data)
+        byte_data = self.client.db_read(141, 164, 1)
+        data = get_bool(byte_data, 0, 1)
+        print(data)
+
+    def test_db_write_real(self):
+        byte_data = self.client.db_read(11, 22, 4)
+        data = get_real(byte_data, 0)
+        print(data)
+        set_real(byte_data, 0, 33)
+        self.client.db_write(11, 22, byte_data)
+        byte_data = self.client.db_read(11, 22, 4)
+        data = get_real(byte_data, 0)
         print(data)
 
     def test_db_connected(self):

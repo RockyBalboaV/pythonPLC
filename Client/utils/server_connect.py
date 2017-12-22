@@ -9,13 +9,12 @@ from requests.exceptions import RequestException
 from sqlalchemy.exc import IntegrityError
 from pymysql import connect, Error
 
-from models import (Session, YjStationInfo, YjPLCInfo, YjGroupInfo, YjVariableInfo, VarGroups, AlarmInfo, Value,
-                    value_serialize)
+from models import Session, Value
 from param import UPLOAD_URL, REQUEST_TIMEOUT, CONNECT_TIMEOUT, CONFIG_URL, CONFIRM_CONFIG_URL, MAX_RETRIES
 from utils.station_func import decryption_client, encryption_client
 from utils.redis_middle_class import r
 from utils.station_alarm import connect_server_err, db_commit_err, server_return_err
-from utils.mysql_middle import ConnMySQL, mysql_db
+from utils.mysql_middle import ConnMySQL
 
 # 初始化requests
 req_s = ReqSession()
@@ -73,9 +72,7 @@ def get_config():
                 # print(data)
                 time11 = time.time()
 
-                # with ConnMySQL() as db:
-                if True:
-                    db = mysql_db
+                with ConnMySQL() as db:
                     cur = db.cursor()
                     try:
                         # 配置更新，清空现有表
@@ -88,49 +85,48 @@ def get_config():
                         cur.execute('truncate table yjplcinfo')
                         cur.execute('truncate table yjstationinfo')
                         cur.execute('SET foreign_key_checks = 1')
-
+                        # 添加新获取的数据
+                        station_sql = '''insert into `yjstationinfo`
+                                                                (id, station_name, mac, ip, note, id_num, plc_count, ten_id, item_id)
+                                                                values (%(id)s, %(station_name)s, %(mac)s, %(ip)s, %(note)s, %(id_num)s,
+                                                                %(plc_count)s, %(ten_id)s, %(item_id)s)'''
+                        cur.execute(station_sql, data['stations'])
+                        plc_sql = '''insert into `yjplcinfo`(
+                                                              id, station_id, plc_name, note, ip, mpi, type, plc_type, ten_id,
+                                                               item_id, rack, slot, tcp_port) 
+                                                              values (%(id)s, %(station_id)s, %(plc_name)s, %(note)s, %(ip)s, %(mpi)s, %(type)s,
+                                                               %(plc_type)s, %(ten_id)s, %(item_id)s, %(rack)s, %(slot)s, %(tcp_port)s)'''
+                        cur.executemany(plc_sql, data['plcs'])
+                        group_sql = '''insert into `yjgroupinfo`(
+                                                                id, group_name, note, upload_cycle, acquisition_cycle, server_record_cycle,
+                                                                 is_upload, ten_id, item_id, plc_id) 
+                                                                 values (%(id)s, %(group_name)s, %(note)s, %(upload_cycle)s,
+                                                                  %(acquisition_cycle)s, %(server_record_cycle)s, %(is_upload)s, %(ten_id)s,
+                                                                   %(item_id)s, %(plc_id)s)'''
+                        cur.executemany(group_sql, data['groups'])
+                        var_sql = '''insert into `yjvariableinfo`
+                                     (id, variable_name, note, db_num, address, data_type, rw_type, ten_id, item_id,
+                                      write_value, area, is_analog, analog_low_range, analog_high_range,
+                                       digital_low_range, digital_high_range) 
+                                       values (%(id)s, %(variable_name)s, %(note)s, %(db_num)s, %(address)s,
+                                        %(data_type)s, %(rw_type)s, %(ten_id)s, %(item_id)s, %(write_value)s, %(area)s,
+                                         %(is_analog)s, %(analog_low_range)s, %(analog_high_range)s,
+                                          %(digital_low_range)s, %(digital_high_range)s)'''
+                        cur.executemany(var_sql, data['variables'])
+                        relation_sql = '''insert into `variables_groups`(id, variable_id, group_id) 
+                                                                  values (%(id)s, %(variable_id)s, %(group_id)s)'''
+                        cur.executemany(relation_sql, data['variables_groups'])
+                        alarm_sql = '''insert into `alarm_info`
+                                       (id, variable_id, alarm_type, note, type, symbol, `limit`, delay) 
+                                       values (%(id)s, %(variable_id)s, %(alarm_type)s, %(note)s, %(type)s, %(symbol)s,
+                                        %(limit)s, %(delay)s)'''
+                        cur.executemany(alarm_sql, data['alarm'])
                     except Error as e:
-                        logging.error('更新配置时，删除旧表出错: ' + str(e))
+                        logging.error('更新配置出错: ' + str(e))
                         db.rollback()
                         alarm = db_commit_err(id_num, 'get_config')
                         session.add(alarm)
                     else:
-                        # 添加'sqlalchemy' class数据
-                        station_sql = '''insert into `yjstationinfo`
-                                        (id, station_name, mac, ip, note, id_num, plc_count, ten_id, item_id)
-                                        values (%(id)s, %(station_name)s, %(mac)s, %(ip)s, %(note)s, %(id_num)s,
-                                        %(plc_count)s, %(ten_id)s, %(item_id)s)'''
-                        cur.execute(station_sql, data['stations'])
-                        plc_sql = '''insert into `yjplcinfo`(
-                                      id, station_id, plc_name, note, ip, mpi, type, plc_type, ten_id,
-                                       item_id, rack, slot, tcp_port) 
-                                      values (%(id)s, %(station_id)s, %(plc_name)s, %(note)s, %(ip)s, %(mpi)s, %(type)s,
-                                       %(plc_type)s, %(ten_id)s, %(item_id)s, %(rack)s, %(slot)s, %(tcp_port)s)'''
-                        cur.executemany(plc_sql, data['plcs'])
-                        group_sql = '''insert into `yjgroupinfo`(
-                                        id, group_name, note, upload_cycle, acquisition_cycle, server_record_cycle,
-                                         is_upload, ten_id, item_id, plc_id) 
-                                         values (%(id)s, %(group_name)s, %(note)s, %(upload_cycle)s,
-                                          %(acquisition_cycle)s, %(server_record_cycle)s, %(is_upload)s, %(ten_id)s,
-                                           %(item_id)s, %(plc_id)s)'''
-                        cur.executemany(group_sql, data['groups'])
-                        var_sql = '''insert into `yjvariableinfo`
-                                    (id, variable_name, note, db_num, address, data_type, rw_type, ten_id, item_id,
-                                     write_value, area, is_analog, analog_low_range, analog_high_range,
-                                      digital_low_range, digital_high_range) 
-                                      values (%(id)s, %(variable_name)s, %(note)s, %(db_num)s, %(address)s,
-                                       %(data_type)s, %(rw_type)s, %(ten_id)s, %(item_id)s, %(write_value)s, %(area)s,
-                                        %(is_analog)s, %(analog_low_range)s, %(analog_high_range)s,
-                                         %(digital_low_range)s, %(digital_high_range)s)'''
-                        cur.executemany(var_sql, data['variables'])
-                        relation_sql = '''insert into `variables_groups`(id, variable_id, group_id) 
-                                          values (%(id)s, %(variable_id)s, %(group_id)s)'''
-                        cur.executemany(relation_sql, data['variables_groups'])
-                        alarm_sql = '''insert into `alarm_info`
-                                      (id, variable_id, alarm_type, note, type, symbol, limit, delay) 
-                                      values (%(id)s, %(variable_id)s, %(alarm_type)s, %(note)s, %(type)s, %(symbol)s,
-                                       %(limit)s, %(delay)s)'''
-                        cur.executemany(alarm_sql, data['alarm'])
                         db.commit()
                     finally:
                         cur.close()
@@ -154,13 +150,14 @@ def get_config():
         session.commit()
 
     finally:
-
         session.close()
         time2 = time.time()
         print('get_config', time2 - time1)
 
+
 def key_filter(str_time, get_time):
     return int(str_time) >= int(get_time)
+
 
 def upload_data_redis(group, current_time):
     time1 = time.time()
@@ -202,6 +199,61 @@ def upload_data_redis(group, current_time):
     return value_list
 
 
+def upload_data_orm(group, current_time):
+    """
+    查询该组内需要上传的变量，从数据库中取出变量对应的数值
+
+    :param group: 上传组参数字典
+    :param current_time: 当前时间
+    :return: 变量值列表
+    """
+    time1 = time.time()
+
+    logging.debug('上传数据打包')
+
+    # 获取该组信息
+    server_record_cycle = group['server_record_cycle']
+    session = Session()
+    try:
+        # 上传的组
+        variables = group['var_id']
+        # 获取上次传输时间,没有上次时间就往前推一个上传周期
+        if group['last_time'] is not None:
+            get_time = group['last_time']
+        else:
+            get_time = current_time - group['upload_cycle']
+
+        # 保存数据的空列表
+        value_list = list()
+
+        for variable in variables:
+            # 读取需要上传的值,所有时间大于上次上传的值
+            all_values = session.query(Value).filter_by(var_id=variable).filter(
+                get_time <= Value.time).filter(Value.time < current_time)
+
+            start_time = get_time
+            # 循环从上次读取时间开始计算，每个一个记录周期提取一个数值
+            while start_time < current_time:
+                upload_value = all_values.filter(
+                    start_time + server_record_cycle > Value.time).filter(Value.time >= start_time).order_by(
+                    Value.time.desc()).first()
+
+                next_time = start_time + server_record_cycle
+                # 当上传时间小于采集时间时，会出现取值时间节点后无采集数据，得到None，使得后续语句报错。
+                # todo 一次查询时间只存一份
+                if upload_value:
+                    value_info = {'i': upload_value.id, 'v': upload_value.value, 't': upload_value.time}
+                    value_list.append(value_info)
+
+                start_time = next_time
+    finally:
+        session.close()
+        time2 = time.time()
+        print('采样时间 2', time2 - time1)
+
+    return value_list
+
+
 def upload_data(group, current_time):
     """
     查询该组内需要上传的变量，从数据库中取出变量对应的数值
@@ -216,42 +268,109 @@ def upload_data(group, current_time):
 
     # 获取该组信息
     server_record_cycle = group['server_record_cycle']
-    # with ConnMySQL() as db:
-    if True:
-        db = mysql_db
+
+    # 上传的组
+    variables = group['var_id']
+    # 获取上次传输时间,没有上次时间就往前推一个上传周期
+    if group['last_time'] is not None:
+        get_time = group['last_time']
+    else:
+        get_time = current_time - group['upload_cycle']
+
+    # 保存数据的空列表
+    value_list = list()
+    time_list = list()
+    # 获取时间分段节点
+    while current_time >= get_time:
+        time_list.append(get_time)
+        get_time += server_record_cycle
+
+    # print(value_list, time_list)
+    with ConnMySQL() as db:
         cur = db.cursor()
         try:
-            # 上传的组
-            variables = group['var_id']
-            # 获取上次传输时间,没有上次时间就往前推一个上传周期
-            if group['last_time'] is not None:
-                get_time = group['last_time']
-            else:
-                get_time = current_time - group['upload_cycle']
-
-            # 保存数据的空列表
-            value_list = list()
-
             for variable in variables:
-                # 循环从上次读取时间开始计算，每个一个记录周期提取一个数值
-                while get_time < current_time:
-                    next_time = get_time + server_record_cycle
-                    sql = '''select var_id, value, time from `values` where var_id = %s and time > %s limit 1'''
-                    cur.execute(sql, (variable, get_time))
-                    upload_value = cur.fetchone()
-                    # 当上传时间小于采集时间时，会出现取值时间节点后无采集数据，得到None，使得后续语句报错。
-                    # todo 一次查询时间只存一份
-                    if upload_value:
-                        value_info = {'i': upload_value[0], 'v': upload_value[1], 't': upload_value[2]}
+                i = 0
+                start_time = time_list[i]
+                # 取出该变量在上次上传后采集的数值
+                sql = '''select var_id, value, time from `values` where var_id = %s and %s > time and time >= %s'''
+                cur.execute(sql, (int(variable), current_time, start_time))
+                upload_value_list = cur.fetchall()
+                # print(upload_value_list)
+                for v in upload_value_list:
+                    if v[2] >= start_time:
+                        value_info = (v[0], v[1], v[2])
                         value_list.append(value_info)
-
-                    get_time = next_time
+                        i += 1
+                        if i == len(time_list):
+                            break
+                        start_time = time_list[i]
         finally:
             cur.close()
-        time2 = time.time()
-        print('采样时间 2', time2 - time1)
-
+    time2 = time.time()
+    # print('采样时间 2', time2 - time1)
+    # print(value_list)
     return value_list
+
+
+def upload_data_new(group, current_time):
+    """
+    查询该组内需要上传的变量，从数据库中取出变量对应的数值
+
+    :param group: 上传组参数字典
+    :param current_time: 当前时间
+    :return: 变量值列表
+    """
+    time1 = time.time()
+
+    logging.debug('上传数据打包')
+
+    # 获取该组信息
+    server_record_cycle = group['server_record_cycle']
+
+    # 上传的组
+    variables = group['var_id']
+    # 获取上次传输时间,没有上次时间就往前推一个上传周期
+    if group['last_time'] is not None:
+        get_time = group['last_time']
+    else:
+        get_time = current_time - group['upload_cycle']
+
+    # 保存数据的空列表
+    value_dict = dict()
+    time_list = list()
+    # 获取时间分段节点
+    while current_time >= get_time:
+        time_list.append(get_time)
+        value_dict[str(get_time)] = list()
+        get_time += server_record_cycle
+
+    print(value_dict, time_list)
+    with ConnMySQL() as db:
+        cur = db.cursor()
+        try:
+            for variable in variables:
+                i = 0
+                start_time = time_list[i]
+                # 取出该变量在上次上传后采集的数值
+                sql = '''select var_id, value, time from `values` where var_id = %s and %s > time and time >= %s'''
+                cur.execute(sql, (int(variable), current_time, start_time))
+                upload_value_list = cur.fetchall()
+                print(upload_value_list)
+                for v in upload_value_list:
+                    if v[2] >= start_time:
+                        value_info = (v[0], v[1])
+                        value_dict[str(start_time)].append(value_info)
+                        i += 1
+                        if i == len(time_list):
+                            break
+                        start_time = time_list[i]
+        finally:
+            cur.close()
+    time2 = time.time()
+    print('采样时间 2', time2 - time1)
+    print(value_dict)
+    return value_dict
 
 
 def upload(variable_list, group_id):
@@ -274,8 +393,8 @@ def upload(variable_list, group_id):
             'id_num': id_num,
             'value': variable_list
         }
-        # print(variable_list)
-        print(len(variable_list))
+        # print('upload_value', variable_list)
+        # print('upload_len', len(variable_list))
         # print('上传数据数量', len(data['value']))
 
         data = encryption_client(data)

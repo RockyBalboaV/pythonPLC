@@ -20,7 +20,7 @@ load_snap7()
 
 
 @contextmanager
-def plc_client(ip, rack, slot):
+def plc_client(ip, rack, slot, plc_id):
     """
     建立plc连接的上下文管理器
     :param ip: 
@@ -33,13 +33,18 @@ def plc_client(ip, rack, slot):
         client.connect(ip, rack, slot)
     except Snap7Exception as e:
         logging.warning('连接plc失败' + str(e))
+        session = Session()
+        id_num = r.get('id_num')
+        alarm = connect_plc_err(id_num, plc_id)
+        session.add(alarm)
+        session.commit()
     yield client
     client.disconnect()
     client.destroy()
 
 
 def read_multi(plc, variables, current_time, client=None):
-    time1 = time.time()
+    # time1 = time.time()
     # print('采集')
     value_list = list()
     var_num = len(variables)
@@ -76,7 +81,6 @@ def read_multi(plc, variables, current_time, client=None):
     if not client.get_connected():
 
         try:
-            # client = snap7.client.Client()
             client.connect(
                 address=plc['ip'],
                 rack=plc['rack'],
@@ -85,11 +89,10 @@ def read_multi(plc, variables, current_time, client=None):
         except Snap7Exception as e:
             logging.warning('PLC连接失败 ip：{} rack：{} slot:{}'.format(plc['ip'], plc['rack'], plc['slot']) + str(e))
             # raise Snap7Exception
-            # raise self.retry(e)
 
-    time1 = time.time()
+    # time1 = time.time()
     result, data_items = client.read_multi_vars(data_items)
-    time2 = time.time()
+    # time2 = time.time()
     # print('读取时间', time2 - time1)
 
     for num in range(0, var_num):
@@ -101,6 +104,7 @@ def read_multi(plc, variables, current_time, client=None):
                 di.pData,
                 bool_index=bool_indexes[num]
             )
+
             # print(raw_value)
         except Snap7Exception as e:
             logging.error('plc读取数据错误' + str(e))
@@ -126,28 +130,15 @@ def read_multi(plc, variables, current_time, client=None):
 
             # 限制小数位数
             value = round(raw_value, 2)
-            # print(str(variables[num]['id']) + '--' + str(value))
 
-            # value_info = {
-            #     'var_id': variables[num]['id'],
-            #     'time': current_time,
-            #     'value': value
-            # }
-            # print(value_model)
             # value_info = (variables[num]['id'], value, current_time)
             value_info = (variables[num]['id'], value, current_time)
-            
+
             value_list.append(value_info)
     # value_list = {'time': current_time, 'value': value_list}
     return value_list
     # print('采集数据', len(value_list), value_list)
-
-    # except Exception as e:
-    #     logging.exception('read_multi' + str(e))
-    #     raise
-    #     session.rollback()
-
-    time2 = time.time()
+    # time2 = time.time()
 
     # print('单次采集时间', time2 - time1)
 
