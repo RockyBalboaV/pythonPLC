@@ -19,7 +19,7 @@ def database_reset():
     """
     初始化数据库
 
-    :return: 
+    :return:
     """
 
     Base.metadata.drop_all(bind=eng)
@@ -30,7 +30,7 @@ def boot():
     """
     开机初次运行
 
-    :return: 
+    :return:
     """
 
     logging.debug('boot ruuning')
@@ -44,7 +44,7 @@ def before_running():
     """
     运行前设置
 
-    :return: 
+    :return:
     """
     logging.debug('运行前初始化')
 
@@ -112,8 +112,8 @@ def before_running():
 def encryption_client(dict_data):
     """
     压缩
-    :param dict_data: 
-    :return: 
+    :param dict_data:
+    :return:
     """
 
     str_data = json.dumps(dict_data).encode('utf-8')
@@ -125,8 +125,8 @@ def encryption_client(dict_data):
 def decryption_client(base64_data):
     """
     解压
-    :param base64_data: 
-    :return: 
+    :param base64_data:
+    :return:
     """
 
     zlib_data = base64.b64decode(base64_data)
@@ -177,6 +177,4 @@ def remote_command(code):
 
     # 同步代码
     elif code == 4:
-        subprocess.call(['cd', '/home/pi/pythonPLC/'])
-        subprocess.call(['git', 'reset', '--hard'])
-        subprocess.call(['git', 'pull'])
+        subprocess.call('(cd /home/pi/pythonPLC/; git reset --hard; git pull)', shell=True)
