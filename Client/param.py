@@ -39,4 +39,4 @@ HOSTNAME = cf.get(os.environ.get('env'), 'hostname')
 DATABASE = cf.get(os.environ.get('env'), 'database')
 USERNAME = cf.get(os.environ.get('env'), 'username')
 PASSWORD = cf.get(os.environ.get('env'), 'password')
-
+FILE_URL = cf.get(os.environ.get('url'), 'file_url')

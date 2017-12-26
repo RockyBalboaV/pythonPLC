@@ -6,7 +6,7 @@ from utils.redis_middle_class import ConnDB
 from models import serialize, StationAlarm, PLCAlarm, AlarmInfo, Session
 
 
-def beats_data(id_num, con_time, session, current_time):
+def beats_data(id_num, con_time, current_time):
     """
     
     :param id_num: 
@@ -29,16 +29,20 @@ def beats_data(id_num, con_time, session, current_time):
     # 获取
     station_alarms = list()
     plc_alarms = list()
-    if con_time:
-        station = session.query(StationAlarm).filter(con_time <= StationAlarm.time). \
-            filter(StationAlarm.time < current_time).all()
-        for s in station:
-            station_alarms.append(serialize(s))
+    session = Session()
+    try:
+        if con_time:
+            station = session.query(StationAlarm).filter(con_time <= StationAlarm.time). \
+                filter(StationAlarm.time < current_time).all()
+            for s in station:
+                station_alarms.append(serialize(s))
 
-        plc = session.query(PLCAlarm). \
-            filter(con_time <= PLCAlarm.time).filter(PLCAlarm.time < current_time).all()
-        for p in plc:
-            plc_alarms.append(serialize(p))
+            plc = session.query(PLCAlarm). \
+                filter(con_time <= PLCAlarm.time).filter(PLCAlarm.time < current_time).all()
+            for p in plc:
+                plc_alarms.append(serialize(p))
+    finally:
+        session.close()
 
     # 获取设备信息
     info = station_info()

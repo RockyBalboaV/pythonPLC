@@ -6,11 +6,9 @@ import ctypes
 from snap7.client import Client
 from snap7.snap7exceptions import Snap7Exception
 from snap7.snap7types import S7DataItem, S7WLByte
-from sqlalchemy.exc import IntegrityError
 
 from models import Session, Value
-from utils.station_alarm import db_commit_err
-from utils.plc_alarm import read_err, connect_plc_err
+from utils.plc_alarm import read_err, connect_plc_err, Snap7ReadException, Snap7ConnectException
 from data_collection import variable_size, variable_area, read_value, analog2digital, write_value, load_snap7
 from utils.redis_middle_class import r
 
@@ -88,7 +86,7 @@ def read_multi(plc, variables, current_time, client=None):
             )
         except Snap7Exception as e:
             logging.warning('PLC连接失败 ip：{} rack：{} slot:{}'.format(plc['ip'], plc['rack'], plc['slot']) + str(e))
-            # raise Snap7Exception
+            raise Snap7ConnectException
 
     # time1 = time.time()
     result, data_items = client.read_multi_vars(data_items)
@@ -108,7 +106,7 @@ def read_multi(plc, variables, current_time, client=None):
             # print(raw_value)
         except Snap7Exception as e:
             logging.error('plc读取数据错误' + str(e))
-            raise Snap7Exception(
+            raise Snap7ReadException(
                 variables[num]['area'],
                 variables[num]['db_num'],
                 variables[num]['address'],
@@ -170,7 +168,7 @@ def plc_write(variable_model, plc_cli, plc_model):
             )
         except Snap7Exception as e:
             logging.error('plc_read', str(e))
-            alarm = read_err(
+            read_err(
                 id_num=id_num,
                 plc_id=plc_model.id,
                 plc_name=plc_model.plc_name,
@@ -179,15 +177,6 @@ def plc_write(variable_model, plc_cli, plc_model):
                 address=address,
                 data_type=data_type
             )
-            session = Session()
-            try:
-                session.add(alarm)
-                session.commit()
-            except IntegrityError as e:
-                logging.warning('plc_write' + str(e))
-                session.rollback()
-            finally:
-                session.close()
 
         else:
 
@@ -219,18 +208,9 @@ def plc_connect(plc):
     except Snap7Exception as e:
         logging.warning('PLC连接失败 ip：{} rack：{} slot:{}'.format(plc['ip'], plc['rack'], plc['slot']) + str(e))
         id_num = r.get('id_num')
-        plc_alarm = connect_plc_err(
+        connect_plc_err(
             id_num,
             plc_id=plc['id'],
         )
-        session = Session()
-        try:
-            session.add(plc_alarm)
-            session.commit()
-        # except Exception as e:
-        #     logging.exception('plc_connect' + str(e))
-        #     session.rollback()
-        finally:
-            session.close()
 
     return client

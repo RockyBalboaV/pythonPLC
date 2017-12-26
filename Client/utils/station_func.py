@@ -3,9 +3,12 @@ import time
 import zlib
 import base64
 import json
+import subprocess
+
+import requests
 
 from models import Base, eng, Session, YjPLCInfo
-from param import ID_NUM, START_TIMEDELTA
+from param import ID_NUM, START_TIMEDELTA, FILE_URL
 from utils.redis_middle_class import r
 from utils.plc_connect import plc_client
 from utils.station_data import (redis_variable_info, redis_group_read_info, redis_group_upload_info,
@@ -150,3 +153,30 @@ def get_data_from_model(model):
     for c in model.__table__.columns:
         model_column[c.name] = getattr(model, c.name, None)
     return model_column
+
+
+def remote_command(code):
+    # 重启系统
+    if code == 1:
+        subprocess.call(['init', '6'])
+
+    # 重启程序
+    elif code == 2:
+        subprocess.call(['supervisorctl', 'restart', 'pyplc'])
+
+    # 上传日志
+    elif code == 3:
+        data = {
+            'note': 'note'
+        }
+        data = encryption_client(data)
+        note_file = {
+            'note': open('/home/pi/pythonPLC/Client/pyplc.log', 'rb')
+        }
+        requests.post(FILE_URL, data, files=note_file)
+
+    # 同步代码
+    elif code == 4:
+        subprocess.call(['cd', '/home/pi/pythonPLC/'])
+        subprocess.call(['git', 'reset', '--hard'])
+        subprocess.call(['git', 'pull'])

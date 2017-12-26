@@ -22,4 +22,4 @@ class ConnMySQL(object):
         self.db.close()
 
 
-mysql_db = ConnMySQL().db
+# mysql_db = ConnMySQL().db
