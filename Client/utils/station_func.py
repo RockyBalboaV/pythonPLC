@@ -13,6 +13,7 @@ from utils.redis_middle_class import r
 from utils.plc_connect import plc_client
 from utils.station_data import (redis_variable_info, redis_group_read_info, redis_group_upload_info,
                                 redis_alarm_variables, plc_info)
+from utils.mysql_middle import ConnMySQL
 
 
 def database_reset():
@@ -178,3 +179,14 @@ def remote_command(code):
     # 同步代码
     elif code == 4:
         subprocess.call('(cd /home/pi/pythonPLC/; git reset --hard; git pull)', shell=True)
+
+    # 清理数据
+    elif code == 5:
+        with ConnMySQL as db:
+            cur = db.cursor()
+            try:
+                cur.execute('SET foreign_key_checks = 0')
+                cur.execute('truncate table `values`')
+                cur.execute('SET foreign_key_checks = 1')
+            finally:
+                cur.close()
