@@ -237,20 +237,22 @@ def redis_variable_info(r, g):
     }
     for var in g.variables:
         variable = var.variable
-        var_info = {
-            'id': variable.id,
-            'db_num': variable.db_num,
-            'address': variable.address,
-            'data_type': variable.data_type,
-            'area': variable.area,
-            'is_analog': variable.is_analog,
-            'analog_low_range': variable.analog_low_range,
-            'analog_high_range': variable.analog_high_range,
-            'digital_low_range': variable.digital_low_range,
-            'digital_high_range': variable.digital_high_range,
-            'offset': variable.offset
-        }
-        variable_info['variables'].append(var_info)
+        rw_type = variable.rw_type
+        if rw_type == 1 or rw_type == 3:
+            var_info = {
+                'id': variable.id,
+                'db_num': variable.db_num,
+                'address': variable.address,
+                'data_type': variable.data_type,
+                'area': variable.area,
+                'is_analog': variable.is_analog,
+                'analog_low_range': variable.analog_low_range,
+                'analog_high_range': variable.analog_high_range,
+                'digital_low_range': variable.digital_low_range,
+                'digital_high_range': variable.digital_high_range,
+                'offset': variable.offset
+            }
+            variable_info['variables'].append(var_info)
 
     variable_data = r.get('variable')
     if isinstance(variable_data, list):
