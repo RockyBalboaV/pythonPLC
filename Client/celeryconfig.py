@@ -4,6 +4,7 @@ from kombu import Queue, Exchange
 
 # 指定消息代理
 broker_url = 'pyamqp://yakumo17s:touhou@localhost:5672/pyplc'
+# broker_url = 'redis://localhost'
 # 指定结果存储数据库
 result_backend = 'redis://localhost'
 # 序列化方案
@@ -11,7 +12,7 @@ task_serializer = 'msgpack'
 # 任务结果读取格式
 result_serializer = 'json'
 # 任务过期时间
-result_expires = 10
+result_expires = 60
 # 可接受的内容格式
 accept_content = ['json', 'msgpack']
 # 设置时区
@@ -21,7 +22,7 @@ worker_concurrency = 4
 # 忽略任务执行状态
 task_ignore_result = True
 # Worker最大累积任务数
-# worker_max_tasks_per_child = 5
+worker_max_tasks_per_child = 50
 # 任务默认执行速度
 task_default_rate_limit = '1/s'
 # task_time_limit = 30
@@ -29,7 +30,8 @@ task_default_rate_limit = '1/s'
 # worker_disable_rate_limits = True
 # broker最大连接数
 broker_pool_limit = 100
-
+# task_store_errors_even_if_ignored=True
+broker_transport_options = {'visibility_timeout': 10}
 task_queues = (
     Queue('basic', Exchange('basic', type='topic'), routing_key='basic.#'),
     Queue('check', Exchange('check', type='direct'), routing_key='check.#'),
@@ -74,6 +76,10 @@ task_routes = {
         'queue': 'check',
         'routing_key': 'check.self_check',
     },
+    'app.tasks.test': {
+        'queue': 'basic',
+        'routing_key': 'basic.test'
+    }
 }
 
 # 定时任务
@@ -132,6 +138,14 @@ beat_schedule = {
             'queue': 'basic'
         }
     },
+    'test': {
+        'task': 'tasks.test',
+        'schedule': 2,
+        'options': {
+
+            'queue': 'basic'
+        }
+    }
 }
 
 # 任务消费速率

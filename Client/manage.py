@@ -87,7 +87,7 @@ if args.run:
     # 启动celery beat worker
     try:
         worker = subprocess.Popen(
-            '{0} -m celery -A tasks worker -P gevent -c 10 -l warn -E  -n worker@%h'.format(
+            '{0} -m celery -A tasks worker -P eventlet --purge -c 10 -l warn -E  -n worker@%h'.format(
                 python_path),
             shell=True)
         beat = subprocess.call([python_path, '-m', 'celery', 'beat', '-A', 'tasks'])

@@ -4,8 +4,10 @@ import zlib
 import base64
 import json
 import subprocess
+from functools import wraps
 
 import requests
+from eventlet import Timeout
 
 from models import Base, eng, Session, YjPLCInfo
 from param import ID_NUM, START_TIMEDELTA, FILE_URL
@@ -190,3 +192,19 @@ def remote_command(code):
                 cur.execute('SET foreign_key_checks = 1')
             finally:
                 cur.close()
+
+
+def timeout(second):
+    # 封装evnetlet的Timeout，以装饰器形式实现任务时间控制
+    def decorator(func):
+        @wraps(func)
+        def new_func(*args, **kwargs):
+            try:
+                with Timeout(second):
+                    return func(*args, **kwargs)
+            except Timeout as e:
+                print('too long')
+
+        return new_func
+
+    return decorator

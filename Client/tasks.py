@@ -9,7 +9,7 @@ import pickle
 from requests.exceptions import RequestException
 from celery import Celery
 from celery.utils.log import get_task_logger
-from celery.exceptions import MaxRetriesExceededError, SoftTimeLimitExceeded, TimeLimitExceeded
+from celery.exceptions import MaxRetriesExceededError
 from celery_once import QueueOnce
 
 from models import YjPLCInfo, Value, Session
@@ -21,7 +21,7 @@ from utils.redis_middle_class import r
 from utils.station_data import (redis_alarm_variables, beats_data, plc_info)
 from utils.plc_connect import plc_client
 from utils.server_connect import upload, upload_data, get_config, req_s, upload_data_redis
-from utils.station_func import before_running, encryption_client, decryption_client, remote_command
+from utils.station_func import before_running, encryption_client, decryption_client, remote_command, timeout
 from utils.plc_connect import read_multi
 from utils.mysql_middle import ConnMySQL
 
@@ -43,8 +43,9 @@ logging.basicConfig(level=logging.WARN)
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 
-@app.task(bind=True, default_retry_delay=10, max_retries=3, soft_time_limit=10, base=QueueOnce, once={'graceful': True})
-def self_check(self):
+@app.task(default_retry_delay=10, max_retries=3, base=QueueOnce, once={'graceful': True, 'timeout': 20})
+@timeout(10)
+def self_check():
     """
     celery任务
     定时自检
@@ -98,15 +99,13 @@ def self_check(self):
 
         # 数据库写入，关闭连接
         session.commit()
-    except SoftTimeLimitExceeded as e:
-        logging.exception('self_check running too long' + str(e))
-    #     session.rollback()
     finally:
         session.close()
 
 
-@app.task(bind=True, soft_time_limit=30, base=QueueOnce, once={'graceful': True})
-def beats(self):
+@app.task(base=QueueOnce, once={'graceful': True, 'timeout': 40})
+@timeout(20)
+def beats():
     """
     celery任务
     与服务器的心跳连接
@@ -116,57 +115,54 @@ def beats(self):
     """
     logging.debug('心跳连接')
 
+    current_time = int(time.time())
+
+    # 从数据库获取站点信息
+    id_num = ID_NUM
+
+    # 获取上次心跳时间
+    con_time = r.get('con_time')
+
+    # 获取心跳时上传的数据
+    data = beats_data(id_num, con_time, current_time)
+    # print(data)
+    data = encryption_client(data)
+
+    # 发送心跳包
     try:
+        rv = req_s.post(BEAT_URL, data=data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
 
-        current_time = int(time.time())
+    # 连接服务器失败
+    except (RequestException, MaxRetriesExceededError) as e:
+        logging.warning('心跳连接错误：' + str(e))
+        connect_server_err(id_num)
 
-        # 从数据库获取站点信息
-        id_num = ID_NUM
-
-        # 获取上次心跳时间
-        con_time = r.get('con_time')
-
-        # 获取心跳时上传的数据
-        data = beats_data(id_num, con_time, current_time)
+    # 连接成功
+    else:
+        # data = decryption_client(rv.json())
+        # print(rv.status_code)
+        data = rv.json()
         # print(data)
-        data = encryption_client(data)
 
-        # 发送心跳包
-        try:
-            rv = req_s.post(BEAT_URL, data=data, timeout=(CONNECT_TIMEOUT, REQUEST_TIMEOUT))
+        # 更新服务器通讯时间
+        r.set('con_time', current_time)
 
-        # 连接服务器失败
-        except (RequestException, MaxRetriesExceededError) as e:
-            logging.warning('心跳连接错误：' + str(e))
-            connect_server_err(id_num)
+        # 配置有更新
+        if data.get('is_modify') == 1:
+            logging.info('发现配置有更新，准备获取配置')
+            get_config()
+            before_running()
 
-        # 连接成功
-        else:
-            # data = decryption_client(rv.json())
-            # print(rv.status_code)
-            data = rv.json()
-            # print(data)
+        if data.get('command'):
+            remote_command(data.get('command'))
 
-            # 更新服务器通讯时间
-            r.set('con_time', current_time)
-
-            # 配置有更新
-            if data.get('is_modify') == 1:
-                logging.info('发现配置有更新，准备获取配置')
-                get_config()
-                before_running()
-
-            if data.get('command'):
-                remote_command(data.get('command'))
-
-    except SoftTimeLimitExceeded as e:
-        logging.exception('beats running too long' + str(e))
     # time2 = time.time()
     # print('beats', time2 - time1)
 
 
-@app.task(bind=True, soft_time_limit=20, base=QueueOnce, once={'graceful': True})
-def check_upload(self):
+@app.task(base=QueueOnce, once={'graceful': True, 'timeout': 40})
+@timeout(20)
+def check_upload():
     """
     检查变量组上传时间，将满足条件的变量组数据打包上传
     
@@ -213,9 +209,6 @@ def check_upload(self):
     # print('upload', utime2 - utime1)
 
     r.set('group_upload', group_upload_data)
-
-    # except Exception as e:
-    #     logging.exception('check_group' + str(e))
 
     # upload_time2 = time.time()
     # print('上传时间', upload_time2 - upload_time1)
@@ -340,159 +333,145 @@ def check_gather_redis(self):
     # session.close()
 
 
-@app.task(ignore_result=False, soft_time_limit=5, base=QueueOnce,
-          once={'graceful': True, 'timeout': 10})
+@app.task()
+@timeout(5)
 def check_gather():
     """
     检查变量采集时间，采集满足条件的变量值
 
     :return:
     """
-    try:
-        with ConnMySQL() as db:
-            cur = db.cursor()
-            try:
-                # lock_time2 = time.time()
-                # print('lock_time', lock_time2 - lock_time1)
-                # time1 = time.time()
-                logging.debug('检查变量采集时间')
+    # time.sleep(30)
+    with ConnMySQL() as db:
+        cur = db.cursor()
+        try:
+            # lock_time2 = time.time()
+            # print('lock_time', lock_time2 - lock_time1)
+            # time1 = time.time()
+            logging.debug('检查变量采集时间')
 
-                current_time = int(time.time())
-                value_list = list()
+            current_time = int(time.time())
+            value_list = list()
 
-                plcs = r.get('plc')
+            plcs = r.get('plc')
 
-                group_read_data = r.get('group_read')
+            group_read_data = r.get('group_read')
 
-                for plc in plcs:
-                    # todo 循环内部 使用并发
+            for plc in plcs:
+                # todo 循环内部 使用并发
 
-                    group_id = []
-                    for v in group_read_data:
-                        if v['plc_id'] == plc['id'] and current_time >= v['read_time']:
-                            group_id.append(v['id'])
-                            v['read_time'] = current_time + v['read_cycle']
-                    r.set('group_read', group_read_data)
+                group_id = []
+                for v in group_read_data:
+                    if v['plc_id'] == plc['id'] and current_time >= v['read_time']:
+                        group_id.append(v['id'])
+                        v['read_time'] = current_time + v['read_cycle']
+                r.set('group_read', group_read_data)
 
-                    group_data = r.get('variable')
-                    variables = [variable
-                                 for group in group_data if group['group_id'] in group_id
-                                 for variable in group['variables']
-                                 ]
+                group_data = r.get('variable')
+                variables = [variable
+                             for group in group_data if group['group_id'] in group_id
+                             for variable in group['variables']
+                             ]
 
-                    # print(variables)
-                    # print('采集数量', len(variables))
+                # print(variables)
+                # print('采集数量', len(variables))
 
-                    with plc_client(plc['ip'], plc['rack'], plc['slot'], plc['id']) as client:
-                        if client.get_connected():
-                            plc['time'] = current_time
+                with plc_client(plc['ip'], plc['rack'], plc['slot'], plc['id']) as client:
+                    if client.get_connected():
+                        plc['time'] = current_time
 
-                        if variables:
+                    if variables:
 
-                            while len(variables) > 0:
-                                variable_group = variables[:18]
-                                variables = variables[18:]
+                        while len(variables) > 0:
+                            variable_group = variables[:18]
+                            variables = variables[18:]
 
-                                # print(len(variables))
-                                # print(plc)
-                                try:
-                                    value_info = read_multi(
-                                        plc=plc,
-                                        variables=variable_group,
-                                        current_time=current_time,
-                                        client=client
-                                    )
-                                except Snap7ConnectException:
-                                    id_num = r.get('id_num')
-                                    connect_plc_err(id_num, plc['id'])
-                                except Snap7ReadException as e:
-                                    id_num = r.get('id_num')
-                                    area, db_num, addr, data_type = e.args
-                                    read_err(
-                                        id_num=id_num,
-                                        plc_id=plc['id'],
-                                        plc_name=plc['name'],
-                                        area=area,
-                                        db_num=db_num,
-                                        address=addr,
-                                        data_type=data_type
-                                    )
+                            # print(len(variables))
+                            # print(plc)
+                            try:
+                                value_info = read_multi(
+                                    plc=plc,
+                                    variables=variable_group,
+                                    current_time=current_time,
+                                    client=client
+                                )
+                            except Snap7ConnectException:
+                                id_num = r.get('id_num')
+                                connect_plc_err(id_num, plc['id'])
+                            except Snap7ReadException as e:
+                                id_num = r.get('id_num')
+                                area, db_num, addr, data_type = e.args
+                                read_err(
+                                    id_num=id_num,
+                                    plc_id=plc['id'],
+                                    plc_name=plc['name'],
+                                    area=area,
+                                    db_num=db_num,
+                                    address=addr,
+                                    data_type=data_type
+                                )
 
-                                else:
-                                    value_list += value_info
+                            else:
+                                value_list += value_info
 
-                # ctime1 = time.time()
-                value_insert_sql = "insert into `values`(var_id, value, time) values "
-                if value_list:
-                    v = map(str, value_list)
+            # ctime1 = time.time()
+            value_insert_sql = "insert into `values`(var_id, value, time) values "
+            if value_list:
+                v = map(str, value_list)
 
-                    value_insert_sql = value_insert_sql + ','.join(v)
+                value_insert_sql = value_insert_sql + ','.join(v)
 
-                    cur.execute(value_insert_sql)
-                    db.commit()
+                cur.execute(value_insert_sql)
+                db.commit()
 
-                # value_data = {str(current_time): value_list}
-                # if redis_value:
-                # else:
-                #     r.set('value', value_data)
+            # value_data = {str(current_time): value_list}
+            # if redis_value:
+            # else:
+            #     r.set('value', value_data)
 
-                # ctime2 = time.time()
-                # print('commit', ctime2 - ctime1)
+            # ctime2 = time.time()
+            # print('commit', ctime2 - ctime1)
 
-                r.set('plc', plcs)
-                return 1
-            # except SoftTimeLimitExceeded:
-            #     print('too long')
-            #     logging.exception('check_var running too long' + str(e))
-            #     session.rollback()
-            finally:
-                # time2 = time.time()
-                # print('采集时间' + str(time2 - time1))
-                cur.close()
-            # return
-
-    except SoftTimeLimitExceeded:
-        print('too long')
-        logging.exception('check_var running too long' + str(e))
-    except TimeLimitExceeded:
-        print('too long 2')
+            r.set('plc', plcs)
+        finally:
+            # time2 = time.time()
+            # print('采集时间' + str(time2 - time1))
+            cur.close()
 
 
-@app.task(bind=True, default_retry_delay=60, max_retries=3, base=QueueOnce, once={'graceful': True})
-def ntpdate(self):
+@app.task(default_retry_delay=60, max_retries=3, base=QueueOnce, once={'graceful': True, 'unlock_before_run': True})
+@timeout(60)
+def ntpdate():
     # 使用supervisor启动时用户为root 不需要sudo输入密码 不安全
-    try:
-        pw = 'touhou'
+    pw = 'touhou'
 
-        cmd2 = 'echo {0} | sudo -S ntpdate {1}'.format(pw, NTP_SERVER)
-        ntp = subprocess.Popen(
-            cmd2,
-            shell=True,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+    cmd2 = 'echo {0} | sudo -S ntpdate {1}'.format(pw, NTP_SERVER)
+    ntp = subprocess.Popen(
+        cmd2,
+        shell=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
+    )
+    status = ntp.wait()
+    stdout, stderr = ntp.communicate()
+
+    if not status:  # 判断进程执行状态
+        note = '完成校时 :{0}'.format(stdout.decode('utf-8'))
+        logging.info(note)
+    else:
+        note = '校时失败 :{0}'.format(stderr.decode('utf-8'))
+        logging.error(note)
+        id_num = r.get('id_num')
+        ntpdate_err(
+            id_num=id_num,
+            note=note
         )
-        status = ntp.wait()
-        stdout, stderr = ntp.communicate()
-
-        if not status:  # 判断进程执行状态
-            note = '完成校时 :{0}'.format(stdout.decode('utf-8'))
-            logging.info(note)
-        else:
-            note = '校时失败 :{0}'.format(stderr.decode('utf-8'))
-            logging.error(note)
-            id_num = r.get('id_num')
-            ntpdate_err(
-                id_num=id_num,
-                note=note
-            )
-    except SoftTimeLimitExceeded as e:
-        logging.exception('ntpdate running too long' + str(e))
-    #     session.rollback()
 
 
-@app.task(bind=True, base=QueueOnce, once={'graceful': True})
-def db_clean(self):
+@app.task(default_retry_delay=60, max_retries=3, base=QueueOnce, once={'graceful': True, 'unlock_before_run': True})
+@timeout(60)
+def db_clean():
     # 删除一月前的采集数据
     current_time = int(time.time())
     session = Session()
@@ -504,8 +483,9 @@ def db_clean(self):
         session.close()
 
 
-@app.task(bind=True, soft_time_limit=10, base=QueueOnce, once={'graceful': True})
-def check_alarm(self):
+@app.task(base=QueueOnce, once={'graceful': True, 'timeout': 10})
+@timeout(10)
+def check_alarm():
     # time1 = time.time()
     # r.set('alarm_info', None)
     logging.debug('check alarm')
@@ -629,3 +609,8 @@ def check_alarm(self):
 
     # time2 = time.time()
     # print('alarm_time', time2 - time1)
+
+
+@app.task
+def test():
+    pass
