@@ -202,8 +202,8 @@ def timeout(second):
             try:
                 with Timeout(second):
                     return func(*args, **kwargs)
-            except Timeout as e:
-                print('too long')
+            except Timeout:
+                logging.exception('{0} too long'.format(func.__name__))
 
         return new_func
 

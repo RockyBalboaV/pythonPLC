@@ -6,7 +6,6 @@ import pickle
 from requests import Session as ReqSession
 from requests.adapters import HTTPAdapter
 from requests.exceptions import RequestException
-from sqlalchemy.exc import IntegrityError
 from pymysql import connect, Error
 
 from models import Session, Value

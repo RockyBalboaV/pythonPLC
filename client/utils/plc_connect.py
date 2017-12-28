@@ -1,7 +1,7 @@
-from contextlib import contextmanager
 import logging
 import math
 import ctypes
+from contextlib import contextmanager
 
 from snap7.client import Client
 from snap7.snap7exceptions import Snap7Exception

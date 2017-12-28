@@ -26,9 +26,7 @@ from utils.plc_connect import read_multi
 from utils.mysql_middle import ConnMySQL
 
 # 初始化celery
-app = Celery(
-    'test_celery'
-)
+app = Celery()
 app.config_from_object('celeryconfig', force=True)
 app.conf.ONCE = {
     'backend': 'celery_once.backends.Redis',
